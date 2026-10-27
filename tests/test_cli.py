@@ -1,4 +1,6 @@
+import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from typer.testing import CliRunner
@@ -89,3 +91,52 @@ def test_estimate_shows_the_validation_errors(tmp_path):
     result = runner.invoke(cli.app, ["estimate", str(config), "--gpu", "H100"])
     assert result.exit_code == 1
     assert "file not found" in result.output
+
+
+def fake_training(monkeypatch, tmp_path, error=None):
+    calls = []
+
+    class FakeError(RuntimeError):
+        pass
+
+    def train(config, **kwargs):
+        calls.append((config, kwargs))
+        if error:
+            raise FakeError(error)
+        return SimpleNamespace(adapter_dir=tmp_path / "final", hub_url=None, resumed_from=None)
+
+    module = SimpleNamespace(train=train, TrainingError=FakeError)
+    monkeypatch.setitem(sys.modules, "clef_tune.train", module)
+    monkeypatch.setitem(
+        sys.modules,
+        "clef_tune.checkpoints",
+        SimpleNamespace(ConfigMismatchError=type("ConfigMismatchError", (RuntimeError,), {})),
+    )
+    return calls
+
+
+def test_train_command_passes_its_options(monkeypatch, tmp_path):
+    calls = fake_training(monkeypatch, tmp_path)
+    result = runner.invoke(
+        cli.app,
+        ["train", str(EXAMPLE), "--restart", "--push-to-hub", "me/r", "--delete-bundle-on-success"],
+    )
+    assert result.exit_code == 0, result.output
+    assert calls == [
+        (
+            EXAMPLE,
+            {"restart": True, "push_to_hub": "me/r", "delete_bundle_on_success": True},
+        )
+    ]
+    assert "Adapter written" in result.output
+
+
+def test_train_command_reports_failures_with_exit_1(monkeypatch, tmp_path):
+    fake_training(monkeypatch, tmp_path, error="loss became non-finite at step 5")
+    result = runner.invoke(cli.app, ["train", str(EXAMPLE)])
+    assert result.exit_code == 1 and "non-finite at step 5" in result.output
+
+
+def test_export_requires_merge(tmp_path):
+    result = runner.invoke(cli.app, ["export", str(tmp_path), "-o", str(tmp_path / "m")])
+    assert result.exit_code == 2 and "only --merge" in result.output

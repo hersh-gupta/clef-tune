@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Annotated
 
@@ -194,3 +195,186 @@ def estimate(
         "[dim]Estimates are rough ranges (-30%/+50%). Training reports a measured ETA "
         "after 20 steps.[/]"
     )
+
+
+def _fail(message: str) -> typer.Exit:
+    console.print(f"[red]{message}")
+    return typer.Exit(1)
+
+
+@app.command()
+def train(
+    config: ConfigArg,
+    restart: Annotated[
+        bool, typer.Option("--restart", help="Ignore existing checkpoints and start over.")
+    ] = False,
+    push_to_hub: Annotated[
+        str | None, typer.Option("--push-to-hub", help="Push the adapter to this Hub repo.")
+    ] = None,
+    delete_bundle_on_success: Annotated[
+        bool, typer.Option("--delete-bundle-on-success", help="Delete the bundle after success.")
+    ] = False,
+) -> None:
+    """Train an adapter from a config (or a bundle's config.yaml)."""
+    _load(config)
+    from clef_tune.checkpoints import ConfigMismatchError
+    from clef_tune.hub import HubError
+    from clef_tune.train import TrainingError
+    from clef_tune.train import train as run_training
+
+    try:
+        result = run_training(
+            config,
+            restart=restart,
+            push_to_hub=push_to_hub,
+            delete_bundle_on_success=delete_bundle_on_success,
+        )
+    except (TrainingError, ConfigMismatchError, HubError) as exc:
+        console.print(f"[red]Training failed:[/] {escape(str(exc))}")
+        raise typer.Exit(1) from exc
+    console.print(f"Adapter written: {escape(str(result.adapter_dir))}")
+    if result.hub_url:
+        console.print(f"Pushed: {escape(str(result.hub_url))}")
+
+
+AdapterArg = Annotated[
+    str, typer.Argument(help="Adapter directory (<output.dir>/final) or Hub repo id.")
+]
+DataArg = Annotated[Path, typer.Argument(exists=True, dir_okay=False, help="CSV or JSONL data.")]
+NoCalibrationOpt = Annotated[
+    bool, typer.Option("--no-calibration", help="Do not apply the stored temperatures.")
+]
+
+
+def _load_predictor(adapter: str):
+    from clef_tune.hub import HubError
+    from clef_tune.predictor import Predictor
+
+    try:
+        return Predictor.load(adapter)
+    except (HubError, OSError, ValueError) as exc:
+        raise _fail(f"Could not load the adapter: {escape(str(exc))}") from exc
+
+
+@app.command("eval")
+def evaluate(
+    adapter: AdapterArg,
+    data: DataArg,
+    output: Annotated[
+        Path | None, typer.Option("--output", help="Write the metrics report as JSON.")
+    ] = None,
+    no_calibration: NoCalibrationOpt = False,
+) -> None:
+    """Evaluate an adapter on a labeled file."""
+    from clef_tune.calibration import expected_calibration_error, softmax
+    from clef_tune.card import confusion_markdown
+    from clef_tune.data import load_file
+    from clef_tune.encoding import prepare_items
+    from clef_tune.evaluation import predict_logits, summarize_eval
+
+    predictor = _load_predictor(adapter)
+    loaded = load_file(predictor.info.config, str(data.resolve()))
+    for issue in loaded.issues:
+        if issue.level == "error":
+            console.print(f"[red]error[/] {escape(str(issue))}")
+    records = [record for record in loaded.records if record.labels]
+    if not records:
+        raise _fail("No labeled rows in the data file.")
+    train_config = predictor.info.config.train
+    items = prepare_items(predictor.clef_code, predictor.processor, records, predictor.max_length)
+    logits = predict_logits(
+        predictor.model,
+        items,
+        predictor.clef_code,
+        predictor.processor,
+        max_length=predictor.max_length,
+        max_tokens_per_batch=train_config.max_tokens_per_batch,
+        device=next(predictor.model.parameters()).device,
+    )
+    temperatures = {} if no_calibration else predictor.temperatures
+    result = summarize_eval(items, logits, temperatures)
+    metrics = result.metrics
+
+    table = Table("question", "type", "n", "accuracy", "F1", "log loss", "MAE")
+    for qid, q in metrics.questions.items():
+        table.add_row(
+            escape(qid),
+            q.question_type,
+            str(q.n),
+            f"{q.accuracy:.3f}",
+            f"{q.f1:.3f}",
+            f"{q.log_loss:.3f}",
+            "-" if q.mae is None else f"{q.mae:.3f}",
+        )
+    console.print(table)
+    console.print(f"Exact match: {metrics.exact_match:.3f}")
+    for qid, q in metrics.questions.items():
+        console.print(f"\n[bold]{escape(qid)}[/] confusion matrix")
+        console.print(escape(confusion_markdown(q.confusion.labels, q.confusion.matrix)))
+
+    calibration: dict[str, dict[str, float]] = {}
+    for qid, rows in result.logits.items():
+        temperature = temperatures.get(qid, 1.0)
+        targets = result.targets[qid]
+        calibration[qid] = {
+            "ece_before": expected_calibration_error([softmax(row) for row in rows], targets),
+            "ece_after": expected_calibration_error(
+                [softmax(row, temperature) for row in rows], targets
+            ),
+            "temperature": temperature,
+        }
+    ece_table = Table("question", "ECE before", "ECE after", "temperature")
+    for qid, values in calibration.items():
+        ece_table.add_row(
+            escape(qid),
+            f"{values['ece_before']:.3f}",
+            f"{values['ece_after']:.3f}",
+            f"{values['temperature']:.3f}",
+        )
+    console.print(ece_table)
+    if output is not None:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        report = {**metrics.to_dict(), "calibration": calibration}
+        output.write_text(json.dumps(report, indent=2), encoding="utf-8")
+        console.print(f"Metrics written: {escape(str(output))}")
+
+
+@app.command()
+def predict(
+    adapter: AdapterArg,
+    data: DataArg,
+    output: Annotated[Path, typer.Option("-o", "--output", help="Output .jsonl or .csv file.")],
+    no_calibration: NoCalibrationOpt = False,
+) -> None:
+    """Predict answers for a data file."""
+    from clef_tune.predictor import predict_file
+
+    predictor = _load_predictor(adapter)
+    try:
+        count = predict_file(predictor, data, output, calibrated=not no_calibration)
+    except ValueError as exc:
+        raise _fail(escape(str(exc))) from exc
+    console.print(f"Wrote {count} predictions to {escape(str(output))}")
+
+
+@app.command()
+def export(
+    adapter: Annotated[Path, typer.Argument(help="Adapter directory.")],
+    merge: Annotated[
+        bool, typer.Option("--merge", help="Merge the adapter into a full checkpoint.")
+    ] = False,
+    output: Annotated[Path, typer.Option("-o", "--output", help="Output directory.")] = Path(
+        "merged"
+    ),
+) -> None:
+    """Export the adapter as a merged checkpoint (Cloudflare's release layout)."""
+    if not merge:
+        console.print("[red]only --merge export is supported[/]")
+        raise typer.Exit(2)
+    from clef_tune.adapter import export_merged
+
+    try:
+        path = export_merged(adapter, output)
+    except (OSError, ValueError) as exc:
+        raise _fail(f"Export failed: {escape(str(exc))}") from exc
+    console.print(f"Merged checkpoint written: {escape(str(path))}")

@@ -8,6 +8,13 @@ NO_TORCH_MODULES = [
     "clef_tune.estimate",
     "clef_tune.calibration",
     "clef_tune.metrics",
+    "clef_tune.runtime",
+    "clef_tune.clef_code",
+    "clef_tune.weights",
+    "clef_tune.batching",
+    "clef_tune.card",
+    "clef_tune.hub",
+    "clef_tune.adapter",
 ]
 
 

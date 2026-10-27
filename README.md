@@ -3,8 +3,8 @@
 Fine-tune Cloudflare's [Clef](https://huggingface.co/Cloudflare/clef) decision models
 (Clef 27B and Clef-Flash 9.4B) on your own labeled CSV or JSONL data.
 
-> Status: the core is done: data validation, token statistics and cost/time estimates.
-> Training, Hugging Face Jobs launching and the web UI are next (see `docs/superpowers/`).
+> Status: data validation, estimates, training, evaluation, prediction and merged export are
+> done. Hugging Face Jobs launching and the web UI are next (see `docs/superpowers/`).
 
 ## Install
 
@@ -35,6 +35,69 @@ uv pip install "clef-tune @ git+https://github.com/hersh-gupta/clef-tune"
    ```bash
    clef-tune validate examples/support_tickets.yaml --bundle out/bundle
    ```
+
+## Train on a GPU box
+
+```bash
+uv sync --extra train        # on Windows this installs CUDA 13.0 torch
+```
+
+If you install from git with `uv pip`, add `--torch-backend cu130` (or the backend for your
+CUDA version):
+
+```bash
+uv pip install "clef-tune[train] @ git+https://github.com/hersh-gupta/clef-tune" --torch-backend cu130
+```
+
+On Linux, `pip install flash-linear-attention causal-conv1d` is optional but much faster:
+without these kernels Clef's linear-attention layers fall back to a slow PyTorch path.
+
+```bash
+clef-tune validate cfg.yaml --bundle out/bundle      # normalized data + self-contained config
+clef-tune train out/bundle/config.yaml               # resumes automatically from checkpoints
+accelerate launch -m clef_tune train cfg.yaml        # multi-GPU DDP
+clef-tune predict out/final new.csv -o preds.jsonl   # or preds.csv; --no-calibration for raw
+clef-tune eval out/final labeled.csv --output metrics.json
+clef-tune export out/final --merge -o merged         # Cloudflare's release layout
+```
+
+`train` accepts `--restart` (ignore checkpoints), `--push-to-hub REPO` and
+`--delete-bundle-on-success`. The adapter is written to `<output.dir>/final`. `eval` prints
+per-question metrics, exact match, confusion matrices and ECE before and after calibration.
+Exit codes: 0 ok, 1 training/data/Hub failure, 2 invalid config or arguments.
+
+### Docker
+
+```bash
+docker build -t clef-tune .
+docker run --gpus all -v "$PWD:/work" -w /work clef-tune train cfg.yaml
+```
+
+## Using an adapter from Python
+
+```python
+from clef_tune.predictor import Predictor
+
+p = Predictor.load("out/final")  # local dir or Hub repo; device, quantization optional
+p.predict([{"state": {"subject": "Site down", "body": "..."}}])  # SystemOne-shaped answers
+p.systemone(request)  # same contract as Clef's systemone(), calibrated
+p.model, p.processor  # raw ClefModel + processor (uncalibrated logits)
+```
+
+Questions default to the adapter's schema; calibration is applied unless `calibrated=False`.
+
+## Calibration
+
+Training fits one temperature per question on the eval set and stores them in the adapter's
+`calibration.json` (`{question_id: T}`; a question not listed uses T = 1). `Predictor` and
+`predict` apply `softmax(logits / T)` by default. SGLang serving of a merged export returns
+**uncalibrated** probabilities; a client calibrates the served probabilities of each question's
+options with
+
+    p_i^(1/T) / sum_j p_j^(1/T)
+
+Temperatures are fit on the same eval set used for checkpoint selection, so post-calibration
+ECE is slightly optimistic.
 
 ## Data format
 
