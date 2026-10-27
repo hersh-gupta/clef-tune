@@ -306,9 +306,11 @@ def normalize_rows(
     schema: Schema | None,
     data_dir: Path,
     for_prediction: bool = False,
+    native_without_labels: bool = False,
 ) -> LoadResult:
     """Normalize rows into records. With ``for_prediction``, label columns are optional and
-    rows without labels are kept (labels that are present are still parsed)."""
+    rows without labels are kept (labels that are present are still parsed). With
+    ``native_without_labels`` (JSONL only), rows with a ``state`` and no ``labels`` are native."""
     issues: list[Issue] = []
     grouped: dict[tuple[str, str | None, str], list[int]] = defaultdict(list)
 
@@ -318,7 +320,7 @@ def normalize_rows(
     def is_native(row: dict[str, Any]) -> bool:
         if isinstance(row.get("labels"), dict):
             return True
-        return for_prediction and "state" in row and "labels" not in row
+        return native_without_labels and "state" in row and "labels" not in row
 
     layout = None
     if schema is not None and any(not is_native(r) for _, r in rows):
@@ -353,7 +355,13 @@ def load_file(config: Config, path_value: str, *, for_prediction: bool = False) 
     path = config.resolve_path(path_value)
     rows, columns, read_issues = read_rows(path)
     result = normalize_rows(
-        rows, columns, config.data, config.get_schema(), path.parent, for_prediction
+        rows,
+        columns,
+        config.data,
+        config.get_schema(),
+        path.parent,
+        for_prediction,
+        native_without_labels=for_prediction and path.suffix.lower() in JSONL_SUFFIXES,
     )
     result.issues = read_issues + result.issues
     return result

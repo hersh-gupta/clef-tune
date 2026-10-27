@@ -245,3 +245,23 @@ def test_prediction_input_still_parses_labels_that_are_present(tmp_path):
     cfg = make_config(tmp_path, data={"train": "t.csv", "id_column": "id"})
     first, second = load_file(cfg, "p.csv", for_prediction=True).records
     assert first.labels == {"outage": Label(hard="true")} and second.labels == {}
+
+
+def test_jsonl_prediction_rows_without_labels_are_native(tmp_path):
+    line = {"id": "a", "state": "x", "questions": {"q": {"type": "noul"}}}
+    (tmp_path / "p.jsonl").write_text(json.dumps(line) + "\n", encoding="utf-8")
+    cfg = make_config(tmp_path, data={"train": "t.csv", "id_column": "id"})
+    (record,) = load_file(cfg, "p.jsonl", for_prediction=True).records
+    assert record.id == "a" and record.state == "x" and record.labels == {}
+    assert list(record.questions) == ["q"]
+
+
+def test_csv_prediction_with_a_state_column_stays_flat(tmp_path):
+    (tmp_path / "p.csv").write_text("id,state,body\n1,CA,hi\n", encoding="utf-8")
+    cfg = make_config(
+        tmp_path, data={"train": "t.csv", "id_column": "id", "state_columns": ["state", "body"]}
+    )
+    result = load_file(cfg, "p.csv", for_prediction=True)
+    assert [i for i in result.issues if i.level == "error"] == []
+    assert result.records[0].id == "1"
+    assert result.records[0].state == {"state": "CA", "body": "hi"}
