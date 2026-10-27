@@ -1,0 +1,24 @@
+run_name: support-tickets
+model:
+  id: Cloudflare/clef-flash
+data:
+  train: support_tickets.csv
+  eval_fraction: 0.15
+  id_column: ticket_id
+  state_columns: [subject, body, customer_tier]
+schema:
+  questions:
+    department:
+      type: choice
+      instructions: Which team should handle this ticket?
+      criteria:
+        billing: Payments, invoices and refunds
+        technical: Bugs, errors, outages and integrations
+        account: Logins, teammates, ownership and closing accounts
+    urgency:
+      type: score
+      instructions: How quickly does this ticket need a response?
+      criteria: [Can wait, This week, Today]
+    outage:
+      type: noul
+      instructions: Does the ticket report a service outage?

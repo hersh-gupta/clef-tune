@@ -1,0 +1,201 @@
+ticket_id,subject,body,customer_tier,department,urgency,outage
+T0001,Invoice 793 looks wrong,The total on invoice 793 doesn't match our contract. This is blocking our launch.,enterprise,billing,2,no
+T0002,Invoice 1410 looks wrong,The total on invoice 1410 doesn't match our contract. Please fix ASAP.,pro,billing,1,no
+T0003,API returning 500 errors,Since an hour ago our calls to the API return HTTP 500.,enterprise,technical,2,yes
+T0004,SDK crash on startup,The Python SDK crashes on import after upgrading.,enterprise,technical,1,no
+T0005,Invoice 1931 looks wrong,The total on invoice 1931 doesn't match our contract.,enterprise,billing,0,no
+T0006,Invoice 1598 looks wrong,The total on invoice 1598 doesn't match our contract. Please fix ASAP.,enterprise,billing,2,no
+T0007,SDK crash on startup,The Python SDK crashes on import after upgrading. Please fix ASAP.,pro,technical,1,no
+T0008,Dashboard won't load,The dashboard spins forever after login since yesterday.,enterprise,technical,2,yes
+T0009,API returning 500 errors,Since 10:00 UTC our calls to the API return HTTP 500. This is urgent.,free,technical,2,yes
+T0010,API returning 500 errors,Since yesterday our calls to the API return HTTP 500.,pro,technical,2,yes
+T0011,SDK crash on startup,The Python SDK crashes on import after upgrading.,pro,technical,1,no
+T0012,Card declined,My card keeps getting declined when I renew Enterprise.,pro,billing,0,no
+T0013,Change account owner,Our admin left; please move ownership to me.,free,account,0,no
+T0014,Dashboard won't load,The dashboard spins forever after login since an hour ago.,pro,technical,2,yes
+T0015,Refund request,We cancelled Pro last week but were still charged.,free,billing,0,no
+T0016,Change account owner,Our admin left; please move ownership to me.,enterprise,account,0,no
+T0017,Add a teammate,How do I invite a new teammate to our Starter workspace?,free,account,0,no
+T0018,Invoice 4621 looks wrong,The total on invoice 4621 doesn't match our contract.,free,billing,0,no
+T0019,Card declined,My card keeps getting declined when I renew Starter.,pro,billing,0,no
+T0020,SDK crash on startup,The Python SDK crashes on import after upgrading.,free,technical,1,no
+T0021,Dashboard won't load,The dashboard spins forever after login since 10:00 UTC.,free,technical,2,yes
+T0022,Invoice 1664 looks wrong,The total on invoice 1664 doesn't match our contract. Please fix ASAP.,enterprise,billing,2,no
+T0023,Dashboard won't load,The dashboard spins forever after login since yesterday. This is urgent.,enterprise,technical,2,yes
+T0024,Close my account,Please delete our account and all data. This is blocking our launch.,free,account,1,no
+T0025,Card declined,My card keeps getting declined when I renew Pro.,free,billing,0,no
+T0026,Dashboard won't load,The dashboard spins forever after login since this morning.,enterprise,technical,2,yes
+T0027,Card declined,My card keeps getting declined when I renew Enterprise.,pro,billing,0,no
+T0028,Webhook delays,Webhooks are arriving 3656 seconds late.,free,technical,1,no
+T0029,Dashboard won't load,The dashboard spins forever after login since 10:00 UTC.,pro,technical,2,yes
+T0030,SDK crash on startup,The Python SDK crashes on import after upgrading.,pro,technical,1,no
+T0031,Webhook delays,Webhooks are arriving 1321 seconds late. Please fix ASAP.,free,technical,1,no
+T0032,Refund request,We cancelled Enterprise last week but were still charged.,enterprise,billing,0,no
+T0033,API returning 500 errors,Since 10:00 UTC our calls to the API return HTTP 500.,free,technical,2,yes
+T0034,Refund request,We cancelled Pro last week but were still charged. Please fix ASAP.,enterprise,billing,2,no
+T0035,Refund request,We cancelled Enterprise last week but were still charged.,enterprise,billing,0,no
+T0036,Invoice 235 looks wrong,The total on invoice 235 doesn't match our contract.,enterprise,billing,0,no
+T0037,Invoice 460 looks wrong,The total on invoice 460 doesn't match our contract. Please fix ASAP.,free,billing,1,no
+T0038,Webhook delays,Webhooks are arriving 8920 seconds late. This is blocking our launch.,free,technical,1,no
+T0039,Refund request,We cancelled Enterprise last week but were still charged. Please fix ASAP.,enterprise,billing,2,no
+T0040,API returning 500 errors,Since this morning our calls to the API return HTTP 500.,free,technical,2,yes
+T0041,API returning 500 errors,Since 10:00 UTC our calls to the API return HTTP 500. Please fix ASAP.,free,technical,1,no
+T0042,Charged twice for Enterprise,I was billed two times this month for the Enterprise plan.,free,billing,0,no
+T0043,Dashboard won't load,The dashboard spins forever after login since 10:00 UTC.,enterprise,technical,2,yes
+T0044,Change account owner,Our admin left; please move ownership to me.,free,account,0,no
+T0045,Card declined,My card keeps getting declined when I renew Starter. This is urgent.,free,billing,1,no
+T0046,Dashboard won't load,The dashboard spins forever after login since an hour ago.,pro,technical,1,no
+T0047,Charged twice for Pro,I was billed two times this month for the Pro plan.,enterprise,billing,0,no
+T0048,Refund request,We cancelled Enterprise last week but were still charged. This is urgent.,pro,billing,1,no
+T0049,Card declined,My card keeps getting declined when I renew Starter.,pro,billing,0,no
+T0050,Card declined,My card keeps getting declined when I renew Enterprise.,free,billing,0,no
+T0051,Card declined,My card keeps getting declined when I renew Pro.,pro,billing,0,no
+T0052,Change account owner,Our admin left; please move ownership to me.,enterprise,account,0,no
+T0053,Invoice 1188 looks wrong,The total on invoice 1188 doesn't match our contract.,free,billing,0,no
+T0054,Can't reset password,The password reset email never arrives.,pro,account,0,no
+T0055,Webhook delays,Webhooks are arriving 6846 seconds late. This is blocking our launch.,enterprise,technical,2,no
+T0056,API returning 500 errors,Since this morning our calls to the API return HTTP 500.,free,technical,2,yes
+T0057,Invoice 7304 looks wrong,The total on invoice 7304 doesn't match our contract.,pro,billing,0,no
+T0058,Card declined,My card keeps getting declined when I renew Starter.,enterprise,billing,0,no
+T0059,Close my account,Please delete our account and all data.,enterprise,account,0,no
+T0060,SDK crash on startup,The Python SDK crashes on import after upgrading. Please fix ASAP.,enterprise,technical,2,no
+T0061,Invoice 5696 looks wrong,The total on invoice 5696 doesn't match our contract. This is blocking our launch.,free,billing,1,no
+T0062,Webhook delays,Webhooks are arriving 2676 seconds late.,free,technical,1,no
+T0063,Card declined,My card keeps getting declined when I renew Enterprise.,free,billing,0,no
+T0064,Refund request,We cancelled Starter last week but were still charged.,pro,billing,0,no
+T0065,Dashboard won't load,The dashboard spins forever after login since an hour ago.,pro,technical,2,yes
+T0066,Card declined,My card keeps getting declined when I renew Enterprise.,enterprise,billing,0,no
+T0067,Charged twice for Starter,I was billed two times this month for the Starter plan. This is urgent.,pro,billing,1,no
+T0068,API returning 500 errors,Since an hour ago our calls to the API return HTTP 500.,enterprise,technical,1,no
+T0069,Webhook delays,Webhooks are arriving 8098 seconds late.,pro,technical,1,no
+T0070,API returning 500 errors,Since 10:00 UTC our calls to the API return HTTP 500.,enterprise,technical,2,yes
+T0071,Can't reset password,The password reset email never arrives. Please fix ASAP.,free,account,1,no
+T0072,API returning 500 errors,Since this morning our calls to the API return HTTP 500.,enterprise,technical,2,yes
+T0073,Card declined,My card keeps getting declined when I renew Starter.,enterprise,billing,0,no
+T0074,Can't reset password,The password reset email never arrives.,enterprise,account,0,no
+T0075,Charged twice for Pro,I was billed two times this month for the Pro plan.,free,billing,0,no
+T0076,Close my account,Please delete our account and all data. Please fix ASAP.,enterprise,account,2,no
+T0077,Dashboard won't load,The dashboard spins forever after login since an hour ago.,pro,technical,2,yes
+T0078,Invoice 7905 looks wrong,The total on invoice 7905 doesn't match our contract. This is blocking our launch.,pro,billing,1,no
+T0079,Invoice 8023 looks wrong,The total on invoice 8023 doesn't match our contract.,enterprise,billing,0,no
+T0080,SDK crash on startup,The Python SDK crashes on import after upgrading.,pro,technical,1,no
+T0081,Can't reset password,The password reset email never arrives.,enterprise,account,0,no
+T0082,Webhook delays,Webhooks are arriving 3439 seconds late.,free,technical,1,no
+T0083,Card declined,My card keeps getting declined when I renew Pro.,free,billing,0,no
+T0084,Refund request,We cancelled Pro last week but were still charged.,free,billing,0,no
+T0085,SDK crash on startup,The Python SDK crashes on import after upgrading.,pro,technical,1,no
+T0086,Card declined,My card keeps getting declined when I renew Starter. Please fix ASAP.,pro,billing,1,no
+T0087,Webhook delays,Webhooks are arriving 6100 seconds late.,pro,technical,1,no
+T0088,Can't reset password,The password reset email never arrives. Please fix ASAP.,free,account,1,no
+T0089,Change account owner,Our admin left; please move ownership to me.,pro,account,0,no
+T0090,Card declined,My card keeps getting declined when I renew Pro.,enterprise,billing,0,no
+T0091,API returning 500 errors,Since 10:00 UTC our calls to the API return HTTP 500.,enterprise,technical,2,yes
+T0092,Charged twice for Enterprise,I was billed two times this month for the Enterprise plan.,pro,billing,0,no
+T0093,Card declined,My card keeps getting declined when I renew Enterprise. This is urgent.,enterprise,billing,2,no
+T0094,SDK crash on startup,The Python SDK crashes on import after upgrading. This is urgent.,free,technical,1,no
+T0095,SDK crash on startup,The Python SDK crashes on import after upgrading.,free,technical,1,no
+T0096,Invoice 9109 looks wrong,The total on invoice 9109 doesn't match our contract. This is urgent.,pro,billing,1,no
+T0097,Add a teammate,How do I invite a new teammate to our Starter workspace?,pro,account,0,no
+T0098,Card declined,My card keeps getting declined when I renew Pro.,pro,billing,0,no
+T0099,Invoice 4442 looks wrong,The total on invoice 4442 doesn't match our contract.,pro,billing,0,no
+T0100,Webhook delays,Webhooks are arriving 2086 seconds late.,pro,technical,1,no
+T0101,Close my account,Please delete our account and all data.,free,account,0,no
+T0102,Close my account,Please delete our account and all data. This is blocking our launch.,free,account,1,no
+T0103,Can't reset password,The password reset email never arrives.,enterprise,account,0,no
+T0104,Invoice 9330 looks wrong,The total on invoice 9330 doesn't match our contract.,enterprise,billing,0,no
+T0105,Change account owner,Our admin left; please move ownership to me. This is blocking our launch.,free,account,1,no
+T0106,Add a teammate,How do I invite a new teammate to our Pro workspace? This is blocking our launch.,enterprise,account,2,no
+T0107,Refund request,We cancelled Pro last week but were still charged.,pro,billing,0,no
+T0108,API returning 500 errors,Since this morning our calls to the API return HTTP 500.,free,technical,2,yes
+T0109,API returning 500 errors,Since 10:00 UTC our calls to the API return HTTP 500. This is urgent.,pro,technical,2,yes
+T0110,Webhook delays,Webhooks are arriving 6495 seconds late.,free,technical,1,no
+T0111,API returning 500 errors,Since an hour ago our calls to the API return HTTP 500. This is urgent.,pro,technical,2,yes
+T0112,Card declined,My card keeps getting declined when I renew Starter.,free,billing,0,no
+T0113,Can't reset password,The password reset email never arrives. This is blocking our launch.,free,account,1,no
+T0114,Charged twice for Enterprise,I was billed two times this month for the Enterprise plan.,pro,billing,0,no
+T0115,Webhook delays,Webhooks are arriving 1856 seconds late.,free,technical,1,no
+T0116,Refund request,We cancelled Starter last week but were still charged.,pro,billing,0,no
+T0117,API returning 500 errors,Since yesterday our calls to the API return HTTP 500.,free,technical,2,yes
+T0118,Invoice 5845 looks wrong,The total on invoice 5845 doesn't match our contract. This is blocking our launch.,pro,billing,1,no
+T0119,Webhook delays,Webhooks are arriving 7314 seconds late.,pro,technical,1,no
+T0120,Can't reset password,The password reset email never arrives.,enterprise,account,0,no
+T0121,Charged twice for Pro,I was billed two times this month for the Pro plan. Please fix ASAP.,pro,billing,1,no
+T0122,Change account owner,Our admin left; please move ownership to me. This is blocking our launch.,enterprise,account,2,no
+T0123,Webhook delays,Webhooks are arriving 4874 seconds late.,enterprise,technical,1,no
+T0124,Can't reset password,The password reset email never arrives.,pro,account,0,no
+T0125,SDK crash on startup,The Python SDK crashes on import after upgrading.,free,technical,1,no
+T0126,Card declined,My card keeps getting declined when I renew Enterprise.,pro,billing,0,no
+T0127,API returning 500 errors,Since 10:00 UTC our calls to the API return HTTP 500. Please fix ASAP.,free,technical,2,yes
+T0128,Webhook delays,Webhooks are arriving 6990 seconds late. Please fix ASAP.,free,technical,1,no
+T0129,Refund request,We cancelled Pro last week but were still charged. This is urgent.,free,billing,1,no
+T0130,Dashboard won't load,The dashboard spins forever after login since this morning.,pro,technical,2,yes
+T0131,Card declined,My card keeps getting declined when I renew Starter. Please fix ASAP.,free,billing,1,no
+T0132,Invoice 1063 looks wrong,The total on invoice 1063 doesn't match our contract.,pro,billing,0,no
+T0133,Dashboard won't load,The dashboard spins forever after login since 10:00 UTC.,free,technical,2,yes
+T0134,Close my account,Please delete our account and all data. Please fix ASAP.,free,account,1,no
+T0135,Dashboard won't load,The dashboard spins forever after login since an hour ago.,pro,technical,2,yes
+T0136,API returning 500 errors,Since yesterday our calls to the API return HTTP 500.,free,technical,2,yes
+T0137,Card declined,My card keeps getting declined when I renew Starter.,free,billing,0,no
+T0138,Webhook delays,Webhooks are arriving 5117 seconds late. This is urgent.,free,technical,1,no
+T0139,API returning 500 errors,Since 10:00 UTC our calls to the API return HTTP 500.,enterprise,technical,2,yes
+T0140,Invoice 4444 looks wrong,The total on invoice 4444 doesn't match our contract.,pro,billing,0,no
+T0141,API returning 500 errors,Since yesterday our calls to the API return HTTP 500.,pro,technical,2,yes
+T0142,Change account owner,Our admin left; please move ownership to me.,enterprise,account,0,no
+T0143,Close my account,Please delete our account and all data.,free,account,0,no
+T0144,Close my account,Please delete our account and all data.,free,account,0,no
+T0145,SDK crash on startup,The Python SDK crashes on import after upgrading.,enterprise,technical,1,no
+T0146,Card declined,My card keeps getting declined when I renew Starter. This is urgent.,free,billing,1,no
+T0147,Dashboard won't load,The dashboard spins forever after login since this morning.,pro,technical,2,yes
+T0148,API returning 500 errors,Since an hour ago our calls to the API return HTTP 500.,enterprise,technical,2,yes
+T0149,Add a teammate,How do I invite a new teammate to our Enterprise workspace?,pro,account,0,no
+T0150,Card declined,My card keeps getting declined when I renew Starter.,enterprise,billing,0,no
+T0151,Charged twice for Enterprise,I was billed two times this month for the Enterprise plan.,pro,billing,0,no
+T0152,Webhook delays,Webhooks are arriving 6884 seconds late. This is urgent.,enterprise,technical,2,no
+T0153,SDK crash on startup,The Python SDK crashes on import after upgrading. This is urgent.,free,technical,1,no
+T0154,SDK crash on startup,The Python SDK crashes on import after upgrading.,pro,technical,1,no
+T0155,Card declined,My card keeps getting declined when I renew Pro.,pro,billing,0,no
+T0156,API returning 500 errors,Since this morning our calls to the API return HTTP 500.,enterprise,technical,2,yes
+T0157,Refund request,We cancelled Enterprise last week but were still charged.,free,billing,0,no
+T0158,API returning 500 errors,Since 10:00 UTC our calls to the API return HTTP 500.,pro,technical,1,no
+T0159,Invoice 5751 looks wrong,The total on invoice 5751 doesn't match our contract.,free,billing,0,no
+T0160,SDK crash on startup,The Python SDK crashes on import after upgrading.,free,technical,1,no
+T0161,Dashboard won't load,The dashboard spins forever after login since this morning. This is urgent.,free,technical,2,yes
+T0162,SDK crash on startup,The Python SDK crashes on import after upgrading. This is urgent.,enterprise,technical,2,no
+T0163,Close my account,Please delete our account and all data.,pro,account,0,no
+T0164,SDK crash on startup,The Python SDK crashes on import after upgrading.,pro,technical,1,no
+T0165,Webhook delays,Webhooks are arriving 1335 seconds late. This is blocking our launch.,free,technical,1,no
+T0166,Change account owner,Our admin left; please move ownership to me.,enterprise,account,0,no
+T0167,Change account owner,Our admin left; please move ownership to me. This is blocking our launch.,free,account,1,no
+T0168,SDK crash on startup,The Python SDK crashes on import after upgrading.,free,technical,1,no
+T0169,API returning 500 errors,Since this morning our calls to the API return HTTP 500. This is urgent.,enterprise,technical,2,yes
+T0170,SDK crash on startup,The Python SDK crashes on import after upgrading.,free,technical,1,no
+T0171,Add a teammate,How do I invite a new teammate to our Starter workspace? Please fix ASAP.,enterprise,account,2,no
+T0172,Invoice 4421 looks wrong,The total on invoice 4421 doesn't match our contract.,pro,billing,0,no
+T0173,Card declined,My card keeps getting declined when I renew Enterprise.,enterprise,billing,0,no
+T0174,Dashboard won't load,The dashboard spins forever after login since this morning.,free,technical,2,yes
+T0175,Charged twice for Starter,I was billed two times this month for the Starter plan.,free,billing,0,no
+T0176,SDK crash on startup,The Python SDK crashes on import after upgrading.,free,technical,1,no
+T0177,Refund request,We cancelled Enterprise last week but were still charged.,pro,billing,0,no
+T0178,SDK crash on startup,The Python SDK crashes on import after upgrading.,free,technical,1,no
+T0179,Charged twice for Starter,I was billed two times this month for the Starter plan. This is blocking our launch.,enterprise,billing,2,no
+T0180,SDK crash on startup,The Python SDK crashes on import after upgrading.,pro,technical,1,no
+T0181,Add a teammate,How do I invite a new teammate to our Starter workspace? Please fix ASAP.,free,account,1,no
+T0182,Add a teammate,How do I invite a new teammate to our Starter workspace?,pro,account,0,no
+T0183,Refund request,We cancelled Pro last week but were still charged.,free,billing,0,no
+T0184,Webhook delays,Webhooks are arriving 6417 seconds late.,enterprise,technical,1,no
+T0185,Charged twice for Starter,I was billed two times this month for the Starter plan.,pro,billing,0,no
+T0186,API returning 500 errors,Since this morning our calls to the API return HTTP 500. This is blocking our launch.,enterprise,technical,2,yes
+T0187,Dashboard won't load,The dashboard spins forever after login since 10:00 UTC. Please fix ASAP.,free,technical,2,yes
+T0188,Charged twice for Enterprise,I was billed two times this month for the Enterprise plan. This is blocking our launch.,free,billing,1,no
+T0189,Card declined,My card keeps getting declined when I renew Pro.,free,billing,0,no
+T0190,Can't reset password,The password reset email never arrives.,enterprise,account,0,no
+T0191,Can't reset password,The password reset email never arrives.,enterprise,account,0,no
+T0192,Charged twice for Enterprise,I was billed two times this month for the Enterprise plan.,enterprise,billing,0,no
+T0193,Card declined,My card keeps getting declined when I renew Starter. Please fix ASAP.,enterprise,billing,2,no
+T0194,Refund request,We cancelled Starter last week but were still charged.,pro,billing,0,no
+T0195,Change account owner,Our admin left; please move ownership to me.,free,account,0,no
+T0196,Invoice 1327 looks wrong,The total on invoice 1327 doesn't match our contract.,enterprise,billing,0,no
+T0197,Card declined,My card keeps getting declined when I renew Pro.,pro,billing,0,no
+T0198,SDK crash on startup,The Python SDK crashes on import after upgrading.,free,technical,1,no
+T0199,Dashboard won't load,The dashboard spins forever after login since 10:00 UTC.,free,technical,2,yes
+T0200,API returning 500 errors,Since yesterday our calls to the API return HTTP 500.,enterprise,technical,2,yes
