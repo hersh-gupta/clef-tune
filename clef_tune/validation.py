@@ -121,6 +121,7 @@ def validate(config: Config, counter: TokenCounter | None) -> ValidationReport:
         report.issues.append(Issue("error", message))
     _check_ids(report)
     _question_stats(report)
+    _check_question_weights(report, config)
     _check_images(report)
     if counter is None:
         message = "tokenizer unavailable; token statistics and truncation checks skipped"
@@ -188,6 +189,13 @@ def _question_stats(report: ValidationReport) -> None:
                 "calibration will be skipped for this question"
             )
             report.issues.append(Issue("warning", message, question=qid))
+
+
+def _check_question_weights(report: ValidationReport, config: Config) -> None:
+    unknown = sorted(set(config.train.question_weights) - set(report.questions))
+    if unknown and report.questions:
+        message = f"train.question_weights names unknown questions (ignored): {', '.join(unknown)}"
+        report.issues.append(Issue("warning", message))
 
 
 def _check_images(report: ValidationReport) -> None:

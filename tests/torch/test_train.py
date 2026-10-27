@@ -140,3 +140,15 @@ def test_out_of_memory_while_loading_explains_how_to_fit(tiny_project, monkeypat
     monkeypatch.setattr(train_module, "load_for_training", oom)
     with pytest.raises(TrainingError, match="max_tokens_per_batch"):
         train(tiny_project())
+
+
+def test_a_batch_labeled_only_for_zero_weight_questions_trains(tiny_project):
+    # One record per batch; row t0 keeps only its department label, whose weight is 0.
+    config = tiny_project(
+        train={"epochs": 1, "question_weights": {"department": 0.0}, "max_tokens_per_batch": 256}
+    )
+    csv = config.parent / "train.csv"
+    lines = csv.read_text(encoding="utf-8").splitlines()
+    lines[1] = lines[1].replace(",yes,", ",,", 1)
+    csv.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    assert train(config).metrics["run"]["steps"] == 16

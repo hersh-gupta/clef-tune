@@ -117,3 +117,12 @@ def test_schema_file_with_yaml_syntax_error_is_an_issue(tmp_path):
     cfg = make_config(tmp_path, schema=None, data={"train": "x.csv"}, schema_file="bad.yaml")
     errors = messages(validate(cfg, None).errors)
     assert len(errors) == 1 and errors[0].startswith("schema:") and "YAML" in errors[0]
+
+
+def test_question_weights_for_unknown_questions_are_a_warning(tmp_path):
+    cfg = config_for(tmp_path, ticket_rows(40))
+    cfg.train.question_weights = {"departmnt": 2.0, "outage": 0.5}
+    report = validate(cfg, CharCounter())
+    assert report.ok
+    warning = [m for m in messages(report.warnings) if "question_weights" in m]
+    assert len(warning) == 1 and "departmnt" in warning[0] and "outage" not in warning[0]

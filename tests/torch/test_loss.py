@@ -58,3 +58,17 @@ def test_batch_without_labels_is_a_zero_that_backpropagates():
     )
     assert value.item() == 0.0
     value.backward()
+
+
+def test_all_zero_question_weights_give_a_zero_that_backpropagates():
+    question_logits = torch.tensor([2.0, 0.0], requires_grad=True)
+    value = batch_loss(
+        [[question_logits]],
+        [item({"q": [1.0, 0.0]}, {"q": NOUL})],
+        class_weights={},
+        question_weights={"q": 0.0},
+        label_smoothing=0.0,
+    )
+    assert value.item() == 0.0
+    value.backward()
+    assert torch.equal(question_logits.grad, torch.zeros(2))

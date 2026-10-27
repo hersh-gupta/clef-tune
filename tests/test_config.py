@@ -130,3 +130,12 @@ def test_portable_dict_inlines_the_schema_file_and_absolutizes_local_path(tmp_pa
     assert "schema_file" not in portable
     assert portable["schema"] == cfg.get_schema().to_dict()
     assert portable["model"]["local_path"] == str((tmp_path / "weights").resolve())
+
+
+@pytest.mark.parametrize("weight", [-1.0, float("nan"), float("inf")])
+def test_question_weights_must_be_finite_and_not_negative(weight):
+    data = {"run_name": "x", "data": {"train": "t.csv"}}
+    with pytest.raises(ValidationError, match="question_weights.*department"):
+        Config.model_validate({**data, "train": {"question_weights": {"department": weight}}})
+    zero = Config.model_validate({**data, "train": {"question_weights": {"department": 0.0}}})
+    assert zero.train.question_weights == {"department": 0.0}

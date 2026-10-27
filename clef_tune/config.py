@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from collections.abc import Iterable
 from pathlib import Path, PureWindowsPath
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, model_validator
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_validator, model_validator
 
 from clef_tune.schema import Schema
 from clef_tune.yamlio import dump_yaml, load_yaml_file
@@ -90,6 +91,14 @@ class TrainSection(_Section):
     question_weights: dict[str, float] = Field(default_factory=dict)
     gradient_checkpointing: bool = True
     seed: int = 42
+
+    @field_validator("question_weights")
+    @classmethod
+    def _weights_are_not_negative(cls, weights: dict[str, float]) -> dict[str, float]:
+        bad = [f"{qid}: {w}" for qid, w in weights.items() if not (math.isfinite(w) and w >= 0)]
+        if bad:
+            raise ValueError(f"question_weights must be finite and >= 0 (got {', '.join(bad)})")
+        return weights
 
 
 class EvalSection(_Section):
