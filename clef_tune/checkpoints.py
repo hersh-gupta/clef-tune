@@ -130,7 +130,8 @@ def check_resume(output_dir, config_hash: str) -> Path | None:
     return latest
 
 
-def save_best(output_dir, model, eval_logits: dict, eval_targets: dict, state: TrainState) -> None:
+def save_best(output_dir, model, eval_logits: Any, eval_targets: Any, state: TrainState) -> None:
+    """eval_logits/eval_targets: any JSON-serializable eval output, returned as-is by load_best."""
     root = _root(output_dir)
     final = root / "best"
     tmp = root / "best.tmp"
@@ -143,7 +144,7 @@ def save_best(output_dir, model, eval_logits: dict, eval_targets: dict, state: T
     _replace_dir(tmp, final)
 
 
-def load_best(output_dir, model) -> tuple[dict, dict]:
+def load_best(output_dir, model) -> tuple[Any, Any]:
     best = _root(output_dir) / "best"
     load_trainable_state(model, load_file(str(best / "trainable.safetensors")))
     data = _read_json(best / "eval.json")
