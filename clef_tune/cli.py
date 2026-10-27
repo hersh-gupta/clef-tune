@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Annotated
 
 import typer
@@ -13,6 +13,7 @@ from rich.table import Table
 
 from clef_tune import __version__
 from clef_tune.bundle import write_bundle
+from clef_tune.clef_code import ClefCodeError
 from clef_tune.config import Config, load_config
 from clef_tune.estimate import (
     GPUS,
@@ -229,7 +230,7 @@ def train(
             push_to_hub=push_to_hub,
             delete_bundle_on_success=delete_bundle_on_success,
         )
-    except (TrainingError, ConfigMismatchError, HubError) as exc:
+    except (TrainingError, ConfigMismatchError, HubError, ClefCodeError, OSError) as exc:
         console.print(f"[red]Training failed:[/] {escape(str(exc))}")
         raise typer.Exit(1) from exc
     console.print(f"Adapter written: {escape(str(result.adapter_dir))}")
@@ -246,14 +247,30 @@ NoCalibrationOpt = Annotated[
 ]
 
 
+def _looks_like_path(value: str) -> bool:
+    """Hub repo ids are `name` or `namespace/name`; anything else is meant as a directory."""
+    return (
+        "\\" in value
+        or value.count("/") > 1
+        or value.startswith((".", "~", "/"))
+        or value.endswith("/")
+        or bool(PureWindowsPath(value).drive)
+    )
+
+
 def _load_predictor(adapter: str):
+    path = Path(adapter).expanduser()
+    if not path.is_dir() and _looks_like_path(adapter):
+        raise _fail(f"adapter directory not found: {escape(str(path))}")
     from clef_tune.hub import HubError
     from clef_tune.predictor import Predictor
 
+    source = str(path) if path.is_dir() else adapter
     try:
-        return Predictor.load(adapter)
-    except (HubError, OSError, ValueError) as exc:
-        raise _fail(f"Could not load the adapter: {escape(str(exc))}") from exc
+        return Predictor.load(source)
+    except (HubError, ClefCodeError, OSError, ValueError) as exc:
+        where = "" if path.is_dir() else f" (no local directory {adapter!r}; tried the Hub)"
+        raise _fail(f"Could not load the adapter{escape(where)}: {escape(str(exc))}") from exc
 
 
 @app.command("eval")
@@ -273,7 +290,10 @@ def evaluate(
     from clef_tune.evaluation import predict_logits, summarize_eval
 
     predictor = _load_predictor(adapter)
-    loaded = load_file(predictor.info.config, str(data.resolve()))
+    try:
+        loaded = load_file(predictor.info.config, str(data.resolve()))
+    except (ValueError, OSError) as exc:
+        raise _fail(f"Evaluation failed: {escape(str(exc))}") from exc
     for issue in loaded.issues:
         if issue.level == "error":
             console.print(f"[red]error[/] {escape(str(issue))}")
@@ -281,16 +301,21 @@ def evaluate(
     if not records:
         raise _fail("No labeled rows in the data file.")
     train_config = predictor.info.config.train
-    items = prepare_items(predictor.clef_code, predictor.processor, records, predictor.max_length)
-    logits = predict_logits(
-        predictor.model,
-        items,
-        predictor.clef_code,
-        predictor.processor,
-        max_length=predictor.max_length,
-        max_tokens_per_batch=train_config.max_tokens_per_batch,
-        device=next(predictor.model.parameters()).device,
-    )
+    try:
+        items = prepare_items(
+            predictor.clef_code, predictor.processor, records, predictor.max_length
+        )
+        logits = predict_logits(
+            predictor.model,
+            items,
+            predictor.clef_code,
+            predictor.processor,
+            max_length=predictor.max_length,
+            max_tokens_per_batch=train_config.max_tokens_per_batch,
+            device=next(predictor.model.parameters()).device,
+        )
+    except (ValueError, OSError) as exc:  # e.g. an image that cannot be read
+        raise _fail(f"Evaluation failed: {escape(str(exc))}") from exc
     temperatures = {} if no_calibration else predictor.temperatures
     result = summarize_eval(items, logits, temperatures)
     metrics = result.metrics
@@ -347,12 +372,14 @@ def predict(
     no_calibration: NoCalibrationOpt = False,
 ) -> None:
     """Predict answers for a data file."""
-    from clef_tune.predictor import predict_file
+    from clef_tune.hub import HubError
 
     predictor = _load_predictor(adapter)
+    from clef_tune.predictor import predict_file
+
     try:
         count = predict_file(predictor, data, output, calibrated=not no_calibration)
-    except ValueError as exc:
+    except (ValueError, OSError, ClefCodeError, HubError) as exc:
         raise _fail(escape(str(exc))) from exc
     console.print(f"Wrote {count} predictions to {escape(str(output))}")
 
@@ -372,9 +399,10 @@ def export(
         console.print("[red]only --merge export is supported[/]")
         raise typer.Exit(2)
     from clef_tune.adapter import export_merged
+    from clef_tune.hub import HubError
 
     try:
         path = export_merged(adapter, output)
-    except (OSError, ValueError) as exc:
+    except (OSError, ValueError, ClefCodeError, HubError) as exc:
         raise _fail(f"Export failed: {escape(str(exc))}") from exc
     console.print(f"Merged checkpoint written: {escape(str(path))}")
