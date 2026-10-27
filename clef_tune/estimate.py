@@ -24,7 +24,6 @@ MEMORY_HEADROOM = 1.15
 CUDA_CONTEXT_GB = 1.5
 WEIGHT_BYTES_4BIT = 0.55
 TIMEOUT_MARGIN = 1.25
-HEAD_PARAMS = 40e6  # joint schema head, upper bound
 
 
 @dataclass(frozen=True)
@@ -100,13 +99,17 @@ class ModelSpec:
     layers: int
     intermediate: int
     overhead_minutes: int  # start, install, load, save, push
+    head_params: float  # joint schema head, counted from the release's joint_head_config.json
 
 
 # Derived from config.json and safetensors totals: vocab 248320; vision tower ~0.43B params.
+# head_params were measured by building JointSchemaHead from each release's head config.
 MODELS: dict[str, ModelSpec] = {
-    "Cloudflare/clef": ModelSpec("Cloudflare/clef", 24.4e9, 27.36e9, 2.54e9, 5120, 64, 17408, 20),
+    "Cloudflare/clef": ModelSpec(
+        "Cloudflare/clef", 24.4e9, 27.36e9, 2.54e9, 5120, 64, 17408, 20, 128_056_324
+    ),
     "Cloudflare/clef-flash": ModelSpec(
-        "Cloudflare/clef-flash", 6.95e9, 9.41e9, 2.03e9, 4096, 32, 12288, 10
+        "Cloudflare/clef-flash", 6.95e9, 9.41e9, 2.03e9, 4096, 32, 12288, 10, 121_762_820
     ),
 }
 
@@ -171,7 +174,7 @@ def memory_needed_gb(model: ModelSpec, workload: Workload, quantization: str) ->
     if workload.mode == "lora":
         per_layer = 3 * (model.hidden + model.intermediate) + 8 * model.hidden
         lora_params = workload.lora_r * model.layers * per_layer
-    trainable = (lora_params + HEAD_PARAMS) * 16  # fp32 weights + grads + two Adam moments
+    trainable = (lora_params + model.head_params) * 16  # fp32 weights + grads + two Adam moments
     tokens = workload.max_tokens_per_batch
     layer_working_set = tokens * (18 * model.hidden + 4 * model.intermediate) * 2
     if workload.mode == "head_only":

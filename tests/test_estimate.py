@@ -1,3 +1,4 @@
+import dataclasses
 import math
 from types import SimpleNamespace
 
@@ -122,3 +123,13 @@ def test_workload_from_config(tmp_path):
 def test_model_spec_lookup():
     assert est.model_spec("Cloudflare/clef-flash").layers == 32
     assert est.model_spec("someone/else") is None
+
+
+def test_memory_counts_the_real_joint_head():
+    assert CLEF.head_params == 128_056_324
+    assert est.MODELS["Cloudflare/clef-flash"].head_params == 121_762_820
+    smaller = dataclasses.replace(CLEF, head_params=CLEF.head_params - 1e8)
+    delta = est.memory_needed_gb(CLEF, workload(), "none") - est.memory_needed_gb(
+        smaller, workload(), "none"
+    )
+    assert delta == pytest.approx(1e8 * 16 / 1e9 * est.MEMORY_HEADROOM)
