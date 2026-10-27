@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -21,6 +22,32 @@ SCHEMA_FILE = "schema.yaml"
 CONFIG_FILE = "train_config.yaml"
 METRICS_FILE = "metrics.json"
 CARD_FILE = "README.md"
+RELEASE_COPY_FILES = (
+    "joint_schema_model.py",
+    "tokenizer.json",
+    "tokenizer_config.json",
+    "processor_config.json",
+    "chat_template.jinja",
+    "LICENSE",
+)
+
+EXPORT_README = """# {name}: merged Clef release checkpoint
+
+Fine-tuned with clef-tune from `{base}`. This directory uses Cloudflare's release
+layout (merged backbone shards, `joint_head.safetensors`, `joint_schema_model.py`),
+so Clef's `load_release_model()` and SGLang load it unchanged.
+
+## Calibration
+
+SGLang serves **uncalibrated** probabilities. Per-question temperatures are stored
+in `calibration.json` (question id -> T; a question not listed uses T = 1). A client
+applies them to the served probabilities of each question's options:
+
+    p_i^(1/T) / Σ_j p_j^(1/T)
+
+where p_i is the served probability of option i and the sum runs over that
+question's options.
+"""
 
 
 @dataclass
@@ -81,3 +108,41 @@ def read_adapter(path: str | Path) -> AdapterInfo:
         head_config=json.loads((path / HEAD_CONFIG_FILE).read_text(encoding="utf-8")),
         has_lora=(path / LORA_DIR / "adapter_config.json").exists(),
     )
+
+
+def export_merged(
+    adapter: str | Path,
+    out_dir: str | Path,
+    *,
+    dtype: Any = None,
+    device: str = "cpu",
+    max_shard_size: str = "5GB",
+) -> Path:
+    """Write a merged checkpoint in Cloudflare's release layout (loads in Clef and SGLang)."""
+    import torch
+    from peft import PeftModel
+    from safetensors.torch import load_file, save_file
+
+    from clef_tune.clef_code import model_dir
+    from clef_tune.model import load_backbone
+
+    dtype = torch.bfloat16 if dtype is None else dtype
+    info = read_adapter(adapter)
+    base = model_dir(info.config)
+    backbone = load_backbone(base, quantization="none", device=torch.device(device), dtype=dtype)
+    if info.has_lora:
+        backbone = PeftModel.from_pretrained(backbone, info.path / LORA_DIR).merge_and_unload()
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    backbone.save_pretrained(out, max_shard_size=max_shard_size)
+
+    head = {k: v.to(dtype).contiguous() for k, v in load_file(info.path / HEAD_FILE).items()}
+    save_file(head, out / HEAD_FILE, metadata={"format": "pt"})
+    shutil.copyfile(info.path / HEAD_CONFIG_FILE, out / HEAD_CONFIG_FILE)
+    for name in RELEASE_COPY_FILES:
+        if (base / name).is_file():
+            shutil.copyfile(base / name, out / name)
+    (out / CALIBRATION_FILE).write_text(json.dumps(info.calibration, indent=2), encoding="utf-8")
+    readme = EXPORT_README.format(name=out.name, base=info.config.model.id)
+    (out / CARD_FILE).write_text(readme, encoding="utf-8")
+    return out
