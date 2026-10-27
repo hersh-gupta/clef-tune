@@ -29,6 +29,7 @@ CSV_FIELD_LIMIT = 2**31 - 1  # the largest value a C long holds on every platfor
 
 Row = tuple[int, dict[str, Any]]
 Note = Callable[[str, str | None, str, int], None]
+LabelNote = Callable[[str | None, str, int], None]  # a label that cannot be used
 
 
 class DataError(ValueError):
@@ -211,13 +212,15 @@ def _resolve_image(value: str, data_dir: Path) -> str:
     return str(path if path.is_absolute() else (data_dir / path).resolve())
 
 
-def _labels_for(number: int, pairs: Iterable[tuple[Question, Any]], note: Note) -> dict[str, Label]:
+def _labels_for(
+    number: int, pairs: Iterable[tuple[Question, Any]], note: Note, bad_label: LabelNote
+) -> dict[str, Label]:
     labels: dict[str, Label] = {}
     for question, raw in pairs:
         try:
             label, warning = parse_label(question, raw)
         except LabelError as exc:
-            note("error", question.id, str(exc), number)
+            bad_label(question.id, str(exc), number)
             continue
         if warning:
             note("warning", question.id, warning, number)
@@ -234,6 +237,7 @@ def _flat_record(
     layout: _FlatLayout,
     data_dir: Path,
     note: Note,
+    bad_label: LabelNote,
 ) -> Record | None:
     if cfg.id_column:
         raw_id = row.get(cfg.id_column)
@@ -246,7 +250,7 @@ def _flat_record(
     values = {column: row.get(column) for column in layout.state_columns}
     state = values[layout.state_columns[0]] if len(layout.state_columns) == 1 else values
     pairs = ((schema.questions[qid], row.get(col)) for qid, col in layout.label_columns.items())
-    labels = _labels_for(number, pairs, note)
+    labels = _labels_for(number, pairs, note, bad_label)
     images = [
         _resolve_image(str(row[column]).strip(), data_dir)
         for column in cfg.image_columns
@@ -262,6 +266,7 @@ def _native_record(
     data_dir: Path,
     note: Note,
     question_cache: dict[str, dict[str, Question]],
+    bad_label: LabelNote,
 ) -> Record | None:
     if "state" not in row:
         note("error", None, "native rows need a 'state'", number)
@@ -284,7 +289,7 @@ def _native_record(
     for qid, raw in (row.get("labels") or {}).items():
         question = questions.get(str(qid))
         if question is None:
-            note("error", str(qid), "label for a question the row does not ask", number)
+            bad_label(str(qid), "label for a question the row does not ask", number)
             continue
         pairs.append((question, raw))
     raw_images = row.get("images") or []
@@ -293,7 +298,7 @@ def _native_record(
     elif not isinstance(raw_images, list):
         note("error", None, "'images' must be a list of paths or URLs", number)
         return None
-    labels = _labels_for(number, pairs, note)
+    labels = _labels_for(number, pairs, note, bad_label)
     images = [_resolve_image(str(value).strip(), data_dir) for value in raw_images]
     record_id = f"row-{number}" if is_missing(row.get("id")) else str(row["id"]).strip()
     return Record(record_id, row["state"], questions, labels, images, number)
@@ -308,14 +313,21 @@ def normalize_rows(
     for_prediction: bool = False,
     native_without_labels: bool = False,
 ) -> LoadResult:
-    """Normalize rows into records. With ``for_prediction``, label columns are optional and
-    rows without labels are kept (labels that are present are still parsed). With
-    ``native_without_labels`` (JSONL only), rows with a ``state`` and no ``labels`` are native."""
+    """Normalize rows into records. With ``for_prediction``, label columns are optional, rows
+    without labels are kept, and labels that are present are still parsed, but one that cannot
+    be used is a warning and is ignored. With ``native_without_labels`` (JSONL only), rows with
+    a ``state`` and no ``labels`` are native."""
     issues: list[Issue] = []
     grouped: dict[tuple[str, str | None, str], list[int]] = defaultdict(list)
 
     def note(level: str, question: str | None, message: str, number: int) -> None:
         grouped[(level, question, message)].append(number)
+
+    def bad_label(question: str | None, message: str, number: int) -> None:
+        if for_prediction:  # predicting needs no labels: keep the row, drop the label
+            note("warning", question, f"{message} (label ignored)", number)
+        else:
+            note("error", question, message, number)
 
     def is_native(row: dict[str, Any]) -> bool:
         if isinstance(row.get("labels"), dict):
@@ -330,13 +342,13 @@ def normalize_rows(
     unlabeled: list[int] = []
     for number, row in rows:
         if is_native(row):
-            record = _native_record(number, row, schema, data_dir, note, question_cache)
+            record = _native_record(number, row, schema, data_dir, note, question_cache, bad_label)
         elif schema is None or layout is None:
             message = "flat rows need a schema (add 'schema' or 'schema_file' to the config)"
             note("error", None, message, number)
             record = None
         else:
-            record = _flat_record(number, row, cfg, schema, layout, data_dir, note)
+            record = _flat_record(number, row, cfg, schema, layout, data_dir, note, bad_label)
         if record is None:
             continue
         if not record.labels and not for_prediction:

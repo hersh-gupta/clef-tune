@@ -82,3 +82,10 @@ def test_systemone_takes_data_uri_and_pil_images_like_clef(adapter):
             expected = predictor.model(batch)[0][0].tolist()
         got = predictor.logits([{k: with_image[k] for k in ("state", "questions", "images")}])
         assert got[0]["x"] == pytest.approx(expected, abs=1e-5)
+
+
+def test_predict_file_ignores_a_bad_label_cell(adapter, tmp_path):
+    text = "id,subject,body,outage\n1,a,down,yes\n2,b,fine,unknown\n3,c,x,\n"
+    (tmp_path / "in.csv").write_text(text, encoding="utf-8")
+    predictor = Predictor.load(adapter, device="cpu")
+    assert predict_file(predictor, tmp_path / "in.csv", tmp_path / "out.jsonl") == 3

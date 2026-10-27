@@ -265,3 +265,33 @@ def test_csv_prediction_with_a_state_column_stays_flat(tmp_path):
     assert [i for i in result.issues if i.level == "error"] == []
     assert result.records[0].id == "1"
     assert result.records[0].state == {"state": "CA", "body": "hi"}
+
+
+def test_bad_label_values_in_prediction_input_are_warnings_and_ignored(tmp_path):
+    text = "id,body,outage\n1,a,yes\n2,b,unknown\n3,c,\n"
+    (tmp_path / "p.csv").write_text(text, encoding="utf-8")
+    cfg = make_config(tmp_path, data={"train": "t.csv", "id_column": "id"})
+    result = load_file(cfg, "p.csv", for_prediction=True)
+    assert [r.id for r in result.records] == ["1", "2", "3"]
+    assert result.records[1].labels == {} and result.records[0].labels == {
+        "outage": Label(hard="true")
+    }
+    assert [i for i in result.issues if i.level == "error"] == []
+    (warning,) = [i for i in result.issues if i.level == "warning"]
+    assert warning.question == "outage" and warning.rows == [3] and "ignored" in warning.message
+
+
+def test_bad_labels_in_native_prediction_rows_are_warnings(tmp_path):
+    rows = [
+        {"id": "a", "state": "x", "labels": {"outage": "maybe"}},
+        {"id": "b", "state": "y", "labels": {"nope": "yes"}},
+    ]
+    text = "\n".join(json.dumps(row) for row in rows) + "\n"
+    (tmp_path / "p.jsonl").write_text(text, encoding="utf-8")
+    cfg = make_config(tmp_path, data={"train": "t.csv"})
+    result = load_file(cfg, "p.jsonl", for_prediction=True)
+    assert [r.id for r in result.records] == ["a", "b"]
+    assert [i for i in result.issues if i.level == "error"] == []
+    assert len([i for i in result.issues if i.level == "warning"]) == 2
+    # Training input keeps treating them as errors.
+    assert len([i for i in load_file(cfg, "p.jsonl").issues if i.level == "error"]) == 2
