@@ -6,6 +6,7 @@ torch = pytest.importorskip("torch")
 from safetensors.torch import load_file  # noqa: E402
 
 from clef_tune import train as train_module  # noqa: E402
+from clef_tune.hub import HubError  # noqa: E402
 from clef_tune.train import TrainingError, train  # noqa: E402
 
 pytestmark = pytest.mark.torch
@@ -88,3 +89,54 @@ def test_validation_errors_stop_before_the_model_loads(tiny_project, monkeypatch
     )
     with pytest.raises(TrainingError, match="validation failed"):
         train(config)
+
+
+def test_push_to_hub_after_training(tiny_project, monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        train_module, "ensure_repo", lambda repo, **k: calls.append(("ensure", repo))
+    )
+    monkeypatch.setattr(
+        train_module,
+        "push_adapter",
+        lambda path, repo, **k: calls.append(("push", repo)) or "https://hub/commit",
+    )
+    result = train(tiny_project(train={"epochs": 1}), push_to_hub="me/run")
+    assert calls == [("ensure", "me/run"), ("push", "me/run")]
+    assert result.hub_url == "https://hub/commit"
+
+
+def test_push_failure_keeps_adapter_and_checkpoints(tiny_project, monkeypatch):
+    def fail(path, repo, **kwargs):
+        raise HubError("503 Service Unavailable")
+
+    monkeypatch.setattr(train_module, "ensure_repo", lambda repo, **k: None)
+    monkeypatch.setattr(train_module, "push_adapter", fail)
+    config = tiny_project(train={"epochs": 1}, output={"save_every": 2})
+    with pytest.raises(TrainingError, match="adapter is in .* but pushing to me/run failed"):
+        train(config, push_to_hub="me/run")
+    assert (config.parent / "out" / "final" / "joint_head.safetensors").exists()
+    assert (config.parent / "out" / "checkpoints").exists()
+
+
+def test_hub_access_is_checked_before_the_model_loads(tiny_project, monkeypatch):
+    def denied(repo, **kwargs):
+        raise HubError("cannot create or write to me/run")
+
+    monkeypatch.setattr(train_module, "ensure_repo", denied)
+    monkeypatch.setattr(
+        train_module,
+        "load_for_training",
+        lambda *a, **k: pytest.fail("model loaded before the hub check"),
+    )
+    with pytest.raises(TrainingError, match="me/run"):
+        train(tiny_project(), push_to_hub="me/run")
+
+
+def test_out_of_memory_while_loading_explains_how_to_fit(tiny_project, monkeypatch):
+    def oom(*args, **kwargs):
+        raise torch.OutOfMemoryError("CUDA out of memory")
+
+    monkeypatch.setattr(train_module, "load_for_training", oom)
+    with pytest.raises(TrainingError, match="max_tokens_per_batch"):
+        train(tiny_project())

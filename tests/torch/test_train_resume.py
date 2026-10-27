@@ -178,3 +178,17 @@ def test_resume_after_an_early_stop_finishes_without_training_on(tiny_project):
     assert [e["event"] for e in logged].count("baseline") == 1  # a resume appends to the log
     assert [e["step"] for e in logged if e["event"] == "eval"] == [1, 2, 3]
     assert [e for e in logged if e["event"] == "train"][-1]["step"] == 3  # the stop logs its step
+
+
+def test_a_directory_whose_config_points_elsewhere_is_not_a_bundle(tiny_project, tmp_path):
+    source = load_config(tiny_project(train={"epochs": 1}))
+    bundle_config = write_bundle(validate(source, None), source, tmp_path / "bundle")
+    folder = bundle_config.parent
+    (folder / "other.jsonl").write_text((folder / "train.jsonl").read_text(encoding="utf-8"))
+    bundle_config.write_text(
+        bundle_config.read_text(encoding="utf-8").replace("train.jsonl", "other.jsonl"),
+        encoding="utf-8",
+    )
+    with pytest.raises(TrainingError, match="is not a bundle"):
+        train(bundle_config, delete_bundle_on_success=True)
+    assert (folder / "train.jsonl").exists()

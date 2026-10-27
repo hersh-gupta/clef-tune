@@ -14,7 +14,7 @@ from typing import Any
 
 import torch
 from accelerate import Accelerator
-from accelerate.utils import gather_object, set_seed
+from accelerate.utils import broadcast_object_list, gather_object, set_seed
 from transformers import get_cosine_schedule_with_warmup
 
 from clef_tune.adapter import save_adapter
@@ -37,6 +37,7 @@ from clef_tune.config import Config, TrainSection, config_hash, load_config
 from clef_tune.encoding import TrainItem, collate, prepare_items
 from clef_tune.estimate import memory_needed_gb, model_spec, workload_from
 from clef_tune.evaluation import EvalResult, predict_logits, summarize_eval
+from clef_tune.hub import HubError, ensure_repo, push_adapter
 from clef_tune.loss import batch_loss
 from clef_tune.metrics import MetricsReport, is_better
 from clef_tune.model import LoadedClef, default_device, load_for_training
@@ -169,8 +170,18 @@ def _check_memory(config: Config, report: ValidationReport, device: torch.device
         )
 
 
-def _check_bundle(bundle_dir: Path) -> None:
-    if not all((bundle_dir / name).is_file() for name in BUNDLE_FILES):
+def _check_bundle(config: Config, config_path: Path) -> None:
+    """A bundle is a directory of config.yaml, train.jsonl and eval.jsonl, where the config reads
+    exactly those two data files; anything else is not ours to delete."""
+    bundle_dir = config.base_dir
+    is_bundle = (
+        config_path.name == BUNDLE_FILES[0]
+        and all((bundle_dir / name).is_file() for name in BUNDLE_FILES)
+        and config.data.eval is not None
+        and config.resolve_path(config.data.train) == bundle_dir / BUNDLE_FILES[1]
+        and config.resolve_path(config.data.eval) == bundle_dir / BUNDLE_FILES[2]
+    )
+    if not is_bundle:
         raise TrainingError(
             f"--delete-bundle-on-success needs a bundle ({', '.join(BUNDLE_FILES)}); "
             f"{bundle_dir} is not a bundle"
@@ -276,15 +287,61 @@ def train(
     on_step: Callable[[int], None] | None = None,
     device: torch.device | None = None,
 ) -> TrainResult:
+    try:
+        return _train(
+            config_path,
+            restart=restart,
+            push_to_hub=push_to_hub,
+            delete_bundle_on_success=delete_bundle_on_success,
+            on_step=on_step,
+            device=device,
+        )
+    except torch.OutOfMemoryError as error:
+        raise TrainingError(f"training ran out of memory: {error}; {OOM_ADVICE}") from error
+
+
+def _push(accelerator: Accelerator, adapter_dir: Path, repo: str) -> str | None:
+    """Push from the main process; every rank learns the outcome, so a failure stops them all
+    before any cleanup."""
+    outcome: list[Any] = [None, None]  # [commit url, error text]
+    if accelerator.is_main_process:
+        try:
+            outcome[0] = push_adapter(adapter_dir, repo)
+        except HubError as error:
+            outcome[1] = str(error)
+    broadcast_object_list(outcome)
+    if outcome[1] is not None:
+        raise TrainingError(
+            f"training finished and the adapter is in {adapter_dir}, "
+            f"but pushing to {repo} failed: {outcome[1]}"
+        )
+    return outcome[0]
+
+
+def _train(
+    config_path: str | Path,
+    *,
+    restart: bool,
+    push_to_hub: str | None,
+    delete_bundle_on_success: bool,
+    on_step: Callable[[int], None] | None,
+    device: torch.device | None,
+) -> TrainResult:
     started = time.monotonic()
     config = load_config(config_path)
     if delete_bundle_on_success:
-        _check_bundle(config.base_dir)
+        _check_bundle(config, Path(config_path))
     report = validate(config, counter_for_config(config))
     if not report.ok:
         raise TrainingError(
             "validation failed:\n" + "\n".join(str(issue) for issue in report.errors)
         )
+    repo = push_to_hub or config.output.push_to_hub
+    if repo:  # find out about missing write access now, not after the GPU hours
+        try:
+            ensure_repo(repo)
+        except HubError as error:
+            raise TrainingError(str(error)) from error
     train_cfg, eval_cfg = config.train, config.eval
     output_dir = config.output_dir()
     run_hash = config_hash(config, _data_files(config))
@@ -422,72 +479,69 @@ def train(
             )
 
         model.train()
-        try:
-            for epoch in range(start_epoch, train_cfg.epochs):
+        for epoch in range(start_epoch, train_cfg.epochs):
+            if stopped_early:
+                break
+            batches = epoch_batches(epoch)
+            first = skip if epoch == start_epoch else 0
+            state.epoch, state.batch_in_epoch = epoch, first
+            for position in range(first, len(batches)):
+                # An optimizer step closes each group of `accum` micro-batches and the epoch's
+                # last (possibly shorter) group: ceil(len(batches) / accum) steps per epoch.
+                # accumulate() syncs when its counter reaches `accum`, so set the counter to
+                # sync exactly at each group's end, independent of earlier epochs or a resume.
+                group_start = position - position % accum
+                group_size = min(accum, len(batches) - group_start)
+                accelerator.step = accum - 1 if position == group_start + group_size - 1 else 0
+                with accelerator.accumulate(model):
+                    items = [train_items[i] for i in batches[position]]
+                    batch = collate(items, clef_code, processor, train_cfg.max_length, device)
+                    loss = batch_loss(
+                        model(batch),
+                        items,
+                        class_weights=weights,
+                        question_weights=train_cfg.question_weights,
+                        label_smoothing=train_cfg.label_smoothing,
+                    )
+                    loss_value = loss.item()
+                    if not math.isfinite(loss_value):
+                        raise _non_finite_loss(output_dir, state.step + 1)
+                    # Accelerate divides by `accum`; average over the group's micro-batches.
+                    accelerator.backward(loss * (accum / group_size))
+                    if accelerator.sync_gradients:
+                        accelerator.clip_grad_norm_(trainable, MAX_GRAD_NORM)
+                        optimizer.step()
+                        scheduler.step()
+                        optimizer.zero_grad()
+                padded_tokens = batch["input_ids"].numel()
+                tokens_this_run += padded_tokens
+                state.tokens_seen += padded_tokens
+                state.batch_in_epoch = position + 1
+                loss_sum, loss_count = loss_sum + loss_value, loss_count + 1
+                if not accelerator.sync_gradients:
+                    continue
+
+                state.step += 1
+                now = time.monotonic()
+                state.train_seconds = base_seconds + now - started
+                if state.step % LOG_EVERY == 0 or state.step == total_steps:
+                    log_train(now, total_steps - state.step)
+                    loss_sum, loss_count = 0.0, 0
+                if state.step % eval_cfg.eval_every == 0:
+                    evaluate_and_select()
+                    last_eval_step = state.step
+                    stopped_early = patience is not None and state.bad_evals >= patience
+                    if stopped_early and loss_count:  # the run ends here: log its last step
+                        log_train(now, 0)
+                        loss_sum, loss_count = 0.0, 0
+                if state.step % config.output.save_every == 0:
+                    if main:
+                        save_checkpoint(output_dir, unwrapped, optimizer, scheduler, state)
+                    accelerator.wait_for_everyone()
+                if on_step is not None:
+                    on_step(state.step)
                 if stopped_early:
                     break
-                batches = epoch_batches(epoch)
-                first = skip if epoch == start_epoch else 0
-                state.epoch, state.batch_in_epoch = epoch, first
-                for position in range(first, len(batches)):
-                    # An optimizer step closes each group of `accum` micro-batches and the epoch's
-                    # last (possibly shorter) group: ceil(len(batches) / accum) steps per epoch.
-                    # accumulate() syncs when its counter reaches `accum`, so set the counter to
-                    # sync exactly at each group's end, independent of earlier epochs or a resume.
-                    group_start = position - position % accum
-                    group_size = min(accum, len(batches) - group_start)
-                    accelerator.step = accum - 1 if position == group_start + group_size - 1 else 0
-                    with accelerator.accumulate(model):
-                        items = [train_items[i] for i in batches[position]]
-                        batch = collate(items, clef_code, processor, train_cfg.max_length, device)
-                        loss = batch_loss(
-                            model(batch),
-                            items,
-                            class_weights=weights,
-                            question_weights=train_cfg.question_weights,
-                            label_smoothing=train_cfg.label_smoothing,
-                        )
-                        loss_value = loss.item()
-                        if not math.isfinite(loss_value):
-                            raise _non_finite_loss(output_dir, state.step + 1)
-                        # Accelerate divides by `accum`; average over the group's micro-batches.
-                        accelerator.backward(loss * (accum / group_size))
-                        if accelerator.sync_gradients:
-                            accelerator.clip_grad_norm_(trainable, MAX_GRAD_NORM)
-                            optimizer.step()
-                            scheduler.step()
-                            optimizer.zero_grad()
-                    padded_tokens = batch["input_ids"].numel()
-                    tokens_this_run += padded_tokens
-                    state.tokens_seen += padded_tokens
-                    state.batch_in_epoch = position + 1
-                    loss_sum, loss_count = loss_sum + loss_value, loss_count + 1
-                    if not accelerator.sync_gradients:
-                        continue
-
-                    state.step += 1
-                    now = time.monotonic()
-                    state.train_seconds = base_seconds + now - started
-                    if state.step % LOG_EVERY == 0 or state.step == total_steps:
-                        log_train(now, total_steps - state.step)
-                        loss_sum, loss_count = 0.0, 0
-                    if state.step % eval_cfg.eval_every == 0:
-                        evaluate_and_select()
-                        last_eval_step = state.step
-                        stopped_early = patience is not None and state.bad_evals >= patience
-                        if stopped_early and loss_count:  # the run ends here: log its last step
-                            log_train(now, 0)
-                            loss_sum, loss_count = 0.0, 0
-                    if state.step % config.output.save_every == 0:
-                        if main:
-                            save_checkpoint(output_dir, unwrapped, optimizer, scheduler, state)
-                        accelerator.wait_for_everyone()
-                    if on_step is not None:
-                        on_step(state.step)
-                    if stopped_early:
-                        break
-        except torch.OutOfMemoryError as error:
-            raise TrainingError(f"training ran out of memory: {error}; {OOM_ADVICE}") from error
 
         if last_eval_step != state.step:
             evaluate_and_select()
@@ -524,10 +578,12 @@ def train(
             log("done", adapter=str(final_dir))
         accelerator.wait_for_everyone()
 
+    hub_url = _push(accelerator, final_dir, repo) if repo else None
+
     if main:
         clear_checkpoints(output_dir)
         if delete_bundle_on_success:
             _delete_bundle(config.base_dir)
     if config.output.report_to:
         accelerator.end_training()
-    return TrainResult(final_dir, metrics, resumed_from, None)
+    return TrainResult(final_dir, metrics, resumed_from, hub_url)
