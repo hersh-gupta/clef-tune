@@ -76,7 +76,7 @@ docker run --gpus all -v "$PWD:/work" -w /work clef-tune train cfg.yaml
 ## Using an adapter from Python
 
 ```python
-from clef_tune.predictor import Predictor
+from clef_tune import Predictor
 
 p = Predictor.load("out/final")  # local dir or Hub repo; device, quantization optional
 p.predict([{"state": {"subject": "Site down", "body": "..."}}])  # SystemOne-shaped answers

@@ -2,6 +2,7 @@ import subprocess
 import sys
 
 NO_TORCH_MODULES = [
+    "clef_tune",
     "clef_tune.cli",
     "clef_tune.bundle",
     "clef_tune.validation",

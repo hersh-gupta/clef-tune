@@ -49,3 +49,9 @@ def test_image_rows_predict(adapter, tmp_path):
         [{"id": "i", "state": "s", "images": [str(tmp_path / "i.png")]}]
     )
     assert set(out[0]["answers"]) == {"outage", "department"}
+
+
+def test_predictor_is_exported_from_the_package():
+    from clef_tune import Predictor as Exported
+
+    assert Exported is Predictor
