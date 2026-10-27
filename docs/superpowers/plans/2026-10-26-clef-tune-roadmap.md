@@ -9,8 +9,8 @@ it starts, so it can build on facts verified by the plans before it.
 | # | Plan | Delivers | Depends on |
 |---|---|---|---|
 | 1 | **Core** (`2026-10-26-clef-tune-plan-1-core.md`) | Package scaffold, schema, labels, config, CSV/JSONL loading, prompt layout and token counting, validation report, metrics, calibration, estimates, bundle writer, `clef-tune validate` / `estimate`, example dataset, CI | — |
-| 2 | **Training engine** | `clef_code.py`, `model.py`, `train.py`, `adapter.py`, `predictor.py`; `clef-tune train` / `eval` / `predict` / `export`; tiny-model integration tests; tokenization-parity test; Dockerfile; opt-in `gpu` test | 1 |
-| 3 | **HF Jobs** | `hub.py`, `launch/source.py`, `launch/hf_jobs.py`; `clef-tune jobs launch/list/status/logs/cancel/resume`; mocked-API tests; opt-in `hfjobs` test | 1, 2 |
+| 2 | **Training engine** (`2026-10-27-clef-tune-plan-2-training.md`) | `clef_code.py`, `model.py`, `train.py`, `adapter.py`, `predictor.py`, `hub.py`, `runtime.py`; `clef-tune train` / `eval` / `predict` / `export`; tiny-model integration tests; tokenization-parity test; Dockerfile; opt-in `gpu` test | 1 |
+| 3 | **HF Jobs** | `launch/source.py`, `launch/hf_jobs.py`; `clef-tune jobs launch/list/status/logs/cancel/resume`; mocked-API tests; opt-in `hfjobs` test | 1, 2 |
 | 4 | **Web UI** | `ui/` (theme, CSS, handlers, layout), Space mode, `deploy/space/`, Playwright screenshots, iterative refinement with the user until sign-off | 1, 2 (results view), 3 (Launch step) |
 
 ## Interfaces Plan 1 provides to later plans
@@ -48,6 +48,21 @@ These names are fixed by Plan 1. Later plans consume them as written.
   `zip_bundle(bundle_dir, zip_path) -> Path`
 - `clef_tune.cli`: Typer `app`; later plans add commands to it.
 
+## Interfaces Plan 2 provides to later plans
+
+- `clef_tune.runtime`: `BASE_IMAGE`, `KERNEL_PACKAGES`, `PRICE_ENV`, `ESTIMATE_ENV`, `kernels_available()`,
+  `env_float()`
+- `clef_tune.hub`: `ensure_repo()`, `push_adapter()`, `pull_adapter()`, `HubError`
+- `clef_tune.train`: `train(config_path, *, restart, push_to_hub, delete_bundle_on_success, on_step,
+  device) -> TrainResult(adapter_dir, metrics, resumed_from, hub_url)`, `TrainingError`; output
+  layout `metrics.jsonl`, `checkpoints/`, `final/`; `metrics.jsonl` events `baseline`, `train`
+  (`step`, `loss`, `lr`, `tokens_per_sec`, `eta_s`, `projected_cost`), `eval`, `done`
+- `clef_tune.adapter`: `read_adapter() -> AdapterInfo`, `save_adapter()`, `export_merged()`; the
+  `metrics.json` shape (`baseline`, `final`, `calibration`, `data`, `run`) the results view renders
+- `clef_tune.predictor`: `Predictor` (`load`, `logits`, `probabilities`, `predict`, `systemone`),
+  `predict_file()`
+- `clef_tune.checkpoints`: `ConfigMismatchError`
+
 ## Verified constraints and spec amendments
 
 Checked on 2026-10-26 while writing Plan 1. These override the spec where they differ.
@@ -81,3 +96,36 @@ Checked on 2026-10-26 while writing Plan 1. These override the spec where they d
    dependencies; Plan 4 gets it through gradio.
 8. **Plan 2 CI note:** install CPU-only torch on Linux CI (PyTorch CPU index) to avoid
    downloading CUDA wheels for the tiny-model tests.
+9. **torchvision is required.** `AutoProcessor` for Clef loads `Qwen3VLVideoProcessor`, which needs
+   torchvision; the `train` extra adds `torchvision>=0.26,<0.27` (0.26 pairs with torch 2.11).
+10. **CUDA torch on Windows** (user decision, 2026-10-26). PyPI ships only CPU torch for Windows, so
+    `[tool.uv.sources]` sends `torch`/`torchvision` on `sys_platform == 'win32'` to the explicit
+    `https://download.pytorch.org/whl/cu130` index. `uv pip install` from git ignores uv sources, so
+    the README tells those users to pass `--torch-backend`.
+11. **The joint head is larger than the spec says.** `JointSchemaHead(**joint_head_config.json)` has
+    128,056,324 parameters (Clef) and 121,762,820 (Clef-Flash), not "~30–40M" (spec §2). The release
+    head file is bf16. `estimate.ModelSpec.head_params` replaces the 40M constant.
+12. **Head optimizer stays fp32 AdamW** (user decision, 2026-10-27). With the real head, the §7 memory
+    model puts Clef-Flash QLoRA at ~14.5 GB for 1024-token batches.
+13. **The opt-in `gpu` test targets GPUs with ≥16 GB** (user decision, 2026-10-27). *Amends spec
+    §11.5*, which said it fits a 12 GB GPU.
+14. **`hub.py` moves to Plan 2.** `train --push-to-hub` and `Predictor.load(repo)` need it; Plan 3
+    consumes it.
+15. **Base image:** `pytorch/pytorch:2.11.0-cuda13.0-cudnn9-devel` (Ubuntu 24.04, Python 3.12, CUDA
+    13.0.2). PyPI's Linux torch 2.11 bundles CUDA 13.0, so kernel builds match. The Dockerfile and
+    Plan 3's HF Jobs use it via `runtime.BASE_IMAGE`.
+16. **Clef code with transformers 5.10.4 / peft 0.21.2** (verified by running it on a tiny random
+    model in the release layout):
+    - importing `joint_schema_model.py` needs `sys.modules` registration before `exec_module`
+    - LoRA on the 12 language-model Linear kinds excludes the vision tower and `lm_head`
+    - gradient checkpointing with `use_reentrant=False`, enabled before `get_peft_model`,
+      backpropagates through `ClefModel`
+    - `merge_and_unload` matches the adapter's logits, and the merged keys equal the release index keys
+    - CPU training is deterministic
+    - Plan 1's token counter matches `encode_record` on 33 varied records with 0 mismatches
+17. **Run-time inputs and small interface additions:**
+    - `CLEF_TUNE_PRICE_PER_HOUR` and `CLEF_TUNE_ESTIMATED_HOURS` (set by Plan 3's launcher) feed the
+      projected cost and the card's estimated-vs-actual line.
+    - `train_config.yaml` carries clef-tune provenance as header comments, so it still loads as a
+      `Config`.
+    - `data.load_file(..., for_prediction=True)` loads prediction files without label columns.
