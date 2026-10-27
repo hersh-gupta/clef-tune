@@ -35,5 +35,5 @@ def batch_loss(
     if numerator is None:
         return sum(logit.sum() for record in logits for logit in record) * 0.0
     if denominator == 0:  # every labeled question here has weight 0: nothing to learn
-        return numerator * 0.0  # still a graph over every logit, which DDP needs
+        return numerator * 0.0  # zero, but still a graph over the parameters (DDP needs it)
     return numerator / denominator

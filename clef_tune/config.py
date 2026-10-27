@@ -94,7 +94,7 @@ class TrainSection(_Section):
 
     @field_validator("question_weights")
     @classmethod
-    def _weights_are_not_negative(cls, weights: dict[str, float]) -> dict[str, float]:
+    def _weights_are_finite_and_not_negative(cls, weights: dict[str, float]) -> dict[str, float]:
         bad = [f"{qid}: {w}" for qid, w in weights.items() if not (math.isfinite(w) and w >= 0)]
         if bad:
             raise ValueError(f"question_weights must be finite and >= 0 (got {', '.join(bad)})")
