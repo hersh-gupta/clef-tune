@@ -164,7 +164,11 @@ class _FlatLayout:
 
 
 def _flat_layout(
-    columns: list[str], cfg: DataConfig, schema: Schema, issues: list[Issue]
+    columns: list[str],
+    cfg: DataConfig,
+    schema: Schema,
+    issues: list[Issue],
+    for_prediction: bool = False,
 ) -> _FlatLayout:
     present = set(columns)
 
@@ -180,7 +184,7 @@ def _flat_layout(
         column = cfg.label_columns.get(qid, qid)
         if column in present:
             label_columns[qid] = column
-        else:
+        elif not for_prediction:
             missing(column, "label column", qid)
     if cfg.id_column and cfg.id_column not in present:
         missing(cfg.id_column, "id column")
@@ -277,7 +281,7 @@ def _native_record(
         note("error", None, "row has no 'questions' and the config has no schema", number)
         return None
     pairs = []
-    for qid, raw in row["labels"].items():
+    for qid, raw in (row.get("labels") or {}).items():
         question = questions.get(str(qid))
         if question is None:
             note("error", str(qid), "label for a question the row does not ask", number)
@@ -301,21 +305,29 @@ def normalize_rows(
     cfg: DataConfig,
     schema: Schema | None,
     data_dir: Path,
+    for_prediction: bool = False,
 ) -> LoadResult:
+    """Normalize rows into records. With ``for_prediction``, label columns are optional and
+    rows without labels are kept (labels that are present are still parsed)."""
     issues: list[Issue] = []
     grouped: dict[tuple[str, str | None, str], list[int]] = defaultdict(list)
 
     def note(level: str, question: str | None, message: str, number: int) -> None:
         grouped[(level, question, message)].append(number)
 
+    def is_native(row: dict[str, Any]) -> bool:
+        if isinstance(row.get("labels"), dict):
+            return True
+        return for_prediction and "state" in row and "labels" not in row
+
     layout = None
-    if schema is not None and any(not isinstance(r.get("labels"), dict) for _, r in rows):
-        layout = _flat_layout(columns, cfg, schema, issues)
+    if schema is not None and any(not is_native(r) for _, r in rows):
+        layout = _flat_layout(columns, cfg, schema, issues, for_prediction)
     question_cache: dict[str, dict[str, Question]] = {}
     records: list[Record] = []
     unlabeled: list[int] = []
     for number, row in rows:
-        if isinstance(row.get("labels"), dict):
+        if is_native(row):
             record = _native_record(number, row, schema, data_dir, note, question_cache)
         elif schema is None or layout is None:
             message = "flat rows need a schema (add 'schema' or 'schema_file' to the config)"
@@ -325,7 +337,7 @@ def normalize_rows(
             record = _flat_record(number, row, cfg, schema, layout, data_dir, note)
         if record is None:
             continue
-        if not record.labels:
+        if not record.labels and not for_prediction:
             unlabeled.append(number)
             continue
         records.append(record)
@@ -337,10 +349,12 @@ def normalize_rows(
     return LoadResult(records, issues, columns)
 
 
-def load_file(config: Config, path_value: str) -> LoadResult:
+def load_file(config: Config, path_value: str, *, for_prediction: bool = False) -> LoadResult:
     path = config.resolve_path(path_value)
     rows, columns, read_issues = read_rows(path)
-    result = normalize_rows(rows, columns, config.data, config.get_schema(), path.parent)
+    result = normalize_rows(
+        rows, columns, config.data, config.get_schema(), path.parent, for_prediction
+    )
     result.issues = read_issues + result.issues
     return result
 

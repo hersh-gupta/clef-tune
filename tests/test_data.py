@@ -228,3 +228,20 @@ def test_jsonl_native_images_accepts_one_string_and_rejects_other_types(tmp_path
     assert result.records[0].images == [str((tmp_path / "img.png").resolve())]
     errors = [i for i in result.issues if i.level == "error"]
     assert len(errors) == 1 and errors[0].rows == [2] and "'images' must be" in errors[0].message
+
+
+def test_prediction_input_needs_no_label_columns(tmp_path):
+    (tmp_path / "p.csv").write_text("id,subject,body\n1,a,b\n2,c,d\n", encoding="utf-8")
+    cfg = make_config(tmp_path, data={"train": "t.csv", "id_column": "id"})
+    result = load_file(cfg, "p.csv", for_prediction=True)
+    assert [r.id for r in result.records] == ["1", "2"]
+    assert all(r.labels == {} for r in result.records)
+    assert result.records[0].state == {"subject": "a", "body": "b"}
+    assert [i for i in result.issues if i.level == "error"] == []
+
+
+def test_prediction_input_still_parses_labels_that_are_present(tmp_path):
+    (tmp_path / "p.csv").write_text("id,body,outage\n1,a,yes\n2,b,\n", encoding="utf-8")
+    cfg = make_config(tmp_path, data={"train": "t.csv", "id_column": "id"})
+    first, second = load_file(cfg, "p.csv", for_prediction=True).records
+    assert first.labels == {"outage": Label(hard="true")} and second.labels == {}
