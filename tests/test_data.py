@@ -193,3 +193,38 @@ def test_split_keeps_singletons_in_train_but_always_makes_an_eval_row():
     records = _records(["billing", "technical", "NA"])
     train, evals = split_records(records, 0.1, seed=1)
     assert len(evals) == 1 and len(train) == 2
+
+
+def test_jsonl_line_separator_characters_inside_strings(tmp_path):
+    lines = [
+        json.dumps(
+            {"id": "a", "state": "x\u2028y\u2029z\x85", "labels": {"outage": "yes"}},
+            ensure_ascii=False,
+        ),
+        json.dumps({"id": "b", "state": "plain", "labels": {"outage": "no"}}),
+    ]
+    (tmp_path / "train.jsonl").write_bytes("\r\n".join(lines).encode("utf-8"))
+    result = load_file(make_config(tmp_path, data={"train": "train.jsonl"}), "train.jsonl")
+    assert [i for i in result.issues if i.level == "error"] == []
+    assert [r.id for r in result.records] == ["a", "b"]
+    assert result.records[0].state == "x\u2028y\u2029z\x85"
+    assert result.records[1].source_row == 2
+
+
+def test_csv_cells_larger_than_the_default_csv_limit_load(tmp_path):
+    big = "x" * 200_000
+    result = load_text(tmp_path, HEADER + f"1,a,{big},billing,0,no\n", state_columns=["body"])
+    assert result.records[0].state == big
+
+
+def test_jsonl_native_images_accepts_one_string_and_rejects_other_types(tmp_path):
+    lines = [
+        json.dumps({"id": "a", "state": "s", "labels": {"outage": "yes"}, "images": "img.png"}),
+        json.dumps({"id": "b", "state": "s", "labels": {"outage": "no"}, "images": 5}),
+    ]
+    (tmp_path / "train.jsonl").write_text("\n".join(lines), encoding="utf-8")
+    result = load_file(make_config(tmp_path, data={"train": "train.jsonl"}), "train.jsonl")
+    assert [r.id for r in result.records] == ["a"]
+    assert result.records[0].images == [str((tmp_path / "img.png").resolve())]
+    errors = [i for i in result.issues if i.level == "error"]
+    assert len(errors) == 1 and errors[0].rows == [2] and "'images' must be" in errors[0].message

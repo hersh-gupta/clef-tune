@@ -25,6 +25,7 @@ TABLE_DELIMITERS = {".csv": ",", ".tsv": "\t"}
 JSONL_SUFFIXES = {".jsonl", ".ndjson"}
 MAX_LISTED_ROWS = 20
 URL_PREFIXES = ("http://", "https://")
+CSV_FIELD_LIMIT = 2**31 - 1  # the largest value a C long holds on every platform
 
 Row = tuple[int, dict[str, Any]]
 Note = Callable[[str, str | None, str, int], None]
@@ -103,6 +104,7 @@ def _decode(path: Path) -> tuple[str, list[Issue]]:
 
 def _read_table(path: Path, delimiter: str) -> tuple[list[Row], list[str], list[Issue]]:
     text, issues = _decode(path)
+    csv.field_size_limit(CSV_FIELD_LIMIT)  # the 128 KB default rejects long documents
     records = list(csv.reader(io.StringIO(text, newline=""), delimiter=delimiter))
     if not records or not any(cell.strip() for cell in records[0]):
         raise DataError(f"{path.name}: no header row")
@@ -132,7 +134,10 @@ def _read_jsonl(path: Path) -> tuple[list[Row], list[str], list[Issue]]:
     columns: dict[str, None] = {}
     invalid: list[int] = []
     not_objects: list[int] = []
-    for number, line in enumerate(text.splitlines(), start=1):
+    # Split on "\n" only: str.splitlines() also breaks on U+2028, U+2029 and U+0085, which
+    # json.dumps(ensure_ascii=False) writes raw inside strings.
+    for number, raw_line in enumerate(text.split("\n"), start=1):
+        line = raw_line.removesuffix("\r")
         if not line.strip():
             continue
         try:
@@ -278,8 +283,14 @@ def _native_record(
             note("error", str(qid), "label for a question the row does not ask", number)
             continue
         pairs.append((question, raw))
+    raw_images = row.get("images") or []
+    if isinstance(raw_images, str):
+        raw_images = [raw_images]
+    elif not isinstance(raw_images, list):
+        note("error", None, "'images' must be a list of paths or URLs", number)
+        return None
     labels = _labels_for(number, pairs, note)
-    images = [_resolve_image(str(value).strip(), data_dir) for value in row.get("images") or []]
+    images = [_resolve_image(str(value).strip(), data_dir) for value in raw_images]
     record_id = f"row-{number}" if is_missing(row.get("id")) else str(row["id"]).strip()
     return Record(record_id, row["state"], questions, labels, images, number)
 

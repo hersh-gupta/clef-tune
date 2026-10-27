@@ -57,3 +57,31 @@ def test_bundle_refuses_reports_with_errors(tmp_path):
     report = validate(cfg, CharCounter())
     with pytest.raises(ValueError, match="validation has errors"):
         write_bundle(report, cfg, tmp_path / "bundle")
+
+
+def test_bundle_survives_line_separator_characters_in_text(tmp_path):
+    rows = ticket_rows(40)
+    for row in rows:
+        row["body"] = f"line\u2028break\u2029para\x85next {row['id']}"
+    write_csv(tmp_path / "train.csv", rows)
+    cfg = make_config(tmp_path, data={"train": "train.csv", "id_column": "id"})
+    report = validate(cfg, CharCounter())
+    assert report.ok
+    again = validate(load_config(write_bundle(report, cfg, tmp_path / "bundle")), CharCounter())
+    assert again.ok, [str(i) for i in again.errors]
+    assert [r.state for r in again.train] == [r.state for r in report.train]
+
+
+def test_bundle_makes_a_relative_model_local_path_absolute(tmp_path):
+    write_csv(tmp_path / "src" / "train.csv", ticket_rows(40))
+    cfg = make_config(
+        tmp_path / "src",
+        data={"train": "train.csv", "id_column": "id"},
+        model={"id": "Cloudflare/clef-flash", "local_path": "weights"},
+    )
+    report = validate(cfg, CharCounter())
+    bundled = load_config(write_bundle(report, cfg, tmp_path / "bundle"))
+    assert bundled.model.local_path == str((tmp_path / "src" / "weights").resolve())
+    assert (
+        bundled.resolve_path(bundled.model.local_path) == (tmp_path / "src" / "weights").resolve()
+    )

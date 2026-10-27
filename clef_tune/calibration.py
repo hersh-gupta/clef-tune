@@ -25,6 +25,8 @@ def softmax(logits: list[float], temperature: float = 1.0) -> list[float]:
 
 
 def nll(logits_rows: list[list[float]], targets: list[list[float]], temperature: float) -> float:
+    if not logits_rows:
+        return 0.0  # a question with no labeled eval rows
     total = 0.0
     for logits, target in zip(logits_rows, targets, strict=True):
         scaled = [z / temperature for z in logits]
@@ -75,6 +77,8 @@ def expected_calibration_error(
         bins[index][1] += confidence
         bins[index][2] += 1.0 if predicted == actual else 0.0
     n = len(probs_rows)
+    if n == 0:
+        return 0.0
     return sum(abs(conf - correct) / n for count, conf, correct in bins if count)
 
 

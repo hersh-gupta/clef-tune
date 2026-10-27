@@ -85,3 +85,36 @@ def test_save_and_load_preserve_order(tmp_path):
     loaded = Schema.load(path)
     assert loaded == schema
     assert list(loaded.questions) == ["d", "u"]
+
+
+def test_yaml_null_octal_sexagesimal_and_date_keys_stay_literal(tmp_path):
+    data = load_yaml_text(
+        "questions:\n"
+        "  007: {type: noul}\n"
+        "  q:\n"
+        "    type: choice\n"
+        "    criteria:\n"
+        "      null: a\n"
+        "      ~: b\n"
+        "      010: c\n"
+        "      1:30: d\n"
+        "      1_000: e\n"
+        "      2024-01-01: f\n"
+        "      description_is_null: null\n"
+    )
+    schema = Schema.from_dict(data)
+    assert list(schema.questions) == ["007", "q"]
+    question = schema.questions["q"]
+    assert question.option_ids() == [
+        "010",
+        "1:30",
+        "1_000",
+        "2024-01-01",
+        "description_is_null",
+        "null",
+        "~",
+    ]
+    assert question.criteria["description_is_null"] is None
+    path = tmp_path / "schema.yaml"
+    schema.save(path)
+    assert Schema.load(path) == schema

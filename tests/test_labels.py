@@ -114,3 +114,15 @@ def test_hard_label_distribution_and_json():
     label = Label(hard="technical")
     assert label.distribution(CHOICE.option_ids()) == [0.0, 0.0, 1.0]
     assert label.to_json() == "technical"
+
+
+@pytest.mark.parametrize("raw", ["1", "5", "0", 3])
+def test_score_number_is_ambiguous_when_criteria_are_other_numbers(raw):
+    stars = Question.from_dict("stars", {"type": "score", "criteria": ["1", "2", "3", "4", "5"]})
+    with pytest.raises(LabelError, match="ambiguous"):
+        parse_label(stars, raw)
+
+
+def test_score_number_is_fine_when_numeric_criteria_equal_their_index():
+    levels = Question.from_dict("lvl", {"type": "score", "criteria": [0, 1, 2]})
+    assert parse_label(levels, "1")[0] == Label(hard="1")

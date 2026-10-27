@@ -56,3 +56,9 @@ def test_calibrate_improves_ece_and_skips_small_questions():
     assert not small.fitted and small.temperature == 1.0
     assert small.ece_after == small.ece_before
     assert temperatures(result) == {"big": big.temperature, "small": 1.0}
+
+
+def test_calibrate_question_without_rows_is_neutral():
+    result = calibrate({"q": []}, {"q": []})["q"]
+    assert result.n == 0 and result.temperature == 1.0 and not result.fitted
+    assert result.ece_before == result.ece_after == 0.0

@@ -77,6 +77,11 @@ def _validate(path: Path) -> tuple[Config, ValidationReport]:
     return config, run_validation(config, _counter(config))
 
 
+def _print_errors(report: ValidationReport) -> None:
+    for issue in report.errors:
+        console.print(f"[red]error[/] {escape(str(issue))}")
+
+
 def print_report(report: ValidationReport) -> None:
     console.print(
         f"[bold]{len(report.train)}[/] training rows, [bold]{len(report.eval)}[/] eval rows"
@@ -98,8 +103,7 @@ def print_report(report: ValidationReport) -> None:
             f"Tokens per row: p50 {t.p50}, p95 {t.p95}, max {t.max}; "
             f"{t.truncated_rows} rows truncated"
         )
-    for issue in report.errors:
-        console.print(f"[red]error[/] {escape(str(issue))}")
+    _print_errors(report)
     for issue in report.warnings:
         console.print(f"[yellow]warning[/] {escape(str(issue))}")
     if report.ok:
@@ -163,6 +167,7 @@ def estimate(
         raise typer.BadParameter(f"choose one of {', '.join(GPUS)}", param_hint="--gpu")
     cfg, report = _validate(config)
     if not report.ok:
+        _print_errors(report)
         console.print("[yellow]Validation has errors; estimating anyway.[/]")
     if report.tokens is None:
         console.print("[red]Token statistics are unavailable, so there is nothing to estimate.[/]")

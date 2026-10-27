@@ -76,11 +76,12 @@ def _parse_score(question: Question, raw: Any) -> tuple[Label, str | None]:
     levels = len(question.criteria)
     index: int | None = None
     warning = None
+    from_number = False
     if isinstance(raw, bool):
         index = None
     elif isinstance(raw, int | float):
         if float(raw).is_integer():
-            index = int(raw)
+            index, from_number = int(raw), True
     else:
         text = str(raw).strip()
         try:
@@ -88,7 +89,7 @@ def _parse_score(question: Question, raw: Any) -> tuple[Label, str | None]:
         except ValueError:
             number = None
         if number is not None and number.is_integer():
-            index = int(number)
+            index, from_number = int(number), True
         elif number is None:
             texts = [str(criterion).strip() for criterion in question.criteria]
             if text in texts:
@@ -98,11 +99,29 @@ def _parse_score(question: Question, raw: Any) -> tuple[Label, str | None]:
                 if len(folded) == 1:
                     index = folded[0]
                     warning = f"'{text}' matched level '{texts[index]}' by case"
+    if from_number and _numeric_criteria_conflict(question):
+        raise LabelError(
+            f"{raw!r} is ambiguous: score labels are level indices from 0, but this question's "
+            "criteria are other numbers; give the levels descriptive text (e.g. '1 star')"
+        )
     if index is None or not 0 <= index < levels:
         raise LabelError(
             f"{raw!r} is not a score level (expected 0..{levels - 1} or a criteria text)"
         )
     return Label(hard=str(index)), warning
+
+
+def _numeric_criteria_conflict(question: Question) -> bool:
+    """True when a criteria text is a number other than its own index (e.g. a 1-5 scale),
+    so a numeric label could mean either the index or the text."""
+    for index, criterion in enumerate(question.criteria):
+        try:
+            value = float(str(criterion).strip())
+        except ValueError:
+            continue
+        if math.isfinite(value) and value != index:
+            return True
+    return False
 
 
 def _parse_noul(raw: Any) -> Label:

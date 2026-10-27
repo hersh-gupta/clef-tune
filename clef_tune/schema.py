@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from clef_tune.yamlio import dump_yaml, load_yaml_file
+from clef_tune.yamlio import YAMLSyntaxError, dump_yaml, load_yaml_file
 
 QUESTION_TYPES = ("noul", "choice", "score")
 NOUL_DEFAULT_CRITERIA = {
@@ -121,7 +121,11 @@ class Schema:
 
     @classmethod
     def load(cls, path: str | Path) -> Schema:
-        return cls.from_dict(load_yaml_file(path))
+        try:
+            data = load_yaml_file(path)
+        except YAMLSyntaxError as exc:
+            raise SchemaError(str(exc)) from exc
+        return cls.from_dict(data)
 
     def to_dict(self) -> dict[str, Any]:
         return {"questions": {qid: q.to_clef() for qid, q in self.questions.items()}}

@@ -110,3 +110,10 @@ def test_missing_data_file_and_bad_schema_file(tmp_path):
 def test_too_few_rows(tmp_path):
     report = validate(config_for(tmp_path, ticket_rows(1)), CharCounter())
     assert any("eval set is empty" in m for m in messages(report.errors))
+
+
+def test_schema_file_with_yaml_syntax_error_is_an_issue(tmp_path):
+    (tmp_path / "bad.yaml").write_text("questions: {q: [unclosed\n", encoding="utf-8")
+    cfg = make_config(tmp_path, schema=None, data={"train": "x.csv"}, schema_file="bad.yaml")
+    errors = messages(validate(cfg, None).errors)
+    assert len(errors) == 1 and errors[0].startswith("schema:") and "YAML" in errors[0]

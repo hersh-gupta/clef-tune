@@ -70,3 +70,22 @@ def test_estimate_custom_gpu():
 def test_estimate_rejects_unknown_gpu():
     result = runner.invoke(cli.app, ["estimate", str(EXAMPLE), "--gpu", "TPU"])
     assert result.exit_code != 0
+
+
+def test_yaml_syntax_error_in_config_exits_2(tmp_path):
+    config = tmp_path / "config.yaml"
+    config.write_text("run_name: r\ndata: {train: d.csv\n", encoding="utf-8")
+    result = runner.invoke(cli.app, ["validate", str(config)])
+    assert result.exit_code == 2 and "Invalid config" in result.output
+    assert result.exception is None or isinstance(result.exception, SystemExit)
+
+
+def test_estimate_shows_the_validation_errors(tmp_path):
+    config = tmp_path / "config.yaml"
+    config.write_text(
+        "run_name: t\ndata: {train: missing.csv}\nschema: {questions: {q: {type: noul}}}\n",
+        encoding="utf-8",
+    )
+    result = runner.invoke(cli.app, ["estimate", str(config), "--gpu", "H100"])
+    assert result.exit_code == 1
+    assert "file not found" in result.output
