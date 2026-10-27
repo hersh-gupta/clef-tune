@@ -13,7 +13,7 @@ from transformers import AutoProcessor
 
 from clef_tune.adapter import AdapterInfo, read_adapter
 from clef_tune.calibration import softmax
-from clef_tune.clef_code import load_clef_code, model_dir
+from clef_tune.clef_code import adapter_base_dir, load_clef_code
 from clef_tune.data import Record, load_file
 from clef_tune.encoding import TrainItem, prepare_items
 from clef_tune.evaluation import predict_logits
@@ -52,7 +52,10 @@ class Predictor:
         quantization: str | None = None,
         revision: str | None = None,
         token: str | None = None,
+        base_model_path: str | Path | None = None,
     ) -> Predictor:
+        """Load an adapter directory or Hub repo. The base model comes from `base_model_path`,
+        else the adapter's recorded model.local_path, else the pinned Hub snapshot."""
         local = Path(path_or_repo)
         if local.is_dir():
             path = local
@@ -61,7 +64,7 @@ class Predictor:
         info = read_adapter(path)
         target = torch.device(device) if device is not None else default_device()
         dtype = compute_dtype(target)
-        base = model_dir(info.config)
+        base = adapter_base_dir(info.config, base_model_path)
         clef_code = load_clef_code(base)
         backbone = load_backbone(
             base,

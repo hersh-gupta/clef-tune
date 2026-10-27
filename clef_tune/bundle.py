@@ -7,7 +7,7 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
-from pathlib import Path, PureWindowsPath
+from pathlib import Path
 
 from clef_tune.config import Config
 from clef_tune.data import URL_PREFIXES, Record
@@ -37,24 +37,12 @@ def write_bundle(report: ValidationReport, config: Config, out_dir: str | Path) 
             for record in records:
                 handle.write(json.dumps(row(record), ensure_ascii=False) + "\n")
 
-    bundled = config.to_dict()
+    bundled = config.to_portable_dict()
     bundled["data"] = {"train": "train.jsonl", "eval": "eval.jsonl"}
-    bundled.pop("schema_file", None)
-    if schema is not None:
-        bundled["schema"] = schema.to_dict()
     bundled.get("output", {}).pop("dir", None)
-    local_path = config.model.local_path
-    if local_path and not _is_absolute_anywhere(local_path):
-        # Relative to the original config's directory, which the bundle no longer shares.
-        bundled["model"]["local_path"] = str(config.resolve_path(local_path).resolve())
     config_path = out_dir / "config.yaml"
     Config.model_validate(bundled).save(config_path)
     return config_path
-
-
-def _is_absolute_anywhere(path: str) -> bool:
-    """Absolute on POSIX (/model on HF Jobs) or Windows (a drive or UNC path), on any OS."""
-    return path.replace("\\", "/").startswith("/") or PureWindowsPath(path).is_absolute()
 
 
 def _bundle_image(path: str, images_dir: Path, copied: dict[str, str]) -> str:

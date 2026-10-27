@@ -85,8 +85,8 @@ def save_adapter(
         schema.save(out / SCHEMA_FILE)
 
     revision = config.model.resolved_revision()
-    data = config.to_dict()
-    data.setdefault("model", {})["revision"] = revision
+    data = config.to_portable_dict()  # the adapter must load wherever it is copied to
+    data["model"]["revision"] = revision
     header = f"# clef-tune {clef_tune.__version__}\n# base model: {config.model.id} @ {revision}\n"
     (out / CONFIG_FILE).write_text(header + dump_yaml(data), encoding="utf-8")
     (out / METRICS_FILE).write_text(json.dumps(metrics, indent=2), encoding="utf-8")
@@ -117,18 +117,19 @@ def export_merged(
     dtype: Any = None,
     device: str = "cpu",
     max_shard_size: str = "5GB",
+    base_model_path: str | Path | None = None,
 ) -> Path:
     """Write a merged checkpoint in Cloudflare's release layout (loads in Clef and SGLang)."""
     import torch
     from peft import PeftModel
     from safetensors.torch import load_file, save_file
 
-    from clef_tune.clef_code import model_dir
+    from clef_tune.clef_code import adapter_base_dir
     from clef_tune.model import load_backbone
 
     dtype = torch.bfloat16 if dtype is None else dtype
     info = read_adapter(adapter)
-    base = model_dir(info.config)
+    base = adapter_base_dir(info.config, base_model_path)
     backbone = load_backbone(base, quantization="none", device=torch.device(device), dtype=dtype)
     if info.has_lora:
         backbone = PeftModel.from_pretrained(backbone, info.path / LORA_DIR).merge_and_unload()

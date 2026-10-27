@@ -114,3 +114,19 @@ def test_hash_includes_file_contents(tmp_path):
     first = config_hash(cfg, [data_file])
     data_file.write_text("b", encoding="utf-8")
     assert config_hash(cfg, [data_file]) != first
+
+
+@pytest.mark.parametrize("absolute", ["/model", r"C:\models\clef", r"\\server\share\clef"])
+def test_portable_dict_keeps_absolute_local_paths_as_written(tmp_path, absolute):
+    cfg = load_config(write(tmp_path, MINIMAL + f"model: {{local_path: '{absolute}'}}\n"))
+    assert cfg.to_portable_dict()["model"]["local_path"] == absolute
+
+
+def test_portable_dict_inlines_the_schema_file_and_absolutizes_local_path(tmp_path):
+    write(tmp_path, "questions:\n  outage: {type: noul}\n", "schemas/s.yaml")
+    text = "run_name: demo\ndata: {train: t.csv}\nschema_file: schemas/s.yaml\n"
+    cfg = load_config(write(tmp_path, text + "model: {local_path: weights}\n"))
+    portable = cfg.to_portable_dict()
+    assert "schema_file" not in portable
+    assert portable["schema"] == cfg.get_schema().to_dict()
+    assert portable["model"]["local_path"] == str((tmp_path / "weights").resolve())

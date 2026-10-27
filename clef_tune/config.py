@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Iterable
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, model_validator
@@ -153,6 +153,19 @@ class Config(_Section):
     def to_dict(self) -> dict[str, Any]:
         return self.model_dump(mode="json", by_alias=True, exclude_none=True)
 
+    def to_portable_dict(self) -> dict[str, Any]:
+        """to_dict() for a copy kept in another directory (a bundle, an adapter): the schema
+        inline instead of schema_file, and a relative model.local_path made absolute."""
+        data = self.to_dict()
+        data.pop("schema_file", None)
+        schema = self.get_schema()
+        if schema is not None:
+            data["schema"] = schema.to_dict()
+        local_path = self.model.local_path
+        if local_path and not is_absolute_anywhere(local_path):
+            data["model"]["local_path"] = str(self.resolve_path(local_path).resolve())
+        return data
+
     def to_yaml(self) -> str:
         return dump_yaml(self.to_dict())
 
@@ -170,6 +183,11 @@ class Config(_Section):
                 section = section.setdefault(parent, {})
             section[leaf] = value
         return Config.model_validate(data).with_base_dir(self._base_dir)
+
+
+def is_absolute_anywhere(path: str) -> bool:
+    """Absolute on POSIX (/model on HF Jobs) or Windows (a drive or UNC path), on any OS."""
+    return path.replace("\\", "/").startswith("/") or PureWindowsPath(path).is_absolute()
 
 
 def load_config(path: str | Path) -> Config:
