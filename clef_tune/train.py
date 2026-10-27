@@ -1,5 +1,5 @@
-"""The training run: validate, load Clef, train with Accelerate, keep the best eval, calibrate from
-its cached logits and write the adapter."""
+"""The training run: validate, load Clef, train with Accelerate (resuming from the latest
+checkpoint), keep the best eval, calibrate from its cached logits and write the adapter."""
 
 from __future__ import annotations
 
@@ -24,8 +24,10 @@ from clef_tune.checkpoints import (
     TrainState,
     check_resume,
     clear_checkpoints,
+    latest_checkpoint,
     load_baseline,
     load_best,
+    load_checkpoint,
     save_baseline,
     save_best,
     save_checkpoint,
@@ -52,6 +54,8 @@ OOM_ADVICE = (
     "lower train.max_tokens_per_batch or train.max_length, set train.quantization: 4bit, "
     "or use a larger GPU flavor"
 )
+BUNDLE_FILES = ("config.yaml", "train.jsonl", "eval.jsonl")
+BUNDLE_IMAGES = "images"
 
 
 class TrainingError(RuntimeError):
@@ -67,13 +71,15 @@ class TrainResult:
 
 
 class _EventLog:
-    """One JSON object per line in metrics.jsonl (append mode, flushed per event), a short line on
-    stdout, and the numbers to any Accelerate trackers. Only the main process writes."""
+    """One JSON object per line in metrics.jsonl (flushed per event), a short line on stdout, and
+    the numbers to any Accelerate trackers. A resumed run appends to the log; any other run starts
+    a new one. Only the main process writes."""
 
-    def __init__(self, path: Path, accelerator: Accelerator, trackers: bool) -> None:
+    def __init__(self, path: Path, accelerator: Accelerator, trackers: bool, append: bool) -> None:
         self._accelerator = accelerator
         self._trackers = trackers
-        self._handle = open(path, "a", encoding="utf-8") if accelerator.is_main_process else None
+        mode = "a" if append else "w"
+        self._handle = open(path, mode, encoding="utf-8") if accelerator.is_main_process else None
 
     def __enter__(self) -> _EventLog:
         return self
@@ -163,6 +169,35 @@ def _check_memory(config: Config, report: ValidationReport, device: torch.device
         )
 
 
+def _check_bundle(bundle_dir: Path) -> None:
+    if not all((bundle_dir / name).is_file() for name in BUNDLE_FILES):
+        raise TrainingError(
+            f"--delete-bundle-on-success needs a bundle ({', '.join(BUNDLE_FILES)}); "
+            f"{bundle_dir} is not a bundle"
+        )
+
+
+def _delete_bundle(bundle_dir: Path) -> None:
+    """Delete the bundle's data and config; the directory goes too if nothing else is in it (the
+    default output dir lives inside the bundle)."""
+    for name in BUNDLE_FILES:
+        (bundle_dir / name).unlink(missing_ok=True)
+    if (bundle_dir / BUNDLE_IMAGES).is_dir():
+        shutil.rmtree(bundle_dir / BUNDLE_IMAGES)
+    if not any(bundle_dir.iterdir()):
+        bundle_dir.rmdir()
+
+
+def _non_finite_loss(output_dir: Path, step: int) -> TrainingError:
+    latest = latest_checkpoint(output_dir)
+    where = (
+        f"the last good checkpoint is step {latest.name.removeprefix('step-')} in {latest.parent}"
+        if latest is not None
+        else "no checkpoint was saved yet"
+    )
+    return TrainingError(f"loss became non-finite at step {step}; {where}")
+
+
 def _eta(elapsed: float, steps_done: int, steps_left: int) -> float | None:
     """Seconds left at this run's pace, once it has run ETA_AFTER_STEPS steps."""
     if steps_done < ETA_AFTER_STEPS:
@@ -243,6 +278,8 @@ def train(
 ) -> TrainResult:
     started = time.monotonic()
     config = load_config(config_path)
+    if delete_bundle_on_success:
+        _check_bundle(config.base_dir)
     report = validate(config, counter_for_config(config))
     if not report.ok:
         raise TrainingError(
@@ -272,7 +309,7 @@ def train(
     if restart and main:
         clear_checkpoints(output_dir)
     accelerator.wait_for_everyone()
-    check_resume(output_dir, run_hash)
+    resume_checkpoint = check_resume(output_dir, run_hash)
 
     if device.type == "cuda":
         _check_memory(config, report, device)
@@ -318,6 +355,12 @@ def train(
         train_seconds=0.0,
     )
     resumed_from: int | None = None
+    if resume_checkpoint is not None:
+        # Weights, optimizer, scheduler, RNG and data position; nothing below draws randomness
+        # before the loop, so the run continues exactly where the checkpoint left off.
+        state = load_checkpoint(resume_checkpoint, unwrapped, optimizer, scheduler)
+        resumed_from = state.step
+        accelerator.print(f"Resuming from step {resumed_from}")
 
     if main:
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -325,7 +368,12 @@ def train(
     if config.output.report_to:
         accelerator.init_trackers(config.run_name)
 
-    with _EventLog(output_dir / METRICS_LOG, accelerator, bool(config.output.report_to)) as log:
+    with _EventLog(
+        output_dir / METRICS_LOG,
+        accelerator,
+        bool(config.output.report_to),
+        append=resumed_from is not None,
+    ) as log:
 
         def evaluate_and_select() -> None:
             result, per_item = _evaluate(
@@ -354,81 +402,92 @@ def train(
         start_step, start_epoch, skip = state.step, state.epoch, state.batch_in_epoch
         tokens_this_run = 0
         loss_sum, loss_count = 0.0, 0
-        last_eval_step: int | None = None
-        stopped_early = False
-        model.train()
-        for epoch in range(start_epoch, train_cfg.epochs):
-            batches = epoch_batches(epoch)
-            first = skip if epoch == start_epoch else 0
-            state.epoch, state.batch_in_epoch = epoch, first
-            for position in range(first, len(batches)):
-                # An optimizer step closes each group of `accum` micro-batches and the epoch's
-                # last (possibly shorter) group: ceil(len(batches) / accum) steps per epoch.
-                # accumulate() syncs when its counter reaches `accum`, so set the counter to
-                # sync exactly at each group's end, independent of earlier epochs or a resume.
-                group_start = position - position % accum
-                group_size = min(accum, len(batches) - group_start)
-                accelerator.step = accum - 1 if position == group_start + group_size - 1 else 0
-                with accelerator.accumulate(model):
-                    items = [train_items[i] for i in batches[position]]
-                    batch = collate(items, clef_code, processor, train_cfg.max_length, device)
-                    loss = batch_loss(
-                        model(batch),
-                        items,
-                        class_weights=weights,
-                        question_weights=train_cfg.question_weights,
-                        label_smoothing=train_cfg.label_smoothing,
-                    )
-                    loss_value = loss.item()
-                    if not math.isfinite(loss_value):
-                        raise TrainingError(f"loss became non-finite at step {state.step + 1}")
-                    # Accelerate divides by `accum`; average over the micro-batches in this group.
-                    accelerator.backward(loss * (accum / group_size))
-                    if accelerator.sync_gradients:
-                        accelerator.clip_grad_norm_(trainable, MAX_GRAD_NORM)
-                        optimizer.step()
-                        scheduler.step()
-                        optimizer.zero_grad()
-                padded_tokens = batch["input_ids"].numel()
-                tokens_this_run += padded_tokens
-                state.tokens_seen += padded_tokens
-                state.batch_in_epoch = position + 1
-                loss_sum, loss_count = loss_sum + loss_value, loss_count + 1
-                if not accelerator.sync_gradients:
-                    continue
+        # A checkpoint is saved after its step's eval, so a run resumed from an eval step has
+        # already evaluated it, and may already have run out of patience there.
+        resumed_at_eval = resumed_from is not None and state.step % eval_cfg.eval_every == 0
+        last_eval_step: int | None = state.step if resumed_at_eval else None
+        patience = eval_cfg.early_stopping_patience
+        stopped_early = patience is not None and state.bad_evals >= patience
 
-                state.step += 1
-                now = time.monotonic()
-                state.train_seconds = base_seconds + now - started
-                if state.step % LOG_EVERY == 0 or state.step == total_steps:
-                    eta_s = _eta(
-                        now - loop_started, state.step - start_step, total_steps - state.step
-                    )
-                    log(
-                        "train",
-                        step=state.step,
-                        loss=loss_sum / loss_count,
-                        lr=scheduler.get_last_lr()[0],
-                        tokens_per_sec=tokens_this_run / max(now - loop_started, 1e-9),
-                        eta_s=eta_s,
-                        projected_cost=_projected_cost(state.train_seconds, eta_s),
-                    )
-                    loss_sum, loss_count = 0.0, 0
-                if state.step % eval_cfg.eval_every == 0:
-                    evaluate_and_select()
-                    last_eval_step = state.step
-                    patience = eval_cfg.early_stopping_patience
-                    stopped_early = patience is not None and state.bad_evals >= patience
-                if state.step % config.output.save_every == 0:
-                    if main:
-                        save_checkpoint(output_dir, unwrapped, optimizer, scheduler, state)
-                    accelerator.wait_for_everyone()
-                if on_step is not None:
-                    on_step(state.step)
+        def log_train(now: float, steps_left: int) -> None:
+            eta_s = _eta(now - loop_started, state.step - start_step, steps_left)
+            log(
+                "train",
+                step=state.step,
+                loss=loss_sum / loss_count,
+                lr=scheduler.get_last_lr()[0],
+                tokens_per_sec=tokens_this_run / max(now - loop_started, 1e-9),
+                eta_s=eta_s,
+                projected_cost=_projected_cost(state.train_seconds, eta_s),
+            )
+
+        model.train()
+        try:
+            for epoch in range(start_epoch, train_cfg.epochs):
                 if stopped_early:
                     break
-            if stopped_early:
-                break
+                batches = epoch_batches(epoch)
+                first = skip if epoch == start_epoch else 0
+                state.epoch, state.batch_in_epoch = epoch, first
+                for position in range(first, len(batches)):
+                    # An optimizer step closes each group of `accum` micro-batches and the epoch's
+                    # last (possibly shorter) group: ceil(len(batches) / accum) steps per epoch.
+                    # accumulate() syncs when its counter reaches `accum`, so set the counter to
+                    # sync exactly at each group's end, independent of earlier epochs or a resume.
+                    group_start = position - position % accum
+                    group_size = min(accum, len(batches) - group_start)
+                    accelerator.step = accum - 1 if position == group_start + group_size - 1 else 0
+                    with accelerator.accumulate(model):
+                        items = [train_items[i] for i in batches[position]]
+                        batch = collate(items, clef_code, processor, train_cfg.max_length, device)
+                        loss = batch_loss(
+                            model(batch),
+                            items,
+                            class_weights=weights,
+                            question_weights=train_cfg.question_weights,
+                            label_smoothing=train_cfg.label_smoothing,
+                        )
+                        loss_value = loss.item()
+                        if not math.isfinite(loss_value):
+                            raise _non_finite_loss(output_dir, state.step + 1)
+                        # Accelerate divides by `accum`; average over the group's micro-batches.
+                        accelerator.backward(loss * (accum / group_size))
+                        if accelerator.sync_gradients:
+                            accelerator.clip_grad_norm_(trainable, MAX_GRAD_NORM)
+                            optimizer.step()
+                            scheduler.step()
+                            optimizer.zero_grad()
+                    padded_tokens = batch["input_ids"].numel()
+                    tokens_this_run += padded_tokens
+                    state.tokens_seen += padded_tokens
+                    state.batch_in_epoch = position + 1
+                    loss_sum, loss_count = loss_sum + loss_value, loss_count + 1
+                    if not accelerator.sync_gradients:
+                        continue
+
+                    state.step += 1
+                    now = time.monotonic()
+                    state.train_seconds = base_seconds + now - started
+                    if state.step % LOG_EVERY == 0 or state.step == total_steps:
+                        log_train(now, total_steps - state.step)
+                        loss_sum, loss_count = 0.0, 0
+                    if state.step % eval_cfg.eval_every == 0:
+                        evaluate_and_select()
+                        last_eval_step = state.step
+                        stopped_early = patience is not None and state.bad_evals >= patience
+                        if stopped_early and loss_count:  # the run ends here: log its last step
+                            log_train(now, 0)
+                            loss_sum, loss_count = 0.0, 0
+                    if state.step % config.output.save_every == 0:
+                        if main:
+                            save_checkpoint(output_dir, unwrapped, optimizer, scheduler, state)
+                        accelerator.wait_for_everyone()
+                    if on_step is not None:
+                        on_step(state.step)
+                    if stopped_early:
+                        break
+        except torch.OutOfMemoryError as error:
+            raise TrainingError(f"training ran out of memory: {error}; {OOM_ADVICE}") from error
 
         if last_eval_step != state.step:
             evaluate_and_select()
@@ -467,6 +526,8 @@ def train(
 
     if main:
         clear_checkpoints(output_dir)
+        if delete_bundle_on_success:
+            _delete_bundle(config.base_dir)
     if config.output.report_to:
         accelerator.end_training()
     return TrainResult(final_dir, metrics, resumed_from, None)
