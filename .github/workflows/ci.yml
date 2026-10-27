@@ -14,3 +14,19 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run ruff check .
       - run: uv run pytest
+  torch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v6
+      - run: uv venv --python 3.12
+      # Locked versions of everything except torch: PyPI's Linux torch pulls ~3 GB of CUDA wheels.
+      - run: >
+          uv export --frozen --extra dev --extra train --no-emit-project --no-hashes --no-header
+          --no-annotate | grep -vE '^(torch|torchvision|triton|nvidia-[A-Za-z0-9._-]+)==' > ci-req.txt
+      - run: uv pip install -r ci-req.txt
+      - run: uv pip install torch==2.11.0 torchvision==0.26.0 --index-url https://download.pytorch.org/whl/cpu
+      - run: uv pip install --no-deps -e .
+      - run: uv run --no-sync pytest tests/torch -m "not gpu and not hfjobs"

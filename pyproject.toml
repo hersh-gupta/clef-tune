@@ -24,6 +24,7 @@ dependencies = [
 ui = ["gradio>=6.0"]
 train = [
   "torch>=2.11,<2.12",
+  "torchvision>=0.26,<0.27",
   "transformers>=5.10.2,<5.11",
   "peft>=0.21",
   "accelerate>=1.10",
@@ -66,3 +67,12 @@ markers = [
   "hfjobs: submits a real Hugging Face Job (opt-in, costs money)",
   "network: downloads from the Hugging Face Hub",
 ]
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cu130", marker = "sys_platform == 'win32'" }]
+torchvision = [{ index = "pytorch-cu130", marker = "sys_platform == 'win32'" }]
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
