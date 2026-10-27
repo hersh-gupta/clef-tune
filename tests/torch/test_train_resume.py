@@ -192,3 +192,20 @@ def test_a_directory_whose_config_points_elsewhere_is_not_a_bundle(tiny_project,
     with pytest.raises(TrainingError, match="is not a bundle"):
         train(bundle_config, delete_bundle_on_success=True)
     assert (folder / "train.jsonl").exists()
+
+
+def test_resuming_with_a_different_number_of_processes_is_refused(tiny_project):
+    config = tiny_project(train={"epochs": 2}, output={"save_every": 1})
+
+    def stop(step):
+        raise Stop
+
+    with pytest.raises(Stop):
+        train(config, on_step=stop)
+    state_file = config.parent / "out" / "checkpoints" / "step-1" / "state.json"
+    state = json.loads(state_file.read_text(encoding="utf-8"))
+    assert state["world_size"] == 1
+    state_file.write_text(json.dumps({**state, "world_size": 2}), encoding="utf-8")
+    with pytest.raises(TrainingError, match="made with 2 processes; resume with 2 processes"):
+        train(config)
+    assert train(config, restart=True).resumed_from is None

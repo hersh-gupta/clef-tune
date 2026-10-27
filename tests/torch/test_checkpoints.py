@@ -98,3 +98,16 @@ def test_best_and_baseline_round_trip(tiny_release, tmp_path):
     save_baseline(tmp_path, {"exact_match": 0.25})
     assert load_baseline(tmp_path) == {"exact_match": 0.25}
     assert load_baseline(tmp_path / "nowhere") is None
+
+
+def test_a_state_saved_before_world_size_existed_reads_as_one_process(tiny_release, tmp_path):
+    import json
+
+    from clef_tune.checkpoints import read_state
+
+    model, optimizer, scheduler = make(tiny_release)
+    path = save_checkpoint(tmp_path, model, optimizer, scheduler, state(1))
+    data = json.loads((path / "state.json").read_text(encoding="utf-8"))
+    del data["world_size"]
+    (path / "state.json").write_text(json.dumps(data), encoding="utf-8")
+    assert read_state(path) == state(1) and read_state(path).world_size == 1

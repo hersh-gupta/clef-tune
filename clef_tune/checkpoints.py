@@ -31,6 +31,7 @@ class TrainState:
     config_hash: str
     tokens_seen: int
     train_seconds: float
+    world_size: int = 1  # processes the run trains with: data sharding and the step count
 
 
 class ConfigMismatchError(RuntimeError):
@@ -115,7 +116,12 @@ def load_checkpoint(path, model, optimizer, scheduler) -> TrainState:
     optimizer.load_state_dict(torch.load(path / "optimizer.pt", weights_only=True))
     scheduler.load_state_dict(torch.load(path / "scheduler.pt", weights_only=True))
     _restore_rng(torch.load(path / "rng.pt", weights_only=False))
-    return TrainState(**_read_json(path / "state.json"))
+    return read_state(path)
+
+
+def read_state(path) -> TrainState:
+    """A checkpoint's TrainState, without loading anything else (older ones: one process)."""
+    return TrainState(**_read_json(Path(path) / "state.json"))
 
 
 def check_resume(output_dir, config_hash: str) -> Path | None:

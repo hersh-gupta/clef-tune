@@ -28,6 +28,7 @@ from clef_tune.checkpoints import (
     load_baseline,
     load_best,
     load_checkpoint,
+    read_state,
     save_baseline,
     save_best,
     save_checkpoint,
@@ -367,6 +368,14 @@ def _train(
         clear_checkpoints(output_dir)
     accelerator.wait_for_everyone()
     resume_checkpoint = check_resume(output_dir, run_hash)
+    if resume_checkpoint is not None:
+        # Each rank's batches and the step count depend on the number of processes.
+        saved = read_state(resume_checkpoint).world_size
+        if saved != accelerator.num_processes:
+            raise TrainingError(
+                f"checkpoints in {resume_checkpoint.parent} were made with {saved} processes; "
+                f"resume with {saved} processes, or run with --restart"
+            )
 
     if device.type == "cuda":
         _check_memory(config, report, device)
@@ -410,6 +419,7 @@ def _train(
         config_hash=run_hash,
         tokens_seen=0,
         train_seconds=0.0,
+        world_size=accelerator.num_processes,
     )
     resumed_from: int | None = None
     if resume_checkpoint is not None:
