@@ -86,6 +86,11 @@ def test_card_reports_model_metrics_and_caveats(tmp_path):
     assert "| department | accuracy | 0.500 | 0.900 |" in text
     assert "| all | exact match |" in text
     assert "slightly optimistic" in text
+    calibration_header = (
+        "| question | temperature | ECE before | ECE after | log-loss before | log-loss after |"
+    )
+    assert calibration_header in text
+    assert "| department | 1.200 | 0.200 | 0.100 | 0.900 | 0.800 |" in text
     assert "Balanced class weighting shifts predicted probabilities" in text
     assert "Estimated time: 0.8 h" in text and "Actual time: 1.0 h" in text
 

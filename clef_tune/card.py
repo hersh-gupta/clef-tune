@@ -18,7 +18,7 @@ _ROWS: dict[str, list[tuple[str, str]]] = {
 }
 _CALIBRATION_CAVEAT = (
     "Temperatures were fit on the same eval set used to choose the checkpoint, "
-    "so post-calibration ECE is slightly optimistic."
+    "so post-calibration ECE and log-loss are slightly optimistic."
 )
 _WEIGHTING_NOTE = (
     "Balanced class weighting shifts predicted probabilities toward rare classes; "
@@ -94,11 +94,13 @@ def render_card(metrics: dict, config: Config, version: str) -> str:
             "",
             "## Calibration",
             "",
-            "| question | temperature | ECE before | ECE after |",
-            "| --- | --- | --- | --- |",
+            "| question | temperature | ECE before | ECE after "
+            "| log-loss before | log-loss after |",
+            "| --- | --- | --- | --- | --- | --- |",
         ]
         for qid, cal in calibration.items():
-            cells = (cal["temperature"], cal["ece_before"], cal["ece_after"])
+            keys = ("temperature", "ece_before", "ece_after", "log_loss_before", "log_loss_after")
+            cells = tuple(cal.get(key) for key in keys)
             out.append(f"| {qid} | " + " | ".join(_num(v) for v in cells) + " |")
         out += ["", _CALIBRATION_CAVEAT]
     if config.train.class_weighting == "balanced":

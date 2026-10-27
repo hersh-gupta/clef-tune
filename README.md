@@ -56,14 +56,16 @@ without these kernels Clef's linear-attention layers fall back to a slow PyTorch
 clef-tune validate cfg.yaml --bundle out/bundle      # normalized data + self-contained config
 clef-tune train out/bundle/config.yaml               # resumes automatically from checkpoints
 accelerate launch -m clef_tune train cfg.yaml        # multi-GPU DDP
-clef-tune predict out/final new.csv -o preds.jsonl   # or preds.csv; --no-calibration for raw
-clef-tune eval out/final labeled.csv --output metrics.json
-clef-tune export out/final --merge -o merged         # Cloudflare's release layout
+clef-tune predict out/<run_name>/final new.csv -o preds.jsonl  # or preds.csv; --no-calibration
+clef-tune eval out/<run_name>/final labeled.csv --output metrics.json
+clef-tune export out/<run_name>/final --merge -o merged          # Cloudflare's release layout
 ```
 
 `train` accepts `--restart` (ignore checkpoints), `--push-to-hub REPO` and
-`--delete-bundle-on-success`. The adapter is written to `<output.dir>/final`. `eval` prints
-per-question metrics, exact match, confusion matrices and ECE before and after calibration.
+`--delete-bundle-on-success`. The adapter is written to `<output.dir>/final`; `output.dir`
+defaults to `out/<run_name>` next to the config, so a bundle's run lands in
+`out/bundle/out/<run_name>/final`. `eval` prints per-question metrics, exact match,
+confusion matrices and ECE before and after calibration.
 Exit codes: 0 ok, 1 training/data/Hub failure, 2 invalid config or arguments.
 
 ### Docker
@@ -78,13 +80,16 @@ docker run --gpus all -v "$PWD:/work" -w /work clef-tune train cfg.yaml
 ```python
 from clef_tune import Predictor
 
-p = Predictor.load("out/final")  # local dir or Hub repo; device, quantization optional
+p = Predictor.load("out/<run_name>/final")  # local dir or Hub repo
 p.predict([{"state": {"subject": "Site down", "body": "..."}}])  # SystemOne-shaped answers
 p.systemone(request)  # same contract as Clef's systemone(), calibrated
 p.model, p.processor  # raw ClefModel + processor (uncalibrated logits)
 ```
 
 Questions default to the adapter's schema; calibration is applied unless `calibrated=False`.
+`Predictor.load` also takes `device`, `quantization` and `base_model_path`; without
+`base_model_path` it uses the base model directory recorded at training time, or downloads
+the pinned base model when that directory does not exist on this machine.
 
 ## Calibration
 
