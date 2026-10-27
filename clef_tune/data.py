@@ -59,7 +59,7 @@ class Record:
     state: Any
     questions: dict[str, Question]
     labels: dict[str, Label]
-    images: list[str] = field(default_factory=list)
+    images: list[Any] = field(default_factory=list)  # paths or URLs; Predictor rows: PIL too
     source_row: int = 0
 
     def to_json(self) -> dict[str, Any]:

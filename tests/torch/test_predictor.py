@@ -1,4 +1,8 @@
+import base64
+import io
+
 import pytest
+import torch
 from PIL import Image
 
 from clef_tune.calibration import temper_probabilities
@@ -55,3 +59,26 @@ def test_predictor_is_exported_from_the_package():
     from clef_tune import Predictor as Exported
 
     assert Exported is Predictor
+
+
+def test_systemone_takes_data_uri_and_pil_images_like_clef(adapter):
+    buffer = io.BytesIO()
+    Image.new("RGB", (64, 48), (200, 10, 10)).save(buffer, format="PNG")
+    data_uri = "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode()
+    predictor = Predictor.load(adapter, device="cpu")
+    jsm, tokenizer = predictor.clef_code, predictor.processor.tokenizer
+    request = {"model": "m", "state": "s", "questions": {"x": {"type": "noul"}}}
+    for image in (data_uri, Image.new("RGB", (64, 48), (200, 10, 10))):
+        with_image = {**request, "images": [image]}
+        response = predictor.systemone(with_image)
+        clef = jsm.systemone(predictor.model, predictor.processor, with_image)
+        assert set(response["answers"]) == {"x"} and response["usage"] == clef["usage"]
+        # The same pixels: Clef's own encoding of the request gives the same logits.
+        encoded = jsm.encode_record(
+            tokenizer, with_image, max_length=1024, processor=predictor.processor
+        )
+        with torch.no_grad():
+            batch = jsm.collate_records([encoded], tokenizer.pad_token_id, torch.device("cpu"))
+            expected = predictor.model(batch)[0][0].tolist()
+        got = predictor.logits([{k: with_image[k] for k in ("state", "questions", "images")}])
+        assert got[0]["x"] == pytest.approx(expected, abs=1e-5)

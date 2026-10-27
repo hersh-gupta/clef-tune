@@ -92,8 +92,8 @@ class Predictor:
                 raise ValueError(
                     f"row {index} has no 'questions' and the adapter has no schema to default to"
                 )
-            raw_images = row.get("images") or []
-            images = [raw_images] if isinstance(raw_images, str) else list(raw_images)
+            raw_images = row.get("images") or []  # paths, URLs, base64 strings or PIL images
+            images = list(raw_images) if isinstance(raw_images, list | tuple) else [raw_images]
             record_id = str(row["id"]) if row.get("id") is not None else str(index)
             records.append(Record(record_id, row["state"], questions, {}, images))
         return records

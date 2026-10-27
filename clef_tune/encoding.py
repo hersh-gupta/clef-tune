@@ -2,11 +2,23 @@
 
 from __future__ import annotations
 
+import os
+import time
 from dataclasses import dataclass
 from typing import Any
 
 from clef_tune.data import URL_PREFIXES, Record
 from clef_tune.prompt import DEFAULT_URL_IMAGE_SIZE, media_token_count
+
+IMAGE_TIMEOUT_S = 30.0
+IMAGE_ATTEMPTS = 3  # the first try and 2 retries
+IMAGE_RETRY_DELAY_S = 2.0  # times the attempt number
+_EXIF_ORIENTATION = 0x0112
+_SWAPS_WIDTH_AND_HEIGHT = {5, 6, 7, 8}  # EXIF orientations that turn the image by 90 degrees
+
+
+class ImageLoadError(OSError):
+    """An image URL could not be fetched; the message names it."""
 
 
 @dataclass
@@ -19,14 +31,29 @@ class TrainItem:
     encoded: Any | None  # Clef's EncodedRecord; None for records with images
 
 
-def _load_image(source: str):
-    from PIL import Image
+def _is_url(source: Any) -> bool:
+    return isinstance(source, str) and source.startswith(URL_PREFIXES)
 
-    if source.startswith(URL_PREFIXES):
-        from transformers.image_utils import load_image
 
+def open_image(source: Any):
+    """Load an image the way Clef's processor does, with transformers' load_image: a path, an
+    http(s) URL, a base64 or data-URI string, or a PIL image; EXIF orientation applied, RGB.
+    URLs get a timeout and retries, so a stalled host cannot hang a run."""
+    from transformers.image_utils import load_image
+
+    if not _is_url(source):
         return load_image(source)
-    return Image.open(source).convert("RGB")
+    for attempt in range(1, IMAGE_ATTEMPTS):
+        try:
+            return load_image(source, timeout=IMAGE_TIMEOUT_S)
+        except Exception:
+            time.sleep(IMAGE_RETRY_DELAY_S * attempt)
+    try:
+        return load_image(source, timeout=IMAGE_TIMEOUT_S)
+    except Exception as error:
+        raise ImageLoadError(
+            f"cannot load image {source} after {IMAGE_ATTEMPTS} attempts: {error}"
+        ) from error
 
 
 def record_payload(record: Record, *, with_images: bool) -> dict:
@@ -36,17 +63,22 @@ def record_payload(record: Record, *, with_images: bool) -> dict:
         "questions": {qid: q.to_clef() for qid, q in record.questions.items()},
     }
     if with_images and record.images:
-        payload["images"] = [_load_image(source) for source in record.images]
+        payload["images"] = [open_image(source) for source in record.images]
     return payload
 
 
-def _image_size(source: str) -> tuple[int, int]:
-    if source.startswith(URL_PREFIXES):
-        return DEFAULT_URL_IMAGE_SIZE
-    from PIL import Image
+def _image_size(source: Any) -> tuple[int, int]:
+    """(width, height) as the model sees it, after EXIF orientation."""
+    if _is_url(source):
+        return DEFAULT_URL_IMAGE_SIZE  # fetched only when its batch is encoded
+    if isinstance(source, str) and os.path.isfile(source):
+        from PIL import Image
 
-    with Image.open(source) as image:
-        return image.size
+        with Image.open(source) as image:  # reads the header, not the pixels
+            width, height = image.size
+            turned = image.getexif().get(_EXIF_ORIENTATION) in _SWAPS_WIDTH_AND_HEIGHT
+        return (height, width) if turned else (width, height)
+    return open_image(source).size  # a PIL image or a base64 string
 
 
 def prepare_items(clef_code, processor, records: list[Record], max_length: int) -> list[TrainItem]:
