@@ -531,3 +531,10 @@ def test_resume_ignores_other_folders_and_failed_resumes():
     api = FakeApi(job_info=canceled, jobs=[canceled, elsewhere, job(id="job789", stage="ERROR")])
     resume_job("job123", api=api, token=TOKEN)
     assert run_call(api)["volumes"] == canceled.volumes
+
+
+def test_a_canceled_job_without_a_finish_time_has_no_time_or_cost():
+    # HF leaves finished_at unset on canceled jobs; counting to now would grow forever.
+    canceled = job(stage="CANCELED", finished_at=None)
+    status = job_status("job123", api=FakeApi(job_info=canceled), token=TOKEN, now=NOW)
+    assert (status.hours, status.cost) == (None, None)

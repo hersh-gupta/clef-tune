@@ -182,3 +182,29 @@ def test_tokens_per_sec_counts_every_process():
         device=torch.device("cpu"), reduce=lambda tensor, reduction: tensor * 2
     )
     assert train_module._tokens_per_sec(two_ranks, 300, 1.5) == pytest.approx(400.0)
+
+
+def test_each_event_is_written_to_a_closed_file(tmp_path, monkeypatch):
+    # A bucket mount uploads a file when it is closed, so `jobs status` can read a log while the
+    # job runs only if each event closes it.
+    handles = []
+    real_open = open
+
+    def tracking_open(*args, **kwargs):
+        handle = real_open(*args, **kwargs)
+        handles.append(handle)
+        return handle
+
+    monkeypatch.setattr(train_module, "open", tracking_open, raising=False)
+    path = tmp_path / "metrics.jsonl"
+    headline = {"exact_match": 0.5, "mean_macro_f1": 0.6, "mean_log_loss": 0.2}
+    main = SimpleNamespace(is_main_process=True)
+    with train_module._EventLog(path, main, trackers=False, append=False) as log:
+        log("baseline", step=0, **headline)
+        assert handles and all(handle.closed for handle in handles)
+        log("eval", step=2, **headline)
+        assert all(handle.closed for handle in handles)
+    assert [json.loads(line)["event"] for line in path.read_text().splitlines()] == [
+        "baseline",
+        "eval",
+    ]

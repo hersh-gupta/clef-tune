@@ -83,30 +83,30 @@ class TrainResult:
 
 
 class _EventLog:
-    """One JSON object per line in metrics.jsonl (flushed per event), a short line on stdout, and
-    the numbers to any Accelerate trackers. A resumed run appends to the log; any other run starts
-    a new one. Only the main process writes."""
+    """One JSON object per line in metrics.jsonl, a short line on stdout, and the numbers to any
+    Accelerate trackers. A resumed run appends to the log; any other run starts a new one. Only
+    the main process writes. Each event opens and closes the file: a bucket mount uploads a file
+    only when it is closed, so `jobs status` can read the log while the job runs."""
 
     def __init__(self, path: Path, accelerator: Accelerator, trackers: bool, append: bool) -> None:
         self._accelerator = accelerator
         self._trackers = trackers
-        mode = "a" if append else "w"
-        self._handle = open(path, mode, encoding="utf-8") if accelerator.is_main_process else None
+        self._path = path if accelerator.is_main_process else None
+        if self._path is not None and not append:
+            open(self._path, "w", encoding="utf-8").close()
 
     def __enter__(self) -> _EventLog:
         return self
 
     def __exit__(self, *exc: object) -> None:
-        if self._handle is not None:
-            self._handle.close()
-            self._handle = None
+        pass
 
     def __call__(self, event: str, **fields: Any) -> None:
-        if self._handle is None:
+        if self._path is None:
             return
         record = {"event": event, **fields}
-        self._handle.write(json.dumps(record) + "\n")
-        self._handle.flush()
+        with open(self._path, "a", encoding="utf-8") as handle:
+            handle.write(json.dumps(record) + "\n")
         print(_describe(record), flush=True)
         if self._trackers:
             values = {

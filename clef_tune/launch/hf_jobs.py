@@ -438,8 +438,10 @@ def job_status(
     api = api or HfApi()
     info = api.inspect_job(job_id=job_id, token=token)
     hours = cost = None
-    if info.started_at is not None:
-        end = info.finished_at or now or datetime.now(UTC)
+    stage = _stage(info)
+    # A canceled job never gets finished_at, so only a running job is timed up to now.
+    end = info.finished_at or ((now or datetime.now(UTC)) if stage == "RUNNING" else None)
+    if info.started_at is not None and end is not None:
         hours = max((end - info.started_at).total_seconds(), 0.0) / 3600
         price = _price(info)
         cost = hours * price if price is not None else None
@@ -449,7 +451,7 @@ def job_status(
         url=info.url,
         run=(info.labels or {}).get("run"),
         flavor=info.flavor,
-        stage=_stage(info),
+        stage=stage,
         message=info.status.message,
         hours=hours,
         cost=cost,
