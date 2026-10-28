@@ -368,7 +368,12 @@ def test_each_launch_gets_its_own_work_folder():
 
 @pytest.mark.parametrize(
     "status, message",
-    [(402, r"pre-paid credits.*settings/billing"), (500, "could not start the job")],
+    [
+        (402, r"pre-paid credits.*settings/billing"),
+        (500, "could not start the job"),
+        (403, r"could not start the job.*job\.write and repo\.write"),
+        (401, r"could not start the job.*job\.write and repo\.write"),
+    ],
 )
 def test_out_of_credits_is_explained_and_the_upload_removed(status, message):
     request = httpx.Request("POST", "https://huggingface.co/api/jobs/me")
@@ -390,7 +395,7 @@ def test_a_failed_upload_is_explained_and_cleaned_up():
         raise HfHubHTTPError("403 Forbidden", response=httpx.Response(403, request=request))
 
     api.sync_job_volume = refuse
-    with pytest.raises(LaunchError, match="could not upload the bundle.*403"):
+    with pytest.raises(LaunchError, match=r"could not upload the bundle.*403.*job\.write"):
         submit_launch(p, api=api, token=TOKEN, now=NOW)
     assert ("batch_bucket_files", "me/jobs-artifacts", staged) in api.calls
     assert all(call[0] != "run_job" for call in api.calls)

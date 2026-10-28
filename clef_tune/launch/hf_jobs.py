@@ -47,6 +47,7 @@ RUNS_FOLDER = "clef-tune-runs"  # one folder per launch in the jobs-artifacts bu
 KERNEL_CACHE_ROOT = "clef-tune-kernels"
 KERNEL_BUILD_MINUTES = 15  # causal-conv1d compiles in about 12 minutes on 8 vCPUs
 BILLING_URL = "https://huggingface.co/settings/billing"
+SCOPE_ADVICE = 'use a "Write" token, or a fine-grained token with job.write and repo.write'
 METRICS_LOG = "metrics.jsonl"  # what clef_tune.train writes into the output dir
 RESUMABLE = ("ERROR", "CANCELED")
 
@@ -249,6 +250,13 @@ def _status_code(error: Exception) -> int | None:
     return getattr(getattr(error, "response", None), "status_code", None)
 
 
+def _scope_advice(error: Exception) -> str:
+    """What to do about a 401 or 403: the usual cause is a token without a needed permission."""
+    if _status_code(error) in (401, 403):
+        return f"; the token may lack a permission: {SCOPE_ADVICE}"
+    return ""
+
+
 def start_job(api: HfApi, **run_job_kwargs) -> JobInfo:
     try:
         return api.run_job(**run_job_kwargs)
@@ -257,7 +265,7 @@ def start_job(api: HfApi, **run_job_kwargs) -> JobInfo:
             raise LaunchError(
                 f"Hugging Face Jobs needs pre-paid credits; add them at {BILLING_URL}"
             ) from error
-        raise LaunchError(f"could not start the job: {error}") from error
+        raise LaunchError(f"could not start the job: {error}{_scope_advice(error)}") from error
 
 
 def _remove_folder(api: HfApi, bucket: str, folder: str, token: str) -> None:
@@ -314,7 +322,9 @@ def submit_launch(
                         )
                     )
             except Exception as exc:
-                raise LaunchError(f"could not upload the bundle to {bucket}: {exc}") from exc
+                raise LaunchError(
+                    f"could not upload the bundle to {bucket}: {exc}{_scope_advice(exc)}"
+                ) from exc
         info = start_job(
             api,
             image=BASE_IMAGE,
