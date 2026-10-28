@@ -16,6 +16,8 @@ NO_TORCH_MODULES = [
     "clef_tune.card",
     "clef_tune.hub",
     "clef_tune.adapter",
+    "clef_tune.launch",
+    "clef_tune.launch.source",
 ]
 
 
