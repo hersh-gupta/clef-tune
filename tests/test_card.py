@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import yaml
 
-from clef_tune.card import confusion_markdown, render_card
+from clef_tune.card import confusion_markdown, render_card, top_confusion
 from clef_tune.config import PINNED_REVISIONS
 from tests.helpers import make_config
 
@@ -121,3 +121,10 @@ def test_the_card_starts_with_hub_metadata(tmp_path):
         "base_model_relation": "adapter",
         "tags": ["clef", "clef-tune"],
     }
+
+
+def test_top_confusion_merges_the_rarest_classes_into_other():
+    labels = ["a", "b", "c"]
+    names, rows = top_confusion(labels, [[5, 1, 0], [0, 3, 1], [1, 0, 1]], top=2)
+    assert names == ["a", "b", "other"]
+    assert rows == [[5, 1, 0], [0, 3, 1], [1, 0, 1]]

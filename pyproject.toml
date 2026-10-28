@@ -21,7 +21,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-ui = ["gradio>=6.0"]
+ui = ["gradio[oauth]>=6.30,<7"]
 train = [
   "torch>=2.11,<2.12",
   "torchvision>=0.26,<0.27",

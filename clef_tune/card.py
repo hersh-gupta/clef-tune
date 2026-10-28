@@ -12,16 +12,16 @@ from clef_tune.yamlio import dump_yaml
 TOP_CLASSES = 10
 
 # question type -> (label, key in the per-question metrics) rows shown in the table
-_ROWS: dict[str, list[tuple[str, str]]] = {
+METRIC_ROWS: dict[str, list[tuple[str, str]]] = {
     "choice": [("accuracy", "accuracy"), ("macro-F1", "f1"), ("log-loss", "log_loss")],
     "score": [("accuracy", "accuracy"), ("MAE", "mae")],
     "noul": [("accuracy", "accuracy"), ("F1", "f1"), ("log-loss", "log_loss")],
 }
-_CALIBRATION_CAVEAT = (
+CALIBRATION_CAVEAT = (
     "Temperatures were fit on the same eval set used to choose the checkpoint, "
     "so post-calibration ECE and log-loss are slightly optimistic."
 )
-_WEIGHTING_NOTE = (
+WEIGHTING_NOTE = (
     "Balanced class weighting shifts predicted probabilities toward rare classes; "
     "temperature calibration rescales confidence but does not undo that shift."
 )
@@ -31,8 +31,10 @@ def _num(value: Any) -> str:
     return "n/a" if value is None else f"{value:.3f}"
 
 
-def confusion_markdown(labels: list[str], matrix: list[list[int]], top: int = TOP_CLASSES) -> str:
-    """A Markdown confusion matrix; classes beyond the `top` by true rows merge into `other`."""
+def top_confusion(
+    labels: list[str], matrix: list[list[int]], top: int = TOP_CLASSES
+) -> tuple[list[str], list[list[int]]]:
+    """The `top` classes by true rows, the rest merged into `other` (as rows and columns)."""
     order = sorted(range(len(labels)), key=lambda i: (-sum(matrix[i]), i))
     keep = sorted(order[:top])
     rest = [i for i in range(len(labels)) if i not in keep]
@@ -42,6 +44,12 @@ def confusion_markdown(labels: list[str], matrix: list[list[int]], top: int = TO
         rows.append(
             [sum(matrix[i][j] for i in rest for j in group) for group in _groups(keep, rest)]
         )
+    return names, rows
+
+
+def confusion_markdown(labels: list[str], matrix: list[list[int]], top: int = TOP_CLASSES) -> str:
+    """A Markdown confusion matrix; classes beyond the `top` by true rows merge into `other`."""
+    names, rows = top_confusion(labels, matrix, top)
     lines = ["| true \\ predicted | " + " | ".join(names) + " |"]
     lines.append("|" + " --- |" * (len(names) + 1))
     for name, row in zip(names, rows, strict=True):
@@ -57,7 +65,7 @@ def _metric_table(baseline: dict, final: dict) -> list[str]:
     lines = ["| question | metric | baseline | fine-tuned |", "| --- | --- | --- | --- |"]
     for qid, after in final["questions"].items():
         before = baseline["questions"].get(qid, {})
-        for label, key in _ROWS.get(after["question_type"], [("accuracy", "accuracy")]):
+        for label, key in METRIC_ROWS.get(after["question_type"], [("accuracy", "accuracy")]):
             lines.append(f"| {qid} | {label} | {_num(before.get(key))} | {_num(after.get(key))} |")
     before, after = _num(baseline.get("exact_match")), _num(final.get("exact_match"))
     lines.append(f"| all | exact match | {before} | {after} |")
@@ -103,9 +111,9 @@ def render_card(metrics: dict, config: Config, version: str) -> str:
             keys = ("temperature", "ece_before", "ece_after", "log_loss_before", "log_loss_after")
             cells = tuple(cal.get(key) for key in keys)
             out.append(f"| {qid} | " + " | ".join(_num(v) for v in cells) + " |")
-        out += ["", _CALIBRATION_CAVEAT]
+        out += ["", CALIBRATION_CAVEAT]
     if config.train.class_weighting == "balanced":
-        out += ["", _WEIGHTING_NOTE]
+        out += ["", WEIGHTING_NOTE]
     out += ["", "## Run", ""]
     if run.get("estimated_hours") is not None:
         out += [_time_line("Estimated time", run["estimated_hours"], run.get("estimated_cost")), ""]
