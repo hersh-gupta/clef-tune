@@ -286,7 +286,7 @@ def results_view(
         confusion = question.get("confusion") or {}
         heat = charts.heatmap(confusion.get("labels", []), confusion.get("matrix", []))
         figures.append(
-            f'<figure class="ct-heatmap"><figcaption>{fragments.esc(qid)}</figcaption>'
+            f'<figure class="ct-heatmap-card"><figcaption>{fragments.esc(qid)}</figcaption>'
             f"{heat}</figure>"
         )
     repo_link = ""
@@ -335,8 +335,9 @@ def run_view_from(
         ("Cost so far", _money(cost)),
         ("Projected cost", _money(train.get("projected_cost") if train else None)),
         ("Speed", "—" if speed is None else f"{speed:,.0f} tokens/s"),
-        ("Time left", _minutes(eta) if running and eta is not None else "—"),
     ]
+    if running:
+        stats.append(("Time left", _minutes(eta) if eta is not None else "—"))
     losses = [(e["step"], e["loss"]) for e in events if e.get("event") == "train"]
     evals = [e for e in events if e.get("event") == "eval"]
     baseline = _latest(events, "baseline")

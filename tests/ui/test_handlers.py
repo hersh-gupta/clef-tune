@@ -74,12 +74,9 @@ def test_prompt_preview_escapes_the_row(tmp_path):
 def test_refresh_validates_and_estimates(session, services):
     handlers.refresh(session, services)
     view = handlers.validate_view(session)
-    assert view.ok and "Train rows" in view.tiles and 'class="ct-cutoff"' in view.histogram
+    assert view.ok and "Train rows" in view.tiles and "max_length 4096" in view.histogram
     assert session.estimates and "$" in handlers.sidebar_estimate(session)
-    assert handlers.step_states(session)[:3] in (
-        ["done", "done", "done"],
-        ["done", "done", "warning"],
-    )
+    assert handlers.step_states(session)[:2] in (["done", "done"], ["done", "warning"])
 
 
 def test_a_broken_schema_is_an_error_not_a_crash(session, services):
@@ -87,7 +84,7 @@ def test_a_broken_schema_is_an_error_not_a_crash(session, services):
     handlers.refresh(session, services)
     assert not handlers.validate_view(session).ok
     assert "criteria" in handlers.validate_view(session).issues
-    assert handlers.step_states(session)[1] == "error"
+    assert handlers.step_states(session)[0] == "error"
 
 
 def test_a_tokenizer_failure_says_why(session):
@@ -138,3 +135,64 @@ def test_no_bundle_while_validation_has_errors(session, services):
     handlers.refresh(session, services)
     with pytest.raises(ValueError, match="validation"):
         handlers.bundle(session)
+
+
+def test_the_steps_are_data_validate_configure_launch():
+    assert handlers.STEPS == ("Data", "Validate", "Configure", "Launch")
+    assert handlers.step_states(Session()) == ["todo"] * 4
+
+
+def test_the_file_bar_names_the_file_and_its_size(session):
+    summary = handlers.data_view(session).summary
+    assert "support_tickets.csv" in summary and "200 rows" in summary and "7 columns" in summary
+
+
+def test_every_column_has_one_role_and_sample_values(session):
+    rows = {row.name: row for row in handlers.column_rows(session)}
+    assert list(rows) == [
+        "ticket_id",
+        "subject",
+        "body",
+        "customer_tier",
+        "department",
+        "urgency",
+        "outage",
+    ]
+    roles = {name: row.role for name, row in rows.items()}
+    assert roles == {
+        "ticket_id": "id",
+        "subject": "state",
+        "body": "state",
+        "customer_tier": "state",
+        "department": "question",
+        "urgency": "question",
+        "outage": "question",
+    }
+    assert "billing" in rows["department"].samples and len(rows["body"].samples) <= 80
+
+
+def test_setting_a_role_moves_the_column(session):
+    assert handlers.set_role(session, "customer_tier", "question") is None
+    draft = session.draft
+    assert "customer_tier" not in draft.state_columns
+    tier = draft.question("customer_tier")
+    assert (
+        tier is not None and tier.type == "choice" and "enterprise" in [o.id for o in tier.options]
+    )
+    handlers.set_role(session, "department", "skip")
+    assert draft.question("department") is None and "department" not in draft.state_columns
+    handlers.set_role(session, "subject", "id")
+    roles = {row.name: row.role for row in handlers.column_rows(session)}
+    assert (roles["subject"], roles["ticket_id"]) == ("id", "skip")
+    handlers.set_role(session, "body", "image")
+    assert draft.image_columns == ["body"] and "body" not in draft.state_columns
+
+
+def test_state_columns_keep_the_file_order(session):
+    handlers.set_role(session, "subject", "skip")
+    handlers.set_role(session, "subject", "state")
+    assert session.draft.state_columns == ["subject", "body", "customer_tier"]
+
+
+def test_an_unknown_role_is_refused(session):
+    assert "role" in handlers.set_role(session, "subject", "label")

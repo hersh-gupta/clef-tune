@@ -1,4 +1,4 @@
-"""The Gradio layout (spec §9): a header, a step sidebar, five step panels, the Launch step's
+"""The Gradio layout (spec §9): a header, a step sidebar, four step panels, the Launch step's
 tabs, the run monitor and the results. The logic lives in handlers.py, runs.py and local.py;
 this module only maps their views onto components and wires the events."""
 
@@ -40,14 +40,9 @@ BRAND = (
 )
 INTROS = (
     (
-        "Your data",
-        "Upload labeled examples as a CSV, TSV or JSONL file, or a zip holding the file and its "
-        "images. Each row is one decision for Clef to learn.",
-    ),
-    (
-        "Questions",
-        "Clef answers typed questions about each row. There is one proposed question per label "
-        "column: check the types and options, and pick the columns Clef reads.",
+        "Data and questions",
+        "Upload labeled examples as a CSV, TSV or JSONL file, or a zip with the file and its "
+        "images. Then say what each column is for: what Clef reads, and what it learns to answer.",
     ),
     (
         "Checks",
@@ -65,6 +60,8 @@ INTROS = (
         "started earlier.",
     ),
 )
+OPTION_COLUMNS = ["Option", "Description", "Labels"]
+QUESTION_TYPES = [("Choice", "choice"), ("Score", "score"), ("Yes / no", "noul")]
 TOKEN_INFO = "Needs job.write and repo.write. Used for this browser session only and never stored."
 RUN_COLUMNS = ["Job", "Run", "Hardware", "Stage", "Created"]
 LAUNCH_STEP = len(handlers.STEPS) - 1
@@ -109,7 +106,8 @@ def build_app(settings: Settings | None = None, services: Services | None = None
     with gr.Blocks(title="clef-tune", fill_width=True) as demo:
         session = gr.State(Session(), delete_callback=Session.close)
         current = gr.State(0)
-        schema_version = gr.State(0)
+        columns_version = gr.State(0)  # bumped to re-render the column roles
+        selected = gr.State(None)  # the question the editor shows
         data_page = gr.State(0)
         watching = gr.State("job")  # what the monitor follows: "job" or "local"
         logs_open = gr.State(False)
@@ -125,7 +123,7 @@ def build_app(settings: Settings | None = None, services: Services | None = None
                 elem_id="ct-model",
             )
             theme_button = gr.Button(
-                "◐  Theme", size="sm", variant="secondary", elem_id="ct-theme-toggle", scale=0
+                "Light / dark", size="sm", variant="secondary", elem_id="ct-theme-toggle", scale=0
             )
             if settings.space:
                 gr.LoginButton(size="sm", scale=0)
@@ -163,105 +161,105 @@ def build_app(settings: Settings | None = None, services: Services | None = None
                 with gr.Column(elem_id="ct-data", elem_classes=["ct-panel"]) as panel:
                     panels.append(panel)
                     _html(_intro(0))
-                    with gr.Row(equal_height=True):
+                    with gr.Row(equal_height=True, elem_id="ct-upload-row") as upload_row:
                         upload = gr.File(
                             label="Data file",
                             file_types=[".csv", ".tsv", ".jsonl", ".ndjson", ".zip"],
                             elem_id="ct-upload",
-                            height=150,
-                            scale=3,
+                            height=120,
+                            scale=4,
                         )
-                        with gr.Column(scale=1, min_width=220):
-                            example_button = gr.Button("Load the example", elem_id="ct-example")
+                        with gr.Column(scale=1, min_width=200, elem_id="ct-example-box"):
+                            example_button = gr.Button("Try the example", elem_id="ct-example")
                             _html(
                                 '<p class="ct-muted">200 synthetic support tickets with three '
                                 "questions: department, urgency and outage.</p>"
                             )
                     data_error = _html()
-                    data_summary = _html(handlers.data_view(blank).summary)
-                    data_chips = _html()
-                    data_table = gr.Dataframe(
-                        interactive=False,
-                        wrap=True,
-                        max_height=440,
-                        visible=False,
-                        elem_id="ct-data-table",
-                    )
-                    with gr.Row(visible=False, equal_height=True) as pager:
-                        previous_page = gr.Button("← Previous", size="sm", scale=0)
-                        page_label = _html()
-                        next_page = gr.Button("Next →", size="sm", scale=0)
+                    with gr.Row(
+                        visible=False, equal_height=True, elem_id="ct-file-row"
+                    ) as file_row:
+                        file_bar = _html()
+                        replace_button = gr.Button("Replace file", size="sm", scale=0)
+                    with gr.Accordion(
+                        "Rows", open=False, visible=False, elem_id="ct-rows"
+                    ) as rows_box:
+                        data_table = gr.Dataframe(
+                            interactive=False, max_height=420, elem_id="ct-data-table"
+                        )
+                        with gr.Row(equal_height=True, elem_classes=["ct-pager"]):
+                            previous_page = gr.Button("← Previous", size="sm", scale=0)
+                            page_label = _html()
+                            next_page = gr.Button("Next →", size="sm", scale=0)
+                    with gr.Column(visible=False, elem_id="ct-schema") as schema_area:
+                        _html(
+                            '<h3 class="ct-section-title">Columns</h3><p class="ct-muted">'
+                            "State columns are what Clef reads for each row. Each question column "
+                            "becomes a question Clef learns to answer from that column's labels."
+                            "</p>"
+                        )
+                        schema_error = _html()
+                        _html(
+                            '<div class="ct-col-head"><span>Column and sample values</span>'
+                            "<span>Role</span></div>"
+                        )
+                        with gr.Column(elem_id="ct-columns"):
+                            gr.render(inputs=[session], triggers=[columns_version.change])(
+                                lambda s: column_list(s)
+                            )
+                        _html('<h3 class="ct-section-title">Questions</h3>')
+                        question_pills = gr.Radio(
+                            [], show_label=False, container=False, elem_id="ct-pills"
+                        )
+                        no_questions = _html()
+                        with gr.Group(
+                            visible=False, elem_id="ct-question", elem_classes=["ct-card"]
+                        ) as editor:
+                            with gr.Row(equal_height=True):
+                                question_id = gr.Textbox(label="Question ID", scale=1)
+                                question_type = gr.Radio(QUESTION_TYPES, label="Type", scale=2)
+                            question_text = gr.Textbox(
+                                label="What Clef is asked",
+                                placeholder="Without it, Clef sees only the question ID.",
+                            )
+                            question_options = gr.Dataframe(
+                                headers=OPTION_COLUMNS,
+                                datatype=["str", "str", "number"],
+                                type="array",
+                                interactive=True,
+                                static_columns=[2],
+                                label="Options (Labels counts the rows with each answer)",
+                                elem_id="ct-options",
+                            )
+                            question_unknown = _html()
+                        with gr.Accordion("Prompt preview", open=False, elem_id="ct-preview"):
+                            _html(
+                                '<div class="ct-legend-row"><span class="is-state">state</span>'
+                                '<span class="is-question">question</span>'
+                                '<span class="is-option">options</span></div>'
+                            )
+                            preview_row = gr.Slider(1, 2, value=1, step=1, label="Row")
+                            preview = _html()
                     nav_row(0)
 
-                # ---------------------------------------------------------- 2 schema
-                with gr.Column(
-                    elem_id="ct-schema", elem_classes=["ct-panel"], visible=False
-                ) as panel:
-                    panels.append(panel)
-                    _html(_intro(1))
-                    schema_error = _html()
-                    with gr.Group(elem_classes=["ct-card"]):
-                        with gr.Row():
-                            id_column = gr.Dropdown(
-                                label="ID column",
-                                info="Optional. Unique per row; used in messages.",
-                                choices=[],
-                                scale=1,
-                            )
-                            state_columns = gr.CheckboxGroup(
-                                label="State columns",
-                                info="What Clef reads for each row.",
-                                choices=[],
-                                scale=2,
-                            )
-                            image_columns = gr.CheckboxGroup(
-                                label="Image columns",
-                                info="Image paths or URLs.",
-                                choices=[],
-                                scale=1,
-                            )
-                    with gr.Row(equal_height=True):
-                        add_column = gr.Dropdown(
-                            label="Add a question",
-                            info="Turn another column into a question.",
-                            choices=[],
-                            scale=3,
-                        )
-                        add_button = gr.Button("Add question", scale=1)
-                    _html('<h3 class="ct-section-title">Questions</h3>')
-                    with gr.Column(elem_id="ct-questions"):
-                        gr.render(inputs=[session], triggers=[schema_version.change])(
-                            lambda s: question_cards(s)
-                        )
-
-                    _html(
-                        '<h3 class="ct-section-title">Prompt preview</h3>'
-                        '<div class="ct-legend-row"><span class="is-state">state</span>'
-                        '<span class="is-question">question</span>'
-                        '<span class="is-option">options</span></div>'
-                    )
-                    preview_row = gr.Slider(1, 2, value=1, step=1, label="Row")
-                    preview = _html()
-                    nav_row(1)
-
-                # ---------------------------------------------------------- 3 validate
+                # ---------------------------------------------------------- 2 validate
                 with gr.Column(
                     elem_id="ct-validate", elem_classes=["ct-panel"], visible=False
                 ) as panel:
                     panels.append(panel)
-                    _html(_intro(2))
+                    _html(_intro(1))
                     validate_tiles = _html()
                     validate_issues = _html(handlers.validate_view(blank).issues)
                     validate_dists = _html()
                     validate_hist = _html()
-                    nav_row(2)
+                    nav_row(1)
 
-                # ---------------------------------------------------------- 4 configure
+                # ---------------------------------------------------------- 3 configure
                 with gr.Column(
                     elem_id="ct-configure", elem_classes=["ct-panel"], visible=False
                 ) as panel:
                     panels.append(panel)
-                    _html(_intro(3))
+                    _html(_intro(2))
                     config_error = _html()
                     with gr.Row():
                         run_name = gr.Textbox(
@@ -293,14 +291,14 @@ def build_app(settings: Settings | None = None, services: Services | None = None
                             static_columns=[0],
                             label="Question weights (each question's share of the loss)",
                         )
-                    nav_row(3)
+                    nav_row(2)
 
-                # ---------------------------------------------------------- 5 launch
+                # ---------------------------------------------------------- 4 launch
                 with gr.Column(
                     elem_id="ct-launch", elem_classes=["ct-panel"], visible=False
                 ) as panel:
                     panels.append(panel)
-                    _html(_intro(4))
+                    _html(_intro(3))
                     with gr.Tabs(elem_id="ct-launch-tabs"):
                         with gr.Tab("Hugging Face Jobs", elem_id="ct-launch-jobs"):
                             account_html = _html()
@@ -417,7 +415,7 @@ def build_app(settings: Settings | None = None, services: Services | None = None
                         snippet = gr.Code(
                             language="python", label="Use the adapter", interactive=False
                         )
-                    nav_row(4)
+                    nav_row(3)
 
         timer = gr.Timer(runs.POLL_SECONDS, active=False)
 
@@ -425,22 +423,30 @@ def build_app(settings: Settings | None = None, services: Services | None = None
         chrome_out = [*steps, estimate]
         data_out = [
             data_error,
-            data_summary,
-            data_chips,
+            upload_row,
+            file_row,
+            file_bar,
+            rows_box,
             data_table,
-            pager,
             page_label,
             data_page,
+            schema_area,
         ]
+        pager_out = [data_table, page_label, data_page]
         schema_out = [
             schema_error,
-            id_column,
-            state_columns,
-            image_columns,
-            add_column,
+            columns_version,
+            question_pills,
+            selected,
+            no_questions,
+            editor,
+            question_id,
+            question_type,
+            question_text,
+            question_options,
+            question_unknown,
             preview_row,
             preview,
-            schema_version,
         ]
         validate_out = [validate_tiles, validate_issues, validate_dists, validate_hist]
         config_out = [
@@ -487,41 +493,69 @@ def build_app(settings: Settings | None = None, services: Services | None = None
             ]
             return [*buttons, handlers.sidebar_estimate(s)]
 
+        def show_page(view: handlers.DataView) -> list:
+            table = pd.DataFrame(view.rows, columns=view.headers) if view.headers else None
+            label = f'<div class="ct-muted">{fragments.esc(view.page_label)}</div>'
+            return [gr.Dataframe(value=table), label, view.page]
+
         def show_data(view: handlers.DataView) -> list:
             loaded = bool(view.headers)
-            table = pd.DataFrame(view.rows, columns=view.headers) if loaded else None
             return [
                 _callout("error", view.error),
-                view.summary,
-                view.chips,
-                gr.Dataframe(value=table, visible=loaded),
+                gr.Row(visible=not loaded or bool(view.error)),
                 gr.Row(visible=loaded),
-                f'<div class="ct-muted">{fragments.esc(view.page_label)}</div>',
-                view.page,
+                view.summary if loaded else "",
+                gr.Accordion(visible=loaded),
+                *show_page(view),
+                gr.Column(visible=loaded),
             ]
 
         def show_schema(
-            s: Session, version: int, *, bump: bool, error: str | None = None, row: int = 0
+            s: Session,
+            version: int,
+            chosen: str | None,
+            *,
+            bump: bool,
+            error: str | None = None,
+            row: int = 0,
         ) -> list:
             view = handlers.schema_view(s, row)
-            used = {card.column for card in view.cards} | {view.id_column}
-            pickable = [column for column in view.columns if column not in used]
-            flat = s.draft is not None and not s.draft.native
+            ids = [card.id for card in view.cards]
+            chosen = chosen if chosen in ids else (ids[0] if ids else None)
+            card = next((c for c in view.cards if c.id == chosen), None)
             rows = max(len(s.table.rows) if s.table else 1, 2)
+            empty = (
+                fragments.empty_state(
+                    "No questions yet", "Set a column's role to Question to add one."
+                )
+                if s.table is not None and not ids
+                else ""
+            )
+            options = (
+                pd.DataFrame(card.options, columns=OPTION_COLUMNS)
+                if card
+                else pd.DataFrame(columns=OPTION_COLUMNS)
+            )
             return [
                 _callout("error", error or view.error),
-                gr.Dropdown(
-                    choices=[("None (use row numbers)", "")]
-                    + [(c, c) for c in view.columns if c not in used or c == view.id_column],
-                    value=view.id_column or "",
-                    visible=flat,
+                version + 1 if bump else gr.skip(),
+                gr.Radio(choices=ids, value=chosen),
+                chosen,
+                empty,
+                gr.Group(visible=card is not None),
+                gr.Textbox(
+                    value=card.id if card else "",
+                    info=f"Labels come from the column {card.column}." if card else None,
                 ),
-                gr.CheckboxGroup(choices=pickable, value=view.state_columns, visible=flat),
-                gr.CheckboxGroup(choices=pickable, value=view.image_columns, visible=flat),
-                gr.Dropdown(choices=view.free_columns, value=None),
+                card.type if card else None,
+                card.instructions if card else "",
+                gr.Dataframe(
+                    value=options,
+                    static_columns=[0, 2] if card and card.type == "noul" else [2],
+                ),
+                card.unknown if card else "",
                 gr.Slider(minimum=1, maximum=rows, value=min(row + 1, rows), step=1),
                 view.preview,
-                version + 1 if bump else gr.skip(),
             ]
 
         def show_validate(s: Session) -> list:
@@ -564,8 +598,7 @@ def build_app(settings: Settings | None = None, services: Services | None = None
                 cost = (
                     "" if row.cost_low is None else f" · ${row.cost_low:.2f}–${row.cost_high:.2f}"
                 )
-                label = f"{row.flavor} · {row.count}× {row.gpu} · {row.hours_low:.1f}–"
-                choices.append((f"{label}{row.hours_high:.1f} h{cost}", row.flavor))
+                choices.append((f"{row.flavor}{cost}", row.flavor))
             names = [row.flavor for row in fitting]
             value = chosen if chosen in names else (names[0] if names else None)
             return gr.Dropdown(choices=choices, value=value)
@@ -656,7 +689,7 @@ def build_app(settings: Settings | None = None, services: Services | None = None
         def loaded(s: Session, view: handlers.DataView, version: int, model_id: str) -> list:
             if s.draft is not None:
                 handlers.set_model(s, model_id)
-            return [*show_data(view), *show_schema(s, version, bump=True)]
+            return [*show_data(view), *show_schema(s, version, None, bump=True)]
 
         def on_upload(s: Session, path: str | None, version: int, model_id: str) -> list:
             return loaded(s, handlers.upload(s, path, settings), version, model_id)
@@ -664,25 +697,19 @@ def build_app(settings: Settings | None = None, services: Services | None = None
         def on_example(s: Session, version: int, model_id: str) -> list:
             return loaded(s, handlers.example(s), version, model_id)
 
-        after(
-            upload.upload(
-                on_upload, [session, upload, schema_version, model], [*data_out, *schema_out]
-            )
-        )
-        after(
-            example_button.click(
-                on_example, [session, schema_version, model], [*data_out, *schema_out]
-            )
-        )
+        loaded_out = [*data_out, *schema_out]
+        after(upload.upload(on_upload, [session, upload, columns_version, model], loaded_out))
+        after(example_button.click(on_example, [session, columns_version, model], loaded_out))
+        replace_button.click(lambda: gr.Row(visible=True), None, upload_row)
         previous_page.click(
-            lambda s, page: show_data(handlers.data_view(s, page - 1)),
+            lambda s, page: show_page(handlers.data_view(s, page - 1)),
             [session, data_page],
-            data_out,
+            pager_out,
         )
         next_page.click(
-            lambda s, page: show_data(handlers.data_view(s, page + 1)),
+            lambda s, page: show_page(handlers.data_view(s, page + 1)),
             [session, data_page],
-            data_out,
+            pager_out,
         )
 
         def on_model(s: Session, model_id: str) -> None:
@@ -691,129 +718,88 @@ def build_app(settings: Settings | None = None, services: Services | None = None
         after(model.input(on_model, [session, model], None))
         theme_button.click(None, js=TOGGLE_JS)
 
-        # ------------------------------------------------------------------ schema events
-        def on_columns(
-            s: Session, version: int, id_value: str, state: list[str], images: list[str]
-        ) -> list:
-            if s.draft is None:
-                return show_schema(s, version, bump=False)
-            handlers.set_columns(
-                s, id_column=id_value or None, state_columns=state, image_columns=images
+        # ------------------------------------------------------------------ column roles
+        def column_list(s: Session) -> None:
+            native = s.draft is not None and s.draft.native
+            for row in handlers.column_rows(s):
+                with gr.Row(
+                    equal_height=True, elem_classes=["ct-column-row"], key=f"column-{row.name}"
+                ):
+                    _html(
+                        f'<div class="ct-col"><div class="ct-col-name">'
+                        f"{fragments.esc(row.name)}</div>"
+                        f'<div class="ct-col-samples">{fragments.esc(row.samples or "—")}</div>'
+                        "</div>"
+                    )
+                    role = gr.Dropdown(
+                        list(handlers.ROLE_CHOICES),
+                        value=row.role,
+                        show_label=False,
+                        container=False,
+                        interactive=not native,
+                        scale=0,
+                        min_width=240,
+                        key=f"role-{row.name}",
+                        preserved_by_key=None,
+                    )
+
+                def on_role(
+                    s: Session, version: int, chosen: str | None, value: str, column: str = row.name
+                ) -> list:
+                    error = handlers.set_role(s, column, value)
+                    if value == "question" and error is None:
+                        chosen = column
+                    return show_schema(s, version, chosen, bump=True, error=error)
+
+                after(role.input(on_role, [session, columns_version, selected, role], schema_out))
+
+        # ------------------------------------------------------------------ question editor
+        question_inputs = [session, columns_version, selected]
+        question_pills.input(
+            lambda s, version, chosen, value: show_schema(s, version, value, bump=False),
+            [*question_inputs, question_pills],
+            schema_out,
+        )
+
+        def on_question(s: Session, version: int, chosen: str | None, **change: Any) -> list:
+            error = handlers.update_question(s, chosen, **change) if chosen else None
+            if error is None and change.get("new_id"):
+                chosen = change["new_id"].strip()
+            return show_schema(s, version, chosen, bump=False, error=error)
+
+        after(
+            question_id.blur(
+                lambda s, v, chosen, value: on_question(s, v, chosen, new_id=value),
+                [*question_inputs, question_id],
+                schema_out,
             )
-            return show_schema(s, version, bump=False)
-
-        column_inputs = [session, schema_version, id_column, state_columns, image_columns]
-        for picker in (id_column, state_columns, image_columns):
-            after(picker.input(on_columns, column_inputs, schema_out))
-
-        def on_add(s: Session, version: int, column: str | None) -> list:
-            if not column or s.draft is None:
-                return show_schema(s, version, bump=False)
-            error = handlers.add_question(s, column)
-            return show_schema(s, version, bump=error is None, error=error)
-
-        after(add_button.click(on_add, [session, schema_version, add_column], schema_out))
+        )
+        after(
+            question_type.input(
+                lambda s, v, chosen, value: on_question(s, v, chosen, type=value),
+                [*question_inputs, question_type],
+                schema_out,
+            )
+        )
+        after(
+            question_text.blur(
+                lambda s, v, chosen, value: on_question(s, v, chosen, instructions=value),
+                [*question_inputs, question_text],
+                schema_out,
+            )
+        )
+        after(
+            question_options.input(
+                lambda s, v, chosen, rows: on_question(s, v, chosen, options=rows),
+                [*question_inputs, question_options],
+                schema_out,
+            )
+        )
         preview_row.release(
             lambda s, row: handlers.schema_view(s, int(row) - 1).preview,
             [session, preview_row],
             preview,
         )
-
-        # ------------------------------------------------------------------ question cards
-        def question_cards(s: Session) -> None:
-            view = handlers.schema_view(s)
-            if s.table is not None and not view.cards:
-                _html(
-                    fragments.empty_state(
-                        "No questions yet", "Add a question from one of your label columns above."
-                    )
-                )
-            for card in view.cards:
-                qid = card.id
-                with gr.Group(elem_classes=["ct-card", "ct-question"], key=f"card-{qid}"):
-                    with gr.Row(equal_height=True):
-                        id_box = gr.Textbox(
-                            card.id,
-                            label="Question ID",
-                            info=f"Labels come from the column {card.column}.",
-                            key=f"{qid}-id",
-                            preserved_by_key=None,
-                            scale=2,
-                        )
-                        type_radio = gr.Radio(
-                            [("Choice", "choice"), ("Score", "score"), ("Yes / no", "noul")],
-                            value=card.type,
-                            label="Type",
-                            key=f"{qid}-type",
-                            preserved_by_key=None,
-                            scale=2,
-                        )
-                        remove = gr.Button(
-                            "Remove", variant="stop", size="sm", key=f"{qid}-remove", scale=0
-                        )
-                    instructions = gr.Textbox(
-                        card.instructions,
-                        label="Instructions",
-                        placeholder=f"What should Clef decide? Without instructions it sees "
-                        f"only the ID, {qid}.",
-                        key=f"{qid}-instructions",
-                        preserved_by_key=None,
-                    )
-                    options = gr.Dataframe(
-                        value=pd.DataFrame(
-                            card.options, columns=["Option", "Description", "Labels"]
-                        ),
-                        datatype=["str", "str", "number"],
-                        type="array",
-                        interactive=True,
-                        static_columns=[0, 2] if card.type == "noul" else [2],
-                        label="Options",
-                        key=f"{qid}-options",
-                        preserved_by_key=None,
-                    )
-                    _html(card.unknown)
-
-                def changed(s: Session, version: int, qid: str = qid, **change: Any) -> list:
-                    error = handlers.update_question(s, qid, **change)
-                    return show_schema(s, version, bump=error is None, error=error)
-
-                after(
-                    id_box.blur(
-                        lambda s, v, value, qid=qid: changed(s, v, qid, new_id=value),
-                        [session, schema_version, id_box],
-                        schema_out,
-                    )
-                )
-                after(
-                    type_radio.input(
-                        lambda s, v, value, qid=qid: changed(s, v, qid, type=value),
-                        [session, schema_version, type_radio],
-                        schema_out,
-                    )
-                )
-
-                def described(s: Session, version: int, value: str, qid: str = qid) -> list:
-                    error = handlers.update_question(s, qid, instructions=value)
-                    return show_schema(s, version, bump=False, error=error)
-
-                after(
-                    instructions.blur(
-                        described, [session, schema_version, instructions], schema_out
-                    )
-                )
-                after(
-                    options.input(
-                        lambda s, v, rows, qid=qid: changed(s, v, qid, options=rows),
-                        [session, schema_version, options],
-                        schema_out,
-                    )
-                )
-
-                def removed(s: Session, version: int, qid: str = qid) -> list:
-                    handlers.remove_question(s, qid)
-                    return show_schema(s, version, bump=True)
-
-                after(remove.click(removed, [session, schema_version], schema_out))
 
         # ------------------------------------------------------------------ configure events
         def on_run_name(s: Session, name: str) -> list:

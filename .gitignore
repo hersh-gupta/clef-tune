@@ -8,3 +8,4 @@ build/
 clef_tune/_version.py
 out/
 .env
+screenshots/

@@ -49,10 +49,10 @@ def page(server):
 
 def test_the_example_goes_from_data_to_results(page):
     expect = sync_api.expect
-    page.get_by_role("button", name="Load the example").click()
-    expect(page.locator("#ct-data")).to_contain_text("200")
-    page.locator("#ct-step-1").click()
-    expect(page.locator("#ct-schema")).to_contain_text("Which team should handle this ticket?")
+    page.get_by_role("button", name="Try the example").click()
+    expect(page.locator("#ct-file-row")).to_contain_text("200 rows")
+    expect(page.locator("#ct-columns")).to_contain_text("customer_tier")
+    expect(page.locator("#ct-pills")).to_contain_text("urgency")
     page.get_by_role("button", name="Next: Validate →").click()
     expect(page.locator("#ct-validate")).to_contain_text("Train rows")
     page.get_by_role("button", name="Next: Configure →").click()
@@ -61,6 +61,6 @@ def test_the_example_goes_from_data_to_results(page):
     page.get_by_label("Hugging Face token").fill("hf_test")
     page.get_by_role("button", name="Review launch").click()
     expect(page.locator("#ct-confirm")).to_contain_text("Launch for up to $")
-    page.locator("#ct-runs").get_by_text("run-b").click()
+    page.locator("#ct-runs").get_by_test_id("cell-1-1").click()  # run-b
     expect(page.locator("#ct-results svg").first).to_be_visible()
     assert page.console_errors == []

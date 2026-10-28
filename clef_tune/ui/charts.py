@@ -12,6 +12,12 @@ from clef_tune.card import top_confusion
 LABEL_CHARS = 24
 AXIS_LABEL_CHARS = 12
 MIN_CELL_OPACITY = 0.06
+# Heatmap cells: a cell holding at least STRONG_SHARE of its row is drawn nearly solid with
+# light text; lighter cells stay at most STRONG_SHARE opaque with dark text. Shades in between
+# fail 4.5:1 contrast for both text colours (checked in light and dark mode).
+STRONG_SHARE = 0.6
+STRONG_OPACITY = 0.92
+CUTOFF_NEAR = 1.25  # draw the max_length line only this close to the longest prompt
 
 
 def _short(text: object, limit: int = LABEL_CHARS) -> str:
@@ -23,9 +29,13 @@ def _empty(message: str) -> str:
     return f'<div class="ct-empty">{escape(message)}</div>'
 
 
-def _svg(kind: str, width: float, height: float, label: str, body: str) -> str:
+def _svg(
+    kind: str, width: float, height: float, label: str, body: str, *, natural: bool = False
+) -> str:
+    """natural: draw at the chart's own size (shrinking only to fit), not full width."""
+    size = f'width="{width:g}" height="{height:g}" ' if natural else ""
     return (
-        f'<svg class="ct-chart ct-{kind}" viewBox="0 0 {width:g} {height:g}" role="img" '
+        f'<svg class="ct-chart ct-{kind}" {size}viewBox="0 0 {width:g} {height:g}" role="img" '
         f'aria-label="{escape(label)}" xmlns="http://www.w3.org/2000/svg">{body}</svg>'
     )
 
@@ -74,18 +84,23 @@ def bar_chart(counts: dict[str, int], *, missing: int = 0) -> str:
 
 
 def histogram(values: list[int], *, cutoff: int | None = None, bins: int = 24) -> str:
-    """Token lengths in equal-width bins, with a dashed line at the truncation length."""
+    """Token lengths in equal-width bins. The max_length cutoff is a dashed line when it is near
+    the longest prompt; far above every prompt, the axis follows the data and a note says so."""
     if not values:
         return _empty("No token counts yet")
-    top = max(max(values), cutoff or 0, 1)
-    width_per_bin = max(1, math.ceil(top / bins))
+    longest = max(max(values), 1)
+    near = cutoff is not None and cutoff <= longest * CUTOFF_NEAR
+    top = max(longest, cutoff) if near and cutoff is not None else longest
+    start = 0 if min(values) < 0.25 * top else min(values)
+    width_per_bin = max(1, math.ceil((top - start + 1) / bins))
     counts = [0] * bins
     for value in values:
-        counts[min(value // width_per_bin, bins - 1)] += 1
+        counts[min((value - start) // width_per_bin, bins - 1)] += 1
     left, right, plot_top, bottom = 44.0, 468.0, 18.0, 172.0
     peak = max(counts) or 1
     step = (right - left) / bins
-    x_of = lambda tokens: left + (right - left) * min(tokens, top) / top  # noqa: E731
+    span = max(top - start, 1)
+    x_of = lambda tokens: left + (right - left) * (min(tokens, top) - start) / span  # noqa: E731
     parts = [
         f'<line class="ct-axis" x1="{left:g}" y1="{bottom:g}" x2="{right:g}" y2="{bottom:g}"/>',
         f'<text class="ct-tick" x="{left - 6:g}" y="{plot_top + 4:g}" text-anchor="end">'
@@ -95,7 +110,8 @@ def histogram(values: list[int], *, cutoff: int | None = None, bins: int = 24) -
     for index, count in enumerate(counts):
         if not count:
             continue
-        low, high = index * width_per_bin, (index + 1) * width_per_bin
+        low = start + index * width_per_bin
+        high = low + width_per_bin
         height = (bottom - plot_top) * count / peak
         over = cutoff is not None and low >= cutoff
         css = "ct-hbar ct-hbar-over" if over else "ct-hbar"
@@ -104,18 +120,23 @@ def histogram(values: list[int], *, cutoff: int | None = None, bins: int = 24) -
             f'<rect class="{css}" x="{left + index * step + 1:.1f}" y="{bottom - height:.1f}" '
             f'width="{max(step - 2, 1):.1f}" height="{height:.1f}" rx="2"/></g>'
         )
-    for tokens in (0, top // 2, top):
+    for tokens in (start, (start + top) // 2, top):
         parts.append(
             f'<text class="ct-tick" x="{x_of(tokens):.1f}" y="{bottom + 16:g}" '
             f'text-anchor="middle">{tokens:,}</text>'
         )
-    if cutoff is not None:
+    if near and cutoff is not None:
         x = x_of(cutoff)
         parts.append(
             f'<line class="ct-cutoff" x1="{x:.1f}" y1="{plot_top - 6:g}" '
             f'x2="{x:.1f}" y2="{bottom:g}"/>'
             f'<text class="ct-cutoff-label" x="{x - 4:.1f}" y="{plot_top + 4:g}" '
             f'text-anchor="end">max_length {cutoff}</text>'
+        )
+    elif cutoff is not None:
+        parts.append(
+            f'<text class="ct-cutoff-label is-far" x="{right:g}" y="{plot_top + 4:g}" '
+            f'text-anchor="end">every prompt fits max_length {cutoff}</text>'
         )
     return _svg("histogram", 480, 200, "Prompt length in tokens", "".join(parts))
 
@@ -198,7 +219,11 @@ def line_chart(
 def _opacity(share: float) -> str:
     if share <= 0:
         return "0"
-    return f"{max(share, MIN_CELL_OPACITY):.2f}".rstrip("0").rstrip(".")
+    if share >= STRONG_SHARE:
+        value = STRONG_OPACITY + (1 - STRONG_OPACITY) * (share - STRONG_SHARE) / (1 - STRONG_SHARE)
+    else:
+        value = max(share, MIN_CELL_OPACITY)
+    return f"{value:.2f}".rstrip("0").rstrip(".")
 
 
 def heatmap(labels: list[str], matrix: list[list[int]]) -> str:
@@ -230,7 +255,7 @@ def heatmap(labels: list[str], matrix: list[list[int]]) -> str:
         for j, count in enumerate(row):
             x = left + j * cell
             share = count / total if total else 0.0
-            strong = " is-strong" if share > 0.55 else ""
+            strong = " is-strong" if share >= STRONG_SHARE else ""
             diagonal = " is-diagonal" if i == j else ""
             parts.append(
                 f"<g><title>true {escape(name)}, predicted {escape(names[j])}: {count:,} "
@@ -243,4 +268,4 @@ def heatmap(labels: list[str], matrix: list[list[int]]) -> str:
                 f'y="{y + cell / 2 + 4:g}" text-anchor="middle">{count:,}</text></g>'
             )
     width, height = left + cell * n + 8, top + cell * n + 8
-    return _svg("heatmap", width, height, "Confusion matrix", "".join(parts))
+    return _svg("heatmap", width, height, "Confusion matrix", "".join(parts), natural=True)

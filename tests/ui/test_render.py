@@ -26,7 +26,6 @@ def test_every_fragment_escapes_user_text():
         fragments.issue_list([Issue("error", EVIL, [2], EVIL)]),
         fragments.prompt_preview([Piece("state", EVIL)]),
         fragments.callout("error", EVIL),
-        fragments.column_chips([EVIL], {EVIL: "state"}),
         fragments.stage_badge(EVIL),
         fragments.metrics_table({"questions": {}}, final),
         fragments.calibration_table(calibration),
@@ -102,3 +101,25 @@ def test_line_chart_stays_inside_its_view_box():
         x, y = map(float, point.split(","))
         assert 0 <= x <= width and 0 <= y <= height
     assert 'class="ct-reference' in svg
+
+
+def test_a_histogram_far_below_the_cutoff_is_scaled_to_the_data():
+    svg = charts.histogram([340, 352, 360, 371, 374], cutoff=4096)
+    assert 'class="ct-cutoff"' not in svg and "every prompt fits max_length 4096" in svg
+    assert len(re.findall(r'class="ct-hbar[ "]', svg)) >= 4  # spread over several bins
+
+
+def test_heatmap_text_stays_readable_on_its_cell():
+    svg = charts.heatmap(["a", "b"], [[7, 3], [1, 9]])  # shares 0.7, 0.3, 0.1, 0.9
+    opacities = [float(o) for o in re.findall(r'class="ct-cell"[^>]*fill-opacity="([\d.]+)"', svg)]
+    strong = [o for o in opacities if o >= 0.6]
+    assert all(o >= 0.92 for o in strong) and all(o <= 0.6 for o in opacities if o < 0.92)
+    assert svg.count("is-strong") == 2
+    assert re.search(r'<svg[^>]*width="\d+"', svg)  # drawn at its natural size
+
+
+def test_the_estimate_table_shows_the_five_cheapest_and_folds_the_rest():
+    rows = [row(f"flavor-{i}", price=1.0 + i) for i in range(8)] + [row("small", fits=False)]
+    html = fragments.estimate_table(rows, "flavor-0")
+    main, folded = html.split("<details", 1)
+    assert main.count('<th scope="row">') == 5 and "flavor-7" in folded and "small" in folded

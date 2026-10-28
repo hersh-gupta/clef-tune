@@ -80,12 +80,14 @@
 /* ------------------------------------------------------------------ page layout */
 
 .gradio-container {
+  width: 100% !important;
   max-width: 1440px !important;
   margin: 0 auto !important;
   font-family: var(--ct-font);
 }
 
 #ct-header {
+  flex-wrap: nowrap !important;
   align-items: center;
   gap: var(--ct-4);
   padding: var(--ct-3) 0 var(--ct-4);
@@ -94,7 +96,8 @@
 }
 
 #ct-header > #ct-brand {
-  flex: 1 1 auto !important;
+  flex: 1 1 0% !important;
+  min-width: 0 !important;
 }
 
 #ct-header > #ct-model,
@@ -169,7 +172,8 @@
 }
 
 #ct-main {
-  min-width: 0;
+  flex: 1 1 0% !important;
+  min-width: 0 !important;
 }
 
 .ct-panel {
@@ -239,6 +243,11 @@ button.ct-step {
 button.ct-step:hover:not(:disabled) {
   background: var(--ct-surface-2) !important;
   color: var(--ct-text) !important;
+}
+
+button.ct-step:focus-visible {
+  outline: 2px solid var(--ct-accent) !important;
+  outline-offset: 2px;
 }
 
 button.ct-step:disabled {
@@ -372,6 +381,105 @@ button.ct-step.is-error::after {
 
 .ct-file-icon {
   color: var(--ct-accent);
+}
+
+.ct-filebar {
+  display: flex;
+  align-items: baseline;
+  gap: var(--ct-3);
+  flex-wrap: wrap;
+}
+
+.ct-file-name {
+  font-family: var(--ct-mono);
+  font-size: var(--ct-text-md);
+  font-weight: 600;
+  color: var(--ct-text);
+}
+
+.ct-file-meta {
+  font-size: var(--ct-text-sm);
+  color: var(--ct-text-3);
+}
+
+#ct-file-row {
+  align-items: center;
+  padding: var(--ct-3) var(--ct-4);
+  border: 1px solid var(--ct-border);
+  border-radius: var(--ct-radius);
+  background: var(--ct-surface);
+}
+
+#ct-file-row > * {
+  flex-grow: 1;
+}
+
+#ct-file-row > button {
+  flex: 0 0 auto !important;
+}
+
+.ct-col-head {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 var(--ct-4) var(--ct-1);
+  font-size: var(--ct-text-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ct-text-3);
+}
+
+#ct-columns {
+  gap: 0 !important;
+  border: 1px solid var(--ct-border);
+  border-radius: var(--ct-radius);
+  background: var(--ct-surface);
+  overflow: hidden;
+}
+
+.ct-column-row {
+  align-items: center;
+  gap: var(--ct-4) !important;
+  padding: var(--ct-2) var(--ct-4);
+  border-bottom: 1px solid var(--ct-border);
+}
+
+.ct-column-row:last-child {
+  border-bottom: 0;
+}
+
+.ct-column-row > :first-child {
+  flex: 1 1 0% !important;
+  min-width: 0 !important;
+}
+
+.ct-col {
+  min-width: 0;
+}
+
+.ct-col-name {
+  font-family: var(--ct-mono);
+  font-size: var(--ct-text-sm);
+  font-weight: 600;
+  color: var(--ct-text);
+}
+
+.ct-col-samples {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--ct-text-sm);
+  color: var(--ct-text-3);
+}
+
+#ct-pills .wrap {
+  gap: var(--ct-2) !important;
+}
+
+#ct-pills label {
+  border-radius: 999px !important;
+  font-family: var(--ct-mono);
+  font-size: var(--ct-text-sm) !important;
 }
 
 .ct-chips {
@@ -655,7 +763,8 @@ button.ct-step.is-error::after {
 .ct-table th,
 .ct-table td {
   padding: var(--ct-2) var(--ct-3);
-  border-bottom: 1px solid var(--ct-border);
+  border: 0 !important;
+  border-bottom: 1px solid var(--ct-border) !important;
   color: var(--ct-text);
   text-align: left;
   vertical-align: top;
@@ -784,6 +893,16 @@ button.ct-step.is-error::after {
 }
 
 /* ------------------------------------------------------------------ prompt preview, logs, code */
+
+.ct-prompt,
+.ct-logs,
+.cm-editor,
+.ct-col-name,
+.ct-file-name,
+.ct-repo-link,
+.ct-path {
+  font-variant-ligatures: none;
+}
 
 .ct-prompt,
 .ct-logs {
@@ -943,6 +1062,11 @@ button.ct-step.is-error::after {
   font-weight: 600;
 }
 
+.ct-chart .ct-cutoff-label.is-far {
+  fill: var(--ct-text-3);
+  font-weight: 500;
+}
+
 .ct-line {
   fill: none;
   stroke-width: 2.25;
@@ -1037,7 +1161,7 @@ button.ct-step.is-error::after {
 
 .ct-dist,
 .ct-chart-card,
-.ct-heatmap {
+.ct-heatmap-card {
   margin: 0;
   padding: var(--ct-4);
   border: 1px solid var(--ct-border);
@@ -1046,7 +1170,7 @@ button.ct-step.is-error::after {
 }
 
 .ct-dist h4,
-.ct-heatmap figcaption,
+.ct-heatmap-card figcaption,
 .ct-chart-card h4 {
   margin: 0 0 var(--ct-3);
   font-family: var(--ct-mono);
@@ -1061,11 +1185,19 @@ button.ct-step.is-error::after {
   gap: var(--ct-4);
 }
 
-.ct-heatmap svg {
-  max-width: 360px;
+.ct-chart.ct-heatmap {
+  width: auto;
+  max-width: 100%;
+  height: auto;
 }
 
 /* ------------------------------------------------------------------ Gradio details */
+
+/* An HTML block with nothing in it (no error, no notice) takes no space. */
+.block.ct-html-flush:has(> .html-container > .prose:empty),
+.block.ct-html-flush:has(.prose:empty) {
+  display: none !important;
+}
 
 .ct-html-flush,
 .ct-html-flush > .prose {
@@ -1074,9 +1206,15 @@ button.ct-step.is-error::after {
   background: transparent !important;
 }
 
-#ct-runs table,
-#ct-data-table table {
-  font-size: var(--ct-text-sm);
+.table-wrap td,
+.table-wrap th,
+.table-wrap td *,
+.table-wrap th *,
+.table-wrap input,
+.table-wrap textarea {
+  font-family: var(--ct-font) !important;
+  font-size: var(--ct-text-sm) !important;
+  font-variant-ligatures: none;
 }
 
 .progress-text,
@@ -1110,6 +1248,6 @@ button.ct-step.is-error::after {
   }
 
   #ct-header {
-    flex-wrap: wrap;
+    flex-wrap: wrap !important;
   }
 }

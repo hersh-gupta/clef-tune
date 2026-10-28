@@ -4,7 +4,6 @@ badges and callouts. Everything that came from data, the Hub or a log is escaped
 from __future__ import annotations
 
 import html
-import re
 from typing import Any, Literal
 
 from clef_tune.card import METRIC_ROWS
@@ -13,6 +12,7 @@ from clef_tune.estimate import EstimateRow
 from clef_tune.prompt import Piece
 
 LOWER_IS_BETTER = {"log_loss", "mae"}
+ESTIMATE_ROWS_SHOWN = 5
 _BADGES = {
     "COMPLETED": "ct-badge-success",
     "RUNNING": "ct-badge-active",
@@ -200,26 +200,17 @@ def estimate_table(rows: list[EstimateRow], recommended: str | None) -> str:
         "<thead><tr><th>Hardware</th><th>GPUs</th><th>Memory needed</th><th>Time</th>"
         "<th>Cost</th></tr></thead>"
     )
-    fitting = "".join(_estimate_row(row, recommended) for row in rows if row.fits)
-    unfit = [row for row in rows if not row.fits]
-    table = f'<table class="ct-table ct-estimates">{head}<tbody>{fitting}</tbody></table>'
-    if unfit:
-        body = "".join(_estimate_row(row, recommended) for row in unfit)
+    fitting = [row for row in rows if row.fits]
+    shown = fitting[:ESTIMATE_ROWS_SHOWN]
+    rest = fitting[ESTIMATE_ROWS_SHOWN:] + [row for row in rows if not row.fits]
+    body = "".join(_estimate_row(row, recommended) for row in shown)
+    table = f'<table class="ct-table ct-estimates">{head}<tbody>{body}</tbody></table>'
+    if rest:
+        unfit = sum(1 for row in rest if not row.fits)
+        note = f", {unfit} of them too small for this config" if unfit else ""
+        more = "".join(_estimate_row(row, recommended) for row in rest)
         table += (
-            f'<details class="ct-more"><summary>{len(unfit)} more that cannot run this config'
-            f'</summary><table class="ct-table ct-estimates">{head}<tbody>{body}</tbody>'
-            "</table></details>"
+            f'<details class="ct-more"><summary>{len(rest)} more options{note}</summary>'
+            f'<table class="ct-table ct-estimates">{head}<tbody>{more}</tbody></table></details>'
         )
     return table
-
-
-def column_chips(columns: list[str], roles: dict[str, str]) -> str:
-    chips = []
-    for column in columns:
-        role = roles.get(column, "state")
-        css = role if re.fullmatch(r"[a-z]+", role) else "other"
-        chips.append(
-            f'<span class="ct-chip is-{css}"><span class="ct-chip-name">{esc(column)}</span>'
-            f'<span class="ct-chip-role">{esc(role)}</span></span>'
-        )
-    return f'<div class="ct-chips">{"".join(chips)}</div>'

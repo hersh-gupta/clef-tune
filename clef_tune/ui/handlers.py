@@ -35,10 +35,21 @@ from clef_tune.ui.session import (
 from clef_tune.ui.settings import Settings
 from clef_tune.validation import ValidationReport, validate
 
-STEPS = ("Data", "Schema", "Validate", "Configure", "Launch")
+STEPS = ("Data", "Validate", "Configure", "Launch")
 PREVIEW_PAGE = 50
 CELL_CHARS = 200
 UNKNOWN_SHOWN = 8
+SAMPLE_VALUES = 3
+SAMPLE_CHARS = 80
+# What a column can be for (flat files): the label shown, and the role it sets.
+ROLE_CHOICES = (
+    ("State: Clef reads it", "state"),
+    ("Question: Clef answers it", "question"),
+    ("ID", "id"),
+    ("Image", "image"),
+    ("Skip", "skip"),
+)
+ROLES = tuple(role for _, role in ROLE_CHOICES)
 MODELS = {"Cloudflare/clef-flash": "Clef-Flash · 9B", "Cloudflare/clef": "Clef · 27B"}
 PRESET_LABELS = {"quick": "Quick test", "balanced": "Balanced", "thorough": "Thorough"}
 PRESET_HELP = {
@@ -73,8 +84,7 @@ def error_text(exc: Exception) -> str:
 
 @dataclass
 class DataView:
-    summary: str
-    chips: str
+    summary: str  # the file bar, or an empty state before any data
     headers: list[str]
     rows: list[list[str]]
     page: int
@@ -90,12 +100,13 @@ def _cell(value: Any) -> str:
 
 
 def column_roles(session: Session) -> dict[str, str]:
+    """What each column is for: one of ROLES (native JSONL fields get their own names)."""
     table, draft = session.table, session.draft
     if table is None or draft is None:
         return {}
     if draft.native:
-        native = {"id": "id", "state": "state", "labels": "labels", "images": "image"}
-        return {column: native.get(column, "ignored") for column in table.columns}
+        native = {"id": "id", "state": "state", "labels": "question", "images": "image"}
+        return {column: native.get(column, "skip") for column in table.columns}
     questions = {q.column for q in draft.questions}
     roles = {}
     for column in table.columns:
@@ -108,8 +119,61 @@ def column_roles(session: Session) -> dict[str, str]:
         elif column in draft.state_columns:
             roles[column] = "state"
         else:
-            roles[column] = "ignored"
+            roles[column] = "skip"
     return roles
+
+
+@dataclass
+class ColumnRow:
+    name: str
+    samples: str  # a few distinct values, shortened
+    role: str
+
+
+def _samples(session: Session, column: str) -> str:
+    values: list[str] = []
+    for value in session.table.values(column) if column != "labels" else []:
+        text = _cell(value).strip()
+        if text and text not in values:
+            values.append(text)
+        if len(values) == SAMPLE_VALUES:
+            break
+    if column == "labels" and session.draft.native:
+        values = [q.id for q in session.draft.questions]
+    joined = ", ".join(values)
+    return joined if len(joined) <= SAMPLE_CHARS else joined[: SAMPLE_CHARS - 1] + "…"
+
+
+def column_rows(session: Session) -> list[ColumnRow]:
+    """One row per column, in file order, for the column roles list."""
+    roles = column_roles(session)
+    return [ColumnRow(name, _samples(session, name), role) for name, role in roles.items()]
+
+
+def set_role(session: Session, column: str, role: str) -> str | None:
+    """Make a column the state, a question, the ID, an image or nothing. A column has one role,
+    so a label column never ends up in the state Clef reads."""
+    draft, table = session.draft, session.table
+    if role not in ROLES:
+        return f"Unknown role {role!r}; choose one of {', '.join(ROLES)}"
+    if draft.native:
+        return "In this JSONL file each row brings its own state and labels"
+    if draft.id_column == column:
+        draft.id_column = None
+    draft.questions = [q for q in draft.questions if q.column != column or role == "question"]
+    in_order = lambda keep: [c for c in table.columns if c in keep]  # noqa: E731
+    state = set(draft.state_columns) - {column}
+    images = set(draft.image_columns) - {column}
+    if role == "state":
+        state.add(column)
+    elif role == "image":
+        images.add(column)
+    elif role == "id":
+        draft.id_column = column
+    draft.state_columns, draft.image_columns = in_order(state), in_order(images)
+    if role == "question" and not any(q.column == column for q in draft.questions):
+        return add_question(session, column)
+    return None
 
 
 def data_view(session: Session, page: int = 0, error: str | None = None) -> DataView:
@@ -120,7 +184,7 @@ def data_view(session: Session, page: int = 0, error: str | None = None) -> Data
             "Upload a CSV, TSV or JSONL file (or a zip with your images), "
             "or load the example to look around.",
         )
-        return DataView(empty, "", [], [], 0, "", error)
+        return DataView(empty, [], [], 0, "", error)
     total = len(table.rows)
     pages = max(1, math.ceil(total / PREVIEW_PAGE))
     page = min(max(page, 0), pages - 1)
@@ -128,13 +192,14 @@ def data_view(session: Session, page: int = 0, error: str | None = None) -> Data
     chunk = table.rows[start : start + PREVIEW_PAGE]
     rows = [[_cell(row.get(column)) for column in table.columns] for row in chunk]
     label = f"Rows {start + 1}–{start + len(chunk)} of {total:,}" if total else "No rows"
+    columns = len(table.columns)
     summary = (
-        f'<div class="ct-file"><span class="ct-file-icon" aria-hidden="true">▤</span>'
-        f"{fragments.esc(table.path.name)}</div>"
-        + fragments.stat_tiles([("Rows", f"{total:,}"), ("Columns", str(len(table.columns)))])
+        '<div class="ct-filebar"><span class="ct-file-icon" aria-hidden="true">▤</span>'
+        f'<span class="ct-file-name">{fragments.esc(table.path.name)}</span>'
+        f'<span class="ct-file-meta">{total:,} rows · {columns} column'
+        f"{'s' if columns != 1 else ''}</span></div>"
     )
-    chips = fragments.column_chips(table.columns, column_roles(session))
-    return DataView(summary, chips, list(table.columns), rows, page, label, error)
+    return DataView(summary, list(table.columns), rows, page, label, error)
 
 
 def upload(session: Session, path: str | None, settings: Settings) -> DataView:
@@ -292,18 +357,6 @@ def _native_label_keys(session: Session) -> list[str]:
         if isinstance(row.get("labels"), dict):
             keys.update(dict.fromkeys(str(key) for key in row["labels"]))
     return list(keys)
-
-
-def set_columns(
-    session: Session, *, id_column: str | None, state_columns: list[str], image_columns: list[str]
-) -> None:
-    """Which columns hold the id, the state and the images. A question's own column never goes
-    into the state: the model would read the answer."""
-    draft = session.draft
-    questions = {q.column for q in draft.questions}
-    draft.id_column = id_column or None
-    draft.state_columns = [c for c in state_columns if c not in questions and c != draft.id_column]
-    draft.image_columns = [c for c in image_columns if c not in questions]
 
 
 def add_question(session: Session, column: str) -> str | None:
@@ -720,22 +773,21 @@ def set_run_name(session: Session, name: str) -> str | None:
 
 
 def step_states(session: Session) -> list[StepState]:
+    """Data, Validate, Configure, Launch: each todo, done, warning or error."""
     states: list[StepState] = ["todo"] * len(STEPS)
-    if session.table is not None:
-        states[0] = "done"
-    if session.draft is not None:
+    if session.table is not None and session.draft is not None:
         try:
             session.config()
-            states[1] = "done"
+            states[0] = "done"
         except ValueError:
-            states[1] = "error"
+            states[0] = "error"
     report = session.report
     if report is not None:
-        states[2] = "error" if report.errors else "warning" if report.warnings else "done"
-    if session.reached > 3 and states[1] == "done":
-        states[3] = "done"
+        states[1] = "error" if report.errors else "warning" if report.warnings else "done"
+    if session.reached > 2 and states[0] == "done":
+        states[2] = "done"
     if session.job_id or session.local_folder:
-        states[4] = "done"
+        states[3] = "done"
     return states
 
 
