@@ -32,16 +32,29 @@ from clef_tune.yamlio import dump_yaml, load_yaml_file
 EXAMPLES = Path(__file__).resolve().parents[1] / "examples"
 POLL_SECONDS = 15
 ACTIVE = ("SCHEDULING", "RUNNING")
+HARDWARE_WAIT_S = 2 * 60 * 60  # queueing for a GPU costs nothing, so it gets its own budget
 _STEP_FILE = re.compile(r"/checkpoints/step-(\d+)/([^/]+)$")  # not step-N.tmp, not best/
 
 
-def _wait_for(predicate, timeout_s, what):
+def _wait_for(predicate, timeout_s, what, poll_s=POLL_SECONDS):
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
         if predicate():
             return
-        time.sleep(POLL_SECONDS)
+        time.sleep(poll_s)
     pytest.fail(f"timed out waiting for {what}")
+
+
+def _wait_until_running(stage, job_id, poll_s=POLL_SECONDS):
+    """Wait while the job queues for hardware, so the queue doesn't eat the job's own budget."""
+
+    def running():
+        current = stage(job_id)
+        if current not in ACTIVE:
+            pytest.fail(f"{job_id} ended as {current} before it started")
+        return current == "RUNNING"
+
+    _wait_for(running, HARDWARE_WAIT_S, f"hardware for {job_id}", poll_s)
 
 
 def _bucket_paths(api, bucket, prefix):
@@ -113,6 +126,7 @@ def test_a_job_resumes_after_cancel_and_pushes_the_adapter(tmp_path):
         return job_status(job_id, api=api, token=token).stage
 
     try:
+        _wait_until_running(stage, first.id)
 
         def checkpointed():
             status = job_status(first.id, api=api, token=token)
@@ -138,6 +152,7 @@ def test_a_job_resumes_after_cancel_and_pushes_the_adapter(tmp_path):
         resumed = resume_job(first.id, api=api, token=token)
         jobs.append(resumed.id)
         print(f"resumed job: {resumed.id} {resumed.url}")
+        _wait_until_running(stage, resumed.id)
         _wait_for(lambda: stage(resumed.id) not in ACTIVE, 60 * 60, "the resumed job")
         logs = "\n".join(job_logs(resumed.id, api=api, token=token))
         assert stage(resumed.id) == "COMPLETED", logs[-3000:]
@@ -195,3 +210,11 @@ def test_a_folder_that_does_not_exist_yet_lists_as_empty():
             yield  # a generator, like the real one: the error comes on iteration
 
     assert _bucket_paths(Api(), "me/jobs-artifacts", "clef-tune-runs/x/out") == []
+
+
+def test_waiting_for_hardware_does_not_use_the_job_budget():
+    stages = iter(["SCHEDULING", "SCHEDULING", "RUNNING"])
+    _wait_until_running(lambda job_id: next(stages), "job1", poll_s=0)
+    assert next(stages, None) is None
+    with pytest.raises(pytest.fail.Exception, match="job1 ended as CANCELED"):
+        _wait_until_running(lambda job_id: "CANCELED", "job1", poll_s=0)
