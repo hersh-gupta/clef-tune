@@ -58,6 +58,9 @@ extend-exclude = ["docs", "tests/torch/fixtures"]
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
 
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["clef_tune.launch.hf_jobs.JobRequest"]  # a frozen dataclass
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-m 'not gpu and not hfjobs'"
