@@ -10,7 +10,7 @@ it starts, so it can build on facts verified by the plans before it.
 |---|---|---|---|
 | 1 | **Core** (`2026-10-26-clef-tune-plan-1-core.md`) | Package scaffold, schema, labels, config, CSV/JSONL loading, prompt layout and token counting, validation report, metrics, calibration, estimates, bundle writer, `clef-tune validate` / `estimate`, example dataset, CI | — |
 | 2 | **Training engine** (`2026-10-27-clef-tune-plan-2-training.md`) | `clef_code.py`, `model.py`, `train.py`, `adapter.py`, `predictor.py`, `hub.py`, `runtime.py`; `clef-tune train` / `eval` / `predict` / `export`; tiny-model integration tests; tokenization-parity test; Dockerfile; opt-in `gpu` test | 1 |
-| 3 | **HF Jobs** | `launch/source.py`, `launch/hf_jobs.py`; `clef-tune jobs launch/list/status/logs/cancel/resume`; mocked-API tests; opt-in `hfjobs` test | 1, 2 |
+| 3 | **HF Jobs** (`2026-10-28-clef-tune-plan-3-hf-jobs.md`) | `launch/source.py`, `launch/job_script.py`, `launch/hf_jobs.py`; `clef-tune jobs launch/list/status/logs/cancel/resume`; multi-GPU and bucket-output fixes to training; mocked-API tests; opt-in `hfjobs` test | 1, 2 |
 | 4 | **Web UI** | `ui/` (theme, CSS, handlers, layout), Space mode, `deploy/space/`, Playwright screenshots, iterative refinement with the user until sign-off | 1, 2 (results view), 3 (Launch step) |
 
 ## Interfaces Plan 1 provides to later plans
@@ -62,6 +62,21 @@ These names are fixed by Plan 1. Later plans consume them as written.
 - `clef_tune.predictor`: `Predictor` (`load`, `logits`, `probabilities`, `predict`, `systemone`),
   `predict_file()`
 - `clef_tune.checkpoints`: `ConfigMismatchError`
+
+## Interfaces Plan 3 provides to later plans
+
+- `clef_tune.launch.source`: `Source` (`repo_url`, `ref`, `requirement()`, `version`), `SourceError`,
+  `resolve_source()`, `pin_commit()`, `DEFAULT_SOURCE`, `SOURCE_ENV`
+- `clef_tune.launch.job_script`: `job_command()`, `job_env()`, `WORK_MOUNT`, `MODEL_MOUNT`,
+  `KERNEL_MOUNT`
+- `clef_tune.launch.hf_jobs`: `JobRequest`, `LaunchPlan` (`flavor`, `gpus`, `timeout`,
+  `price_per_hour`, `estimate`, `estimated_hours`, `max_cost`, `adapter_repo`, `source`, `kernels`,
+  `kernels_cached`, `keep_data`), `plan_launch()`, `submit_launch() -> LaunchedJob`, `LaunchError`,
+  `JobStatus` (`stage`, `hours`, `cost`, `progress`, `latest()`), `list_jobs()`, `job_status()`,
+  `job_progress()`, `job_logs()`, `cancel_job()`, `resume_job()`, `jobs_bucket()`. Every function
+  takes `token`; Plan 4's Space passes the user's own token, never a server-side one.
+- `clef_tune.estimate.suggest_timeout(row, extra_minutes)`, `clef_tune.runtime.KERNEL_PINS`,
+  `clef_tune.train.TrainResult.main_process`
 
 ## Verified constraints and spec amendments
 
@@ -129,3 +144,63 @@ Checked on 2026-10-26 while writing Plan 1. These override the spec where they d
     - `train_config.yaml` carries clef-tune provenance as header comments, so it still loads as a
       `Config`.
     - `data.load_file(..., for_prediction=True)` loads prediction files without label columns.
+
+Items 18–28 were checked on 2026-10-28 with real HF Jobs runs (GPU test, 2-GPU DDP, Dockerfile
+steps, a bucket-mount probe) while writing Plan 3.
+
+18. **Jobs install from GitHub archives.**
+    - The base image has no git; apt installs only ca-certificates, libjpeg, libpng, python3, gcc,
+      wget, gnupg2 and the CUDA toolkit.
+    - Jobs install `clef-tune[train] @ <repo>/archive/<sha>.tar.gz` and set
+      `SETUPTOOLS_SCM_PRETEND_VERSION_FOR_CLEF_TUNE=0.0.0+g<sha12>`, so adapters still record the
+      commit.
+    - *Amends spec §8.2* (a `git+` URL).
+19. **The commit comes from git, not the build-time version.** An editable install's
+    `_version.py` is frozen at build time (`commit_id` None).
+    - Order: `--source-ref`, then PEP 610 `vcs_info.commit_id`, then `git rev-parse HEAD` in the
+      checkout (tracked changes are refused), else an error.
+    - `--source-ref` is pinned to a full SHA through GitHub's commits API.
+    - *Amends spec §8.1 item 3.*
+20. **The base image is PEP 668 "externally managed."** The `pytorch/pytorch:2.11.0-*` images put
+    torch in Ubuntu's system Python 3.12 (`/usr/local/lib/python3.12/dist-packages`), so pip
+    needs `PIP_BREAK_SYSTEM_PACKAGES=1`. The Dockerfile and the job environment set it.
+21. **Kernels must build against the installed torch.**
+    - **No prebuilt wheel:** `causal-conv1d` has none for torch 2.11/cu130/cp312. It compiles in
+      about 12 minutes on 8 vCPUs, into a 207 MB wheel.
+    - **The failure:** under pip's build isolation it compiles against a different torch and fails
+      to import (`undefined symbol c10::cuda::CUDAErrorLogCapture`). transformers' `qwen3_5`
+      imports any installed copy, so model loading crashes.
+    - **The fix:** pin `causal-conv1d==1.7.0` and `flash-linear-attention==0.6.0`, build with
+      `--no-build-isolation`, check `import causal_conv1d`, and uninstall on failure. Verified:
+      the GPU test passes with the kernels in use.
+    - **Caching:** jobs cache the wheel in
+      `jobs-artifacts/clef-tune-kernels/<image>/causal-conv1d-1.7.0/` (user decision,
+      2026-10-28).
+22. **HF Jobs hardware:** L4 hosts run driver 580.178.04 with CUDA 13.0, so the cu130 images run.
+23. **HF Jobs API behavior (`huggingface_hub` 1.33):**
+    - `run_job` answers 402 "Pre-paid credit balance is insufficient" without credits.
+    - Environment or secret names starting with `NVIDIA_` are rejected with 400.
+    - `JobInfo` has no timeout field (the raw API has `timeout` in seconds), so launches store a
+      `timeout` label. HF adds its own `name` label.
+    - `inspect_job` returns secret names only.
+    - `JobStage` is one of COMPLETED, CANCELED, ERROR, DELETED, SCHEDULING, RUNNING. Timeout
+      strings like `1.5h` are accepted.
+24. **Buckets:**
+    - `sync_job_volume` creates the private `<user>/jobs-artifacts` bucket, never deletes remote
+      files, uploads a `.keep` for an empty folder (mounting a missing folder fails the job), and
+      accepts `/` in `remote_name`.
+    - A read-write bucket mount supports directory rename, `rmtree` and file rename.
+    - Writes are buffered and uploaded in the background (200 MB "written" in 0.5 s), so a canceled
+      job can leave a partial newest checkpoint.
+25. **Multi-GPU jobs** run `accelerate launch --multi_gpu --num_processes <count> -m clef_tune train`
+    (verified on a10g-largex2, NCCL 2.28.9). *Amends spec §8.2* for multi-GPU flavors.
+26. **Measured on l4x1 (Clef-Flash 4-bit, 40 rows):**
+    - The GPU test took 4.2 minutes wall time.
+    - Setup: pip install 21 s; the 16.4 GB model download 74 s; loading 36 s.
+    - 375 tokens/s without kernels, against the estimator's ~710. The estimator's 10-minute
+      overhead covers setup well, apart from the one-time kernel build.
+27. **Launching is two-phase** (`plan_launch`, a confirmation, then `submit_launch`), so the CLI and
+    UI show the cost before any upload. Each launch stages `bundle/` in its own
+    `clef-tune-runs/<run>-<UTC timestamp>` folder; training creates `out/`.
+28. **The live `hfjobs` test cancels after the first checkpoint** instead of forcing a timeout,
+    then resumes. *Amends spec §11.5.*
