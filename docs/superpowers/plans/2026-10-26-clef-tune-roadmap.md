@@ -11,7 +11,7 @@ it starts, so it can build on facts verified by the plans before it.
 | 1 | **Core** (`2026-10-26-clef-tune-plan-1-core.md`) | Package scaffold, schema, labels, config, CSV/JSONL loading, prompt layout and token counting, validation report, metrics, calibration, estimates, bundle writer, `clef-tune validate` / `estimate`, example dataset, CI | — |
 | 2 | **Training engine** (`2026-10-27-clef-tune-plan-2-training.md`) | `clef_code.py`, `model.py`, `train.py`, `adapter.py`, `predictor.py`, `hub.py`, `runtime.py`; `clef-tune train` / `eval` / `predict` / `export`; tiny-model integration tests; tokenization-parity test; Dockerfile; opt-in `gpu` test | 1 |
 | 3 | **HF Jobs** (`2026-10-28-clef-tune-plan-3-hf-jobs.md`) | `launch/source.py`, `launch/job_script.py`, `launch/hf_jobs.py`; `clef-tune jobs launch/list/status/logs/cancel/resume`; multi-GPU and bucket-output fixes to training; mocked-API tests; opt-in `hfjobs` test | 1, 2 |
-| 4 | **Web UI** | `ui/` (theme, CSS, handlers, layout), Space mode, `deploy/space/`, Playwright screenshots, iterative refinement with the user until sign-off | 1, 2 (results view), 3 (Launch step) |
+| 4 | **Web UI** (`2026-10-28-clef-tune-plan-4-ui.md`) | `ui/` (theme, CSS, handlers, layout), Space mode, `deploy/space/`, Playwright screenshots, iterative refinement with the user until sign-off | 1, 2 (results view), 3 (Launch step) |
 
 ## Interfaces Plan 1 provides to later plans
 
@@ -204,3 +204,29 @@ steps, a bucket-mount probe) while writing Plan 3.
     `clef-tune-runs/<run>-<UTC timestamp>` folder; training creates `out/`.
 28. **The live `hfjobs` test cancels after the first checkpoint** instead of forcing a timeout,
     then resumes. *Amends spec §11.5.*
+
+Items 29–35 were checked on 2026-10-28 while writing Plan 4 (Gradio 6.30.0 installed from the
+lock, its source read, and the Spaces OAuth docs).
+
+29. **Gradio 6.30 layout API.** `Blocks.launch()` takes `theme`, `css_paths`, `js`, `head` and
+    `max_file_size`; `gr.Blocks()` no longer does. `gr.render(inputs, triggers)` and per-component
+    `key` exist. Dark mode is the `dark` class on `document.body` (`?__theme=dark` sets it).
+    Importing gradio does not import torch.
+30. **Gradio OAuth outside a Space is a mock.** With a `gr.LoginButton` in the app, Gradio installs
+    fake `/login` routes, calls `whoami()` with the local token at launch (failing without one),
+    and hands handlers the token `"mock-oauth-token-for-local-dev"`. The routes need
+    `gradio[oauth]`. *Amends spec §9.1:* the sign-in button appears only on a Space; locally the
+    UI uses the person's own `hf auth login` token or a pasted one.
+31. **Gradio session state.** `gr.State(delete_callback=…)` runs about an hour after a browser
+    session closes; sessions pushed out past `state_session_capacity` skip the callback, so the
+    UI also sweeps session folders older than 24 h at startup.
+32. **Spaces OAuth scopes.** `openid profile` are always granted; optional scopes include
+    `read-repos`, `write-repos`, `manage-repos` and `jobs`. There is no storage-bucket scope, so
+    whether OAuth can stage a launch in the jobs-artifacts bucket is unverified; the HF Jobs tab
+    always accepts a pasted token.
+33. **The wheel ships only `clef_tune/`.** The example dataset is force-included as
+    `clef_tune/_examples/` so a Space can "load example".
+34. **Playwright 1.64.1** with chromium-1208 is installed locally.
+35. **Plan 4 spec amendments:** no root `app.py` (the Space entry point is `deploy/space/app.py`);
+    charts are hand-written SVG; auto-mapping also proposes an id column and ignores empty
+    columns; the UI defaults to Clef-Flash; `train` events carry `total_steps`.
