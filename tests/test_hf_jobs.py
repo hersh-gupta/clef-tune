@@ -507,3 +507,27 @@ def test_logs_and_cancel_pass_the_job_through():
     assert list(job_logs("job123", follow=True, api=api, token=TOKEN)) == ["line 1", "line 2"]
     cancel_job("job123", api=api, token=TOKEN)
     assert ("fetch_job_logs", "job123", True) in api.calls and ("cancel_job", "job123") in api.calls
+
+
+@pytest.mark.parametrize("stage", ["RUNNING", "SCHEDULING", "COMPLETED"])
+def test_resume_refuses_when_another_job_continues_the_same_run(stage):
+    canceled = job(stage="CANCELED")
+    api = FakeApi(job_info=canceled, jobs=[canceled, job(id="job456", stage=stage)])
+    with pytest.raises(LaunchError, match=f"job456 .*same work folder.*{stage}"):
+        resume_job("job123", api=api, token=TOKEN)
+    assert all(call[0] != "run_job" for call in api.calls)
+
+
+def test_resume_ignores_other_folders_and_failed_resumes():
+    other = Volume(
+        type="bucket",
+        source="me/jobs-artifacts",
+        mount_path="/work",
+        path="clef-tune-runs/other-1",
+        read_only=False,
+    )
+    canceled = job(stage="CANCELED")
+    elsewhere = job(id="job456", stage="RUNNING", volumes=[other])
+    api = FakeApi(job_info=canceled, jobs=[canceled, elsewhere, job(id="job789", stage="ERROR")])
+    resume_job("job123", api=api, token=TOKEN)
+    assert run_call(api)["volumes"] == canceled.volumes

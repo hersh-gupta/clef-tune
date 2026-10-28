@@ -50,6 +50,7 @@ BILLING_URL = "https://huggingface.co/settings/billing"
 SCOPE_ADVICE = 'use a "Write" token, or a fine-grained token with job.write and repo.write'
 METRICS_LOG = "metrics.jsonl"  # what clef_tune.train writes into the output dir
 RESUMABLE = ("ERROR", "CANCELED")
+CONTINUING = ("SCHEDULING", "RUNNING", "COMPLETED")  # a job in these stages owns its run's folder
 
 _TIMEOUT = re.compile(r"^(\d+(?:\.\d+)?)([smhd])$")
 _HOURS_PER_UNIT = {"s": 1 / 3600, "m": 1 / 60, "h": 1, "d": 24}
@@ -389,14 +390,19 @@ def list_jobs(*, api: HfApi | None = None, token: str | None = None) -> list[Job
     return sorted(jobs, key=lambda info: info.created_at or oldest, reverse=True)
 
 
+def _work_volume(info: JobInfo) -> Volume | None:
+    """The bucket folder mounted at /work: the run's bundle, output and checkpoints."""
+    return next(
+        (v for v in info.volumes or [] if v.type == "bucket" and v.mount_path == WORK_MOUNT), None
+    )
+
+
 def job_progress(
     info: JobInfo, *, api: HfApi | None = None, token: str | None = None
 ) -> list[dict]:
     """The metrics.jsonl records the job's trainer has written to its work folder so far."""
     api = api or HfApi()
-    work = next(
-        (v for v in info.volumes or [] if v.type == "bucket" and v.mount_path == WORK_MOUNT), None
-    )
+    work = _work_volume(info)
     if work is None:
         return []
     output = JOB_OUTPUT_DIR.removeprefix(WORK_MOUNT + "/")
@@ -463,6 +469,27 @@ def cancel_job(job_id: str, *, api: HfApi | None = None, token: str | None = Non
     api.cancel_job(job_id=job_id, token=token)
 
 
+def _check_no_job_continues(info: JobInfo, *, api: HfApi, token: str) -> None:
+    """Refuse a resume while another job runs in the same work folder, or once one finished the
+    run: two jobs would write the same checkpoints, or retrain over the pushed adapter."""
+    work = _work_volume(info)
+    if work is None:
+        return
+    for other in list_jobs(api=api, token=token):
+        other_work = _work_volume(other)
+        if other.id == info.id or other_work is None:
+            continue
+        if (other_work.source, other_work.path) != (work.source, work.path):
+            continue
+        stage = _stage(other)
+        if stage in CONTINUING:
+            hint = "the run is finished" if stage == "COMPLETED" else "resume it if it fails"
+            raise LaunchError(
+                f"{other.id} already continues {info.id}'s run in the same work folder "
+                f"and is {stage}; {hint}"
+            )
+
+
 def resume_job(
     job_id: str,
     *,
@@ -484,6 +511,7 @@ def resume_job(
     stage = _stage(info)
     if stage not in RESUMABLE:
         raise LaunchError(f"{job_id} is {stage}; only failed or canceled jobs can be resumed")
+    _check_no_job_continues(info, api=api, token=token)
     timeout = timeout or labels.get("timeout")  # JobInfo has no timeout, so launches label it
     if not timeout:
         raise LaunchError(f"{job_id} has no timeout label; pass --timeout")
