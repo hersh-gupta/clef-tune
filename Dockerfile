@@ -1,5 +1,6 @@
 FROM pytorch/pytorch:2.11.0-cuda13.0-cudnn9-devel
-ENV PIP_NO_CACHE_DIR=1 PYTHONUNBUFFERED=1
+# The base image's torch lives in Ubuntu's system Python, which PEP 668 marks externally managed.
+ENV PIP_NO_CACHE_DIR=1 PYTHONUNBUFFERED=1 PIP_BREAK_SYSTEM_PACKAGES=1
 WORKDIR /opt/clef-tune
 COPY . .
 RUN pip install ".[train]"
