@@ -94,7 +94,7 @@ def test_estimate_shows_the_validation_errors(tmp_path):
     assert "file not found" in result.output
 
 
-def fake_training(monkeypatch, tmp_path, error=None):
+def fake_training(monkeypatch, tmp_path, error=None, main_process=True):
     calls = []
 
     class FakeError(RuntimeError):
@@ -106,7 +106,12 @@ def fake_training(monkeypatch, tmp_path, error=None):
             raise error
         if error:
             raise FakeError(error)
-        return SimpleNamespace(adapter_dir=tmp_path / "final", hub_url=None, resumed_from=None)
+        return SimpleNamespace(
+            adapter_dir=tmp_path / "final",
+            hub_url=None,
+            resumed_from=None,
+            main_process=main_process,
+        )
 
     module = SimpleNamespace(train=train, TrainingError=FakeError)
     monkeypatch.setitem(sys.modules, "clef_tune.train", module)
@@ -226,3 +231,9 @@ def test_export_reports_a_missing_base_model_with_exit_1(monkeypatch, tmp_path):
     result = runner.invoke(cli.app, ["export", str(tmp_path), "--merge", "-o", "m"])
     assert result.exit_code == 1 and "not a model directory" in result.output
     assert isinstance(result.exception, SystemExit)
+
+
+def test_train_command_prints_only_on_the_main_process(monkeypatch, tmp_path):
+    fake_training(monkeypatch, tmp_path, main_process=False)
+    result = runner.invoke(cli.app, ["train", str(EXAMPLE)])
+    assert result.exit_code == 0 and "Adapter written" not in result.output

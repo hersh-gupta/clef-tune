@@ -1,4 +1,6 @@
 import json
+from datetime import timedelta
+from types import SimpleNamespace
 
 import pytest
 
@@ -152,3 +154,31 @@ def test_a_batch_labeled_only_for_zero_weight_questions_trains(tiny_project):
     lines[1] = lines[1].replace(",yes,", ",,", 1)
     csv.write_text("\n".join(lines) + "\n", encoding="utf-8")
     assert train(config).metrics["run"]["steps"] == 16
+
+
+def test_the_process_group_gets_a_long_timeout(tiny_project, monkeypatch):
+    seen = {}
+    real = train_module.Accelerator
+
+    def accelerator(**kwargs):
+        seen.update(kwargs)
+        return real(**kwargs)
+
+    monkeypatch.setattr(train_module, "Accelerator", accelerator)
+    train(tiny_project(train={"epochs": 1}))
+    (handler,) = seen["kwargs_handlers"]
+    assert handler.timeout == train_module.DIST_TIMEOUT == timedelta(hours=1)
+
+
+def test_training_always_ends_the_accelerator(tiny_project, monkeypatch):
+    ends = []
+    monkeypatch.setattr(train_module.Accelerator, "end_training", lambda self: ends.append(1))
+    assert train(tiny_project(train={"epochs": 1})).main_process is True
+    assert ends == [1]
+
+
+def test_tokens_per_sec_counts_every_process():
+    two_ranks = SimpleNamespace(
+        device=torch.device("cpu"), reduce=lambda tensor, reduction: tensor * 2
+    )
+    assert train_module._tokens_per_sec(two_ranks, 300, 1.5) == pytest.approx(400.0)

@@ -7,6 +7,7 @@ from __future__ import annotations
 from typing import Any
 
 from clef_tune.config import Config
+from clef_tune.yamlio import dump_yaml
 
 TOP_CLASSES = 10
 
@@ -110,4 +111,10 @@ def render_card(metrics: dict, config: Config, version: str) -> str:
         out += [_time_line("Estimated time", run["estimated_hours"], run.get("estimated_cost")), ""]
     if run.get("hours") is not None:
         out += [_time_line("Actual time", run["hours"], run.get("cost")), ""]
-    return "\n".join(out).rstrip() + "\n"
+    # Hub metadata: links the repo to its base model and silences the missing-metadata warning.
+    front = {
+        "base_model": config.model.id,
+        "base_model_relation": "adapter",
+        "tags": ["clef", "clef-tune"],
+    }
+    return "---\n" + dump_yaml(front) + "---\n\n" + "\n".join(out).rstrip() + "\n"

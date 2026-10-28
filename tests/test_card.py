@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import yaml
+
 from clef_tune.card import confusion_markdown, render_card
 from clef_tune.config import PINNED_REVISIONS
 from tests.helpers import make_config
@@ -108,3 +110,14 @@ def test_confusion_markdown_keeps_the_top_classes_and_merges_the_rest():
     assert lines[-1].startswith("| other | ") and lines[-1].endswith(
         " | 3 |"
     )  # 2 + 1 on the diagonal
+
+
+def test_the_card_starts_with_hub_metadata(tmp_path):
+    config = make_config(tmp_path, data={"train": "t.csv"}, model={"id": "Cloudflare/clef-flash"})
+    card = render_card(METRICS, config, "1.0")
+    front, _ = card.removeprefix("---\n").split("---\n", 1)
+    assert yaml.safe_load(front) == {
+        "base_model": "Cloudflare/clef-flash",
+        "base_model_relation": "adapter",
+        "tags": ["clef", "clef-tune"],
+    }

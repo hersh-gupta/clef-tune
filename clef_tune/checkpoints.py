@@ -17,6 +17,9 @@ from safetensors.torch import load_file, save_file
 from clef_tune.model import load_trainable_state, trainable_state_dict
 
 KEEP_CHECKPOINTS = 2
+# Every file a step checkpoint holds. On a bucket mount uploads finish in the background, so a
+# job stopped just after a save can leave the newest step folder without some of them.
+CHECKPOINT_FILES = ("trainable.safetensors", "optimizer.pt", "scheduler.pt", "rng.pt", "state.json")
 _STEP_DIR = re.compile(r"step-(\d+)")
 
 
@@ -106,8 +109,11 @@ def save_checkpoint(output_dir, model, optimizer, scheduler, state: TrainState) 
 
 
 def latest_checkpoint(output_dir) -> Path | None:
-    dirs = _step_dirs(output_dir)
-    return dirs[-1][1] if dirs else None
+    """The newest step folder that has every checkpoint file."""
+    for _, path in reversed(_step_dirs(output_dir)):
+        if all((path / name).is_file() for name in CHECKPOINT_FILES):
+            return path
+    return None
 
 
 def load_checkpoint(path, model, optimizer, scheduler) -> TrainState:

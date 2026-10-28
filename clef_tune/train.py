@@ -9,12 +9,18 @@ import shutil
 import time
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
+from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
 import torch
 from accelerate import Accelerator
-from accelerate.utils import broadcast_object_list, gather_object, set_seed
+from accelerate.utils import (
+    InitProcessGroupKwargs,
+    broadcast_object_list,
+    gather_object,
+    set_seed,
+)
 from transformers import get_cosine_schedule_with_warmup
 
 from clef_tune.adapter import save_adapter
@@ -58,6 +64,8 @@ OOM_ADVICE = (
 )
 BUNDLE_FILES = ("config.yaml", "train.jsonl", "eval.jsonl")
 BUNDLE_IMAGES = "images"
+# NCCL's default 10 minutes is too short for the other ranks to wait while rank 0 pushes.
+DIST_TIMEOUT = timedelta(hours=1)
 
 
 class TrainingError(RuntimeError):
@@ -70,6 +78,7 @@ class TrainResult:
     metrics: dict
     resumed_from: int | None
     hub_url: str | None
+    main_process: bool = True  # only the main process reports the result
 
 
 class _EventLog:
@@ -301,22 +310,37 @@ def train(
         raise TrainingError(f"training ran out of memory: {error}; {OOM_ADVICE}") from error
 
 
-def _push(accelerator: Accelerator, adapter_dir: Path, repo: str) -> str | None:
-    """Push from the main process; every rank learns the outcome, so a failure stops them all
-    before any cleanup."""
-    outcome: list[Any] = [None, None]  # [commit url, error text]
+def _on_main(accelerator: Accelerator, action: Callable[[], Any]) -> tuple[Any, str | None]:
+    """Run a Hub action on the main process only, so N ranks don't make N calls (a 429 on one
+    would stop them all); every rank learns the result or the HubError text."""
+    outcome: list[Any] = [None, None]  # [result, error text]
     if accelerator.is_main_process:
         try:
-            outcome[0] = push_adapter(adapter_dir, repo)
+            outcome[0] = action()
         except HubError as error:
             outcome[1] = str(error)
     broadcast_object_list(outcome)
-    if outcome[1] is not None:
+    return outcome[0], outcome[1]
+
+
+def _push(accelerator: Accelerator, adapter_dir: Path, repo: str) -> str | None:
+    """Push from the main process; every rank learns the outcome, so a failure stops them all
+    before any cleanup."""
+    url, error = _on_main(accelerator, lambda: push_adapter(adapter_dir, repo))
+    if error is not None:
         raise TrainingError(
             f"training finished and the adapter is in {adapter_dir}, "
-            f"but pushing to {repo} failed: {outcome[1]}"
+            f"but pushing to {repo} failed: {error}"
         )
-    return outcome[0]
+    return url
+
+
+def _tokens_per_sec(accelerator: Accelerator, tokens: int, seconds: float) -> float:
+    """Throughput across every process (a collective: call it on all ranks at the same step)."""
+    total = accelerator.reduce(
+        torch.tensor(float(tokens), device=accelerator.device), reduction="sum"
+    )
+    return total.item() / max(seconds, 1e-9)
 
 
 def _train(
@@ -338,11 +362,6 @@ def _train(
             "validation failed:\n" + "\n".join(str(issue) for issue in report.errors)
         )
     repo = push_to_hub or config.output.push_to_hub
-    if repo:  # find out about missing write access now, not after the GPU hours
-        try:
-            ensure_repo(repo)
-        except HubError as error:
-            raise TrainingError(str(error)) from error
     train_cfg, eval_cfg = config.train, config.eval
     output_dir = config.output_dir()
     run_hash = config_hash(config, _data_files(config))
@@ -359,10 +378,15 @@ def _train(
         device_placement=False,
         # The schedule counts this rank's optimizer steps: one scheduler step per optimizer step.
         step_scheduler_with_optimizer=False,
+        kwargs_handlers=[InitProcessGroupKwargs(timeout=DIST_TIMEOUT)],
     )
     if accelerator.num_processes > 1:
         device = accelerator.device  # one GPU per DDP rank
     main = accelerator.is_main_process
+    if repo:  # find out about missing write access now, not after the GPU hours
+        _, error = _on_main(accelerator, lambda: ensure_repo(repo))
+        if error is not None:
+            raise TrainingError(error)
 
     if restart and main:
         clear_checkpoints(output_dir)
@@ -483,7 +507,7 @@ def _train(
                 step=state.step,
                 loss=loss_sum / loss_count,
                 lr=scheduler.get_last_lr()[0],
-                tokens_per_sec=tokens_this_run / max(now - loop_started, 1e-9),
+                tokens_per_sec=_tokens_per_sec(accelerator, tokens_this_run, now - loop_started),
                 eta_s=eta_s,
                 projected_cost=_projected_cost(state.train_seconds, eta_s),
             )
@@ -594,6 +618,5 @@ def _train(
         clear_checkpoints(output_dir)
         if delete_bundle_on_success:
             _delete_bundle(config.base_dir)
-    if config.output.report_to:
-        accelerator.end_training()
-    return TrainResult(final_dir, metrics, resumed_from, hub_url)
+    accelerator.end_training()  # finishes trackers and destroys the process group
+    return TrainResult(final_dir, metrics, resumed_from, hub_url, main_process=main)

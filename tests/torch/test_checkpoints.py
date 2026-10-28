@@ -2,6 +2,7 @@ import pytest
 
 torch = pytest.importorskip("torch")
 from clef_tune.checkpoints import (  # noqa: E402
+    CHECKPOINT_FILES,
     ConfigMismatchError,
     TrainState,
     check_resume,
@@ -111,3 +112,15 @@ def test_a_state_saved_before_world_size_existed_reads_as_one_process(tiny_relea
     del data["world_size"]
     (path / "state.json").write_text(json.dumps(data), encoding="utf-8")
     assert read_state(path) == state(1) and read_state(path).world_size == 1
+
+
+def test_latest_checkpoint_skips_incomplete_steps(tmp_path):
+    for step in (2, 4):
+        folder = tmp_path / "checkpoints" / f"step-{step}"
+        folder.mkdir(parents=True)
+        for name in CHECKPOINT_FILES:
+            if not (
+                step == 4 and name == "state.json"
+            ):  # step 4: a cancel before the upload finished
+                (folder / name).write_bytes(b"x")
+    assert latest_checkpoint(tmp_path) == tmp_path / "checkpoints" / "step-2"

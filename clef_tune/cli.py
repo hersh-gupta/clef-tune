@@ -251,6 +251,8 @@ def train(
     except (TrainingError, ConfigMismatchError, HubError, ClefCodeError, OSError) as exc:
         console.print(f"[red]Training failed:[/] {escape(str(exc))}")
         raise typer.Exit(1) from exc
+    if not result.main_process:  # under accelerate launch every rank returns here
+        return
     console.print(f"Adapter written: {escape(str(result.adapter_dir))}")
     if result.hub_url:
         console.print(f"Pushed: {escape(str(result.hub_url))}")
