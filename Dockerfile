@@ -5,6 +5,10 @@ WORKDIR /opt/clef-tune
 COPY . .
 RUN pip install ".[train]"
 # Kernels speed up Clef's linear-attention layers; without them training still works, slower.
-RUN pip install flash-linear-attention causal-conv1d \
-    || echo "WARNING: kernel packages failed to install; linear attention will use the slow PyTorch path"
+# causal-conv1d must compile against the installed torch, so build it without isolation.
+# transformers imports any installed copy, so a build that cannot import is removed.
+RUN (pip install --no-build-isolation causal-conv1d flash-linear-attention \
+        && python -c "import causal_conv1d") \
+    || (pip uninstall -y causal-conv1d flash-linear-attention fla-core \
+        && echo "WARNING: kernel packages failed to install; linear attention will use the slow PyTorch path")
 ENTRYPOINT ["clef-tune"]
