@@ -5,7 +5,9 @@ import math
 import os
 
 BASE_IMAGE = "pytorch/pytorch:2.11.0-cuda13.0-cudnn9-devel"
-KERNEL_PACKAGES = ("flash-linear-attention", "causal-conv1d")
+# The versions verified on the base image. causal-conv1d has no prebuilt wheel for its torch.
+KERNEL_PINS = {"causal-conv1d": "1.7.0", "flash-linear-attention": "0.6.0"}
+KERNEL_PACKAGES = tuple(f"{name}=={version}" for name, version in KERNEL_PINS.items())
 KERNEL_MODULES = ("fla", "causal_conv1d")
 PRICE_ENV = "CLEF_TUNE_PRICE_PER_HOUR"
 ESTIMATE_ENV = "CLEF_TUNE_ESTIMATED_HOURS"

@@ -18,6 +18,7 @@ NO_TORCH_MODULES = [
     "clef_tune.adapter",
     "clef_tune.launch",
     "clef_tune.launch.source",
+    "clef_tune.launch.job_script",
 ]
 
 

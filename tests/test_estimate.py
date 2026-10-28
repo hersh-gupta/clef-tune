@@ -133,3 +133,20 @@ def test_memory_counts_the_real_joint_head():
         smaller, workload(), "none"
     )
     assert delta == pytest.approx(1e8 * 16 / 1e9 * est.MEMORY_HEADROOM)
+
+
+def test_suggest_timeout_adds_setup_minutes():
+    row = est.EstimateRow(
+        flavor="l4x1",
+        gpu="L4",
+        count=1,
+        price_per_hour=0.8,
+        memory_needed_gb=14,
+        memory_available_gb=24,
+        fits=True,
+        fits_with_4bit=True,
+        note=None,
+        hours=0.2,
+    )
+    assert est.suggest_timeout(row) == "30m"  # 0.3 h high x 1.25 = 22.5 min -> 30m
+    assert est.suggest_timeout(row, extra_minutes=15) == "1h"  # (18 + 15) x 1.25 = 41.25 -> 60

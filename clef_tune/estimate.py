@@ -286,9 +286,9 @@ def recommend(rows: list[EstimateRow]) -> EstimateRow | None:
     return min(fitting, key=lambda row: row.cost_point) if fitting else None
 
 
-def suggest_timeout(row: EstimateRow) -> str:
-    """HF Jobs timeout: the high estimate x 1.25, rounded up to 30 minutes."""
-    minutes = math.ceil(row.hours_high * TIMEOUT_MARGIN * 60 / 30) * 30
+def suggest_timeout(row: EstimateRow, extra_minutes: float = 0) -> str:
+    """HF Jobs timeout: (the high estimate + setup minutes) x 1.25, rounded up to 30 minutes."""
+    minutes = math.ceil((row.hours_high * 60 + extra_minutes) * TIMEOUT_MARGIN / 30) * 30
     if minutes < 60:
         return f"{minutes}m"
     return f"{minutes // 60}h" if minutes % 60 == 0 else f"{minutes / 60:g}h"

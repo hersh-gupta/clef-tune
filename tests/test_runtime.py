@@ -39,3 +39,9 @@ def test_env_float(monkeypatch, value, expected):
     else:
         monkeypatch.setenv(runtime.PRICE_ENV, value)
     assert runtime.env_float(runtime.PRICE_ENV) == expected
+
+
+def test_the_dockerfile_installs_the_pinned_kernels_without_build_isolation():
+    text = (ROOT / "Dockerfile").read_text(encoding="utf-8")
+    assert "--no-build-isolation" in text
+    assert all(package in text for package in runtime.KERNEL_PACKAGES)
