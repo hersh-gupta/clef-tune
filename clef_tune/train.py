@@ -28,6 +28,7 @@ from clef_tune.batching import shard_batches, token_budget_batches
 from clef_tune.calibration import MIN_ROWS, calibrate, temperatures
 from clef_tune.checkpoints import (
     TrainState,
+    best_complete,
     check_resume,
     clear_checkpoints,
     latest_checkpoint,
@@ -446,12 +447,20 @@ def _train(
         world_size=accelerator.num_processes,
     )
     resumed_from: int | None = None
+    best_lost = False
     if resume_checkpoint is not None:
         # Weights, optimizer, scheduler, RNG and data position; nothing below draws randomness
         # before the loop, so the run continues exactly where the checkpoint left off.
         state = load_checkpoint(resume_checkpoint, unwrapped, optimizer, scheduler)
         resumed_from = state.step
         accelerator.print(f"Resuming from step {resumed_from}")
+        if state.best_step is not None and not best_complete(output_dir):
+            # On a bucket mount a stop can cut the best weights' upload short: select again.
+            accelerator.print(
+                f"warning: the best checkpoint (step {state.best_step}) is incomplete; "
+                "the best step is chosen again from the evaluations after this resume"
+            )
+            state.best_metric, state.best_step, best_lost = None, None, True
 
     if main:
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -494,8 +503,11 @@ def _train(
         tokens_this_run = 0
         loss_sum, loss_count = 0.0, 0
         # A checkpoint is saved after its step's eval, so a run resumed from an eval step has
-        # already evaluated it, and may already have run out of patience there.
-        resumed_at_eval = resumed_from is not None and state.step % eval_cfg.eval_every == 0
+        # already evaluated it, and may already have run out of patience there. Without its
+        # best weights it evaluates again, so there is a best to load at the end.
+        resumed_at_eval = (
+            resumed_from is not None and state.step % eval_cfg.eval_every == 0 and not best_lost
+        )
         last_eval_step: int | None = state.step if resumed_at_eval else None
         patience = eval_cfg.early_stopping_patience
         stopped_early = patience is not None and state.bad_evals >= patience

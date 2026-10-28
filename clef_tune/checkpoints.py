@@ -20,6 +20,7 @@ KEEP_CHECKPOINTS = 2
 # Every file a step checkpoint holds. On a bucket mount uploads finish in the background, so a
 # job stopped just after a save can leave the newest step folder without some of them.
 CHECKPOINT_FILES = ("trainable.safetensors", "optimizer.pt", "scheduler.pt", "rng.pt", "state.json")
+BEST_FILES = ("trainable.safetensors", "eval.json", "state.json")  # the same can happen to best/
 _STEP_DIR = re.compile(r"step-(\d+)")
 
 
@@ -154,6 +155,11 @@ def save_best(output_dir, model, eval_logits: Any, eval_targets: Any, state: Tra
     _write_json(tmp / "eval.json", {"logits": eval_logits, "targets": eval_targets})
     _write_json(tmp / "state.json", asdict(state))
     _replace_dir(tmp, final)
+
+
+def best_complete(output_dir) -> bool:
+    best = _root(output_dir) / "best"
+    return all((best / name).is_file() for name in BEST_FILES)
 
 
 def load_best(output_dir, model) -> tuple[Any, Any]:

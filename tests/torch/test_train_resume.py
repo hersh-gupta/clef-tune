@@ -209,3 +209,23 @@ def test_resuming_with_a_different_number_of_processes_is_refused(tiny_project):
     with pytest.raises(TrainingError, match="made with 2 processes; resume with 2 processes"):
         train(config)
     assert train(config, restart=True).resumed_from is None
+
+
+def test_a_partly_uploaded_best_checkpoint_is_selected_again(tiny_project, capsys):
+    # A tiny learning rate: no eval after the resume beats the lost best one.
+    config = tiny_project(
+        train={"lora_lr": 1e-12, "head_lr": 1e-12, "epochs": 1},
+        eval={"eval_every": 1},
+        output={"save_every": 1},
+    )
+
+    def stop_at_two(step):
+        if step == 2:
+            raise Stop
+
+    with pytest.raises(Stop):
+        train(config, on_step=stop_at_two)
+    (config.parent / "out" / "checkpoints" / "best" / "eval.json").unlink()  # upload cut short
+    result = train(config)
+    assert result.resumed_from == 2 and result.adapter_dir.exists()
+    assert "best checkpoint (step 1) is incomplete" in capsys.readouterr().out
