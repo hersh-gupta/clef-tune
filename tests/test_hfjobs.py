@@ -7,7 +7,9 @@ Run with: uv run pytest tests/test_hfjobs.py -m hfjobs -v -s
 
 from __future__ import annotations
 
+import re
 import time
+from collections import defaultdict
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -20,16 +22,17 @@ from clef_tune.launch.hf_jobs import (
     job_logs,
     job_status,
     jobs_bucket,
+    kernel_cache_folder,
     plan_launch,
     resume_job,
     submit_launch,
 )
 from clef_tune.yamlio import dump_yaml, load_yaml_file
 
-pytestmark = pytest.mark.hfjobs
 EXAMPLES = Path(__file__).resolve().parents[1] / "examples"
 POLL_SECONDS = 15
 ACTIVE = ("SCHEDULING", "RUNNING")
+_STEP_FILE = re.compile(r"/checkpoints/step-(\d+)/([^/]+)$")  # not step-N.tmp, not best/
 
 
 def _wait_for(predicate, timeout_s, what):
@@ -41,7 +44,37 @@ def _wait_for(predicate, timeout_s, what):
     pytest.fail(f"timed out waiting for {what}")
 
 
+def _bucket_paths(api, bucket, prefix):
+    """Every file path under prefix; [] while the folder does not exist yet."""
+    try:
+        return [f.path for f in api.list_bucket_tree(bucket, prefix, recursive=True)]
+    except Exception:
+        return []
+
+
+def _complete_steps(paths, required):
+    """Step numbers whose checkpoint folder holds every required file. Uploads finish in the
+    background, so a step folder can exist with only some of its files."""
+    found = defaultdict(set)
+    for path in paths:
+        match = _STEP_FILE.search(path)
+        if match:
+            found[int(match.group(1))].add(match.group(2))
+    return {step for step, names in found.items() if set(required) <= names}
+
+
+def _quietly(action):
+    """Cleanup: one failing step must not skip the others."""
+    try:
+        action()
+    except Exception as error:
+        print(f"cleanup step failed: {error}")
+
+
+@pytest.mark.hfjobs
 def test_a_job_resumes_after_cancel_and_pushes_the_adapter(tmp_path):
+    from clef_tune.checkpoints import CHECKPOINT_FILES  # imports torch; this test runs with it
+
     token = get_token()
     if token is None:
         pytest.skip("needs a Hugging Face token")
@@ -73,6 +106,8 @@ def test_a_job_resumes_after_cancel_and_pushes_the_adapter(tmp_path):
     bucket = jobs_bucket(plan.namespace)
     first = submit_launch(plan, api=api, token=token)
     jobs = [first.id]
+    print(f"first job: {first.id} {first.url} (work folder {first.work_folder})")
+    saw_progress = []
 
     def stage(job_id):
         return job_status(job_id, api=api, token=token).stage
@@ -80,20 +115,29 @@ def test_a_job_resumes_after_cancel_and_pushes_the_adapter(tmp_path):
     try:
 
         def checkpointed():
-            current = stage(first.id)
-            if current not in ACTIVE:
-                pytest.fail(f"the first job ended as {current} before its first checkpoint")
-            files = api.list_bucket_tree(bucket, prefix=f"{first.work_folder}/out", recursive=True)
-            return any(
-                f.path.endswith("/state.json") and "/checkpoints/step-" in f.path for f in files
-            )
+            status = job_status(first.id, api=api, token=token)
+            if status.stage not in ACTIVE:
+                pytest.fail(f"the first job ended as {status.stage} before its first checkpoint")
+            if status.latest("baseline") is not None:
+                saw_progress.append(True)
+            paths = _bucket_paths(api, bucket, f"{first.work_folder}/out")
+            return bool(_complete_steps(paths, CHECKPOINT_FILES))
 
-        _wait_for(checkpointed, 45 * 60, "the first checkpoint")
+        _wait_for(checkpointed, 45 * 60, "the first complete checkpoint")
+        # Fail before paying for the resume if the first job did not cache the kernel wheel.
+        _wait_for(
+            lambda: any(
+                p.endswith(".whl") for p in _bucket_paths(api, bucket, kernel_cache_folder())
+            ),
+            5 * 60,
+            "the cached causal-conv1d wheel",
+        )
         cancel_job(first.id, api=api, token=token)
         _wait_for(lambda: stage(first.id) == "CANCELED", 5 * 60, "the cancel")
 
         resumed = resume_job(first.id, api=api, token=token)
         jobs.append(resumed.id)
+        print(f"resumed job: {resumed.id} {resumed.url}")
         _wait_for(lambda: stage(resumed.id) not in ACTIVE, 60 * 60, "the resumed job")
         logs = "\n".join(job_logs(resumed.id, api=api, token=token))
         assert stage(resumed.id) == "COMPLETED", logs[-3000:]
@@ -107,19 +151,47 @@ def test_a_job_resumes_after_cancel_and_pushes_the_adapter(tmp_path):
             "calibration.json",
             "adapter/adapter_config.json",
         } <= files
-        left = [
-            f.path for f in api.list_bucket_tree(bucket, prefix=first.work_folder, recursive=True)
-        ]
-        assert not any("/bundle/" in p or "/checkpoints/" in p for p in left), left
+
+        def cleaned():  # the mount's deletes also land in the background
+            left = _bucket_paths(api, bucket, first.work_folder)
+            return not any("/bundle/" in p or "/checkpoints/" in p for p in left)
+
+        _wait_for(cleaned, 5 * 60, "the bundle and checkpoints to be deleted")
+        assert saw_progress, "jobs status never showed metrics.jsonl progress while the job ran"
     finally:
         for job_id in jobs:
-            if stage(job_id) in ACTIVE:
-                cancel_job(job_id, api=api, token=token)
-        api.delete_repo(plan.adapter_repo, missing_ok=True)
-        leftover = [
-            f.path
-            for f in api.list_bucket_tree(bucket, prefix=first.work_folder, recursive=True)
-            if f.type == "file"
-        ]
-        if leftover:
-            api.batch_bucket_files(bucket, delete=leftover)
+            _quietly(lambda job_id=job_id: cancel_job(job_id, api=api, token=token))
+        _quietly(lambda: api.delete_repo(plan.adapter_repo, missing_ok=True))
+
+        def remove_work_folder():
+            leftover = [
+                f.path
+                for f in api.list_bucket_tree(bucket, first.work_folder, recursive=True)
+                if f.type == "file"
+            ]
+            if leftover:
+                api.batch_bucket_files(bucket, delete=leftover)
+
+        _quietly(remove_work_folder)
+
+
+def test_only_complete_step_folders_count_as_checkpoints():
+    names = ("a.pt", "state.json")
+    paths = [
+        "w/out/checkpoints/step-4.tmp/a.pt",  # written, not yet renamed
+        "w/out/checkpoints/step-4.tmp/state.json",
+        "w/out/checkpoints/step-8/state.json",  # an upload still under way
+        "w/out/checkpoints/step-2/a.pt",
+        "w/out/checkpoints/step-2/state.json",
+        "w/out/checkpoints/best/state.json",
+    ]
+    assert _complete_steps(paths, names) == {2}
+
+
+def test_a_folder_that_does_not_exist_yet_lists_as_empty():
+    class Api:
+        def list_bucket_tree(self, *args, **kwargs):
+            raise OSError("404 Not Found")
+            yield  # a generator, like the real one: the error comes on iteration
+
+    assert _bucket_paths(Api(), "me/jobs-artifacts", "clef-tune-runs/x/out") == []
