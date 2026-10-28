@@ -7,7 +7,7 @@ name = "clef-tune"
 dynamic = ["version"]
 description = "Fine-tuning harness for Cloudflare's Clef decision models"
 readme = "README.md"
-license = "Apache-2.0"
+license = "MIT"
 requires-python = ">=3.11"
 dependencies = [
   "huggingface_hub>=1.33,<2",
