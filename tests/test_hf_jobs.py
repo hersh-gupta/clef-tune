@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
@@ -15,13 +16,17 @@ from clef_tune.launch import hf_jobs
 from clef_tune.launch.hf_jobs import (
     JobRequest,
     LaunchError,
+    cancel_job,
+    job_logs,
+    job_status,
     kernel_cache_folder,
     plan_launch,
+    resume_job,
     submit_launch,
 )
 from clef_tune.launch.job_script import job_command, job_env
 from clef_tune.launch.source import Source, SourceError
-from clef_tune.runtime import BASE_IMAGE
+from clef_tune.runtime import BASE_IMAGE, PRICE_ENV
 from clef_tune.yamlio import dump_yaml
 from tests.helpers import SCHEMA, CharCounter, ticket_rows, write_csv
 
@@ -99,6 +104,29 @@ class FakeApi:
 
     def batch_bucket_files(self, bucket_id, *, add=None, delete=None, token=None, **kwargs):
         self.calls.append(("batch_bucket_files", bucket_id, delete))
+
+    def inspect_job(self, *, job_id, token=None, **kwargs):
+        self.calls.append(("inspect_job", job_id))
+        return self.job_info
+
+    def list_jobs(self, *, labels=None, token=None, **kwargs):
+        self.calls.append(("list_jobs", labels))
+        return list(self.jobs)
+
+    def download_bucket_files(self, bucket_id, files, *, raise_on_missing_files=False, token=None):
+        for remote, local in files:
+            self.calls.append(("download_bucket_files", bucket_id, remote))
+            if self.metrics is not None:
+                Path(local).write_text(
+                    "\n".join(json.dumps(m) for m in self.metrics), encoding="utf-8"
+                )
+
+    def fetch_job_logs(self, *, job_id, follow=False, token=None, **kwargs):
+        self.calls.append(("fetch_job_logs", job_id, follow))
+        return iter(self.logs)
+
+    def cancel_job(self, *, job_id, token=None, **kwargs):
+        self.calls.append(("cancel_job", job_id))
 
 
 def project(tmp_path, rows=None, **sections):
@@ -366,3 +394,111 @@ def test_a_failed_upload_is_explained_and_cleaned_up():
         submit_launch(p, api=api, token=TOKEN, now=NOW)
     assert ("batch_bucket_files", "me/jobs-artifacts", staged) in api.calls
     assert all(call[0] != "run_job" for call in api.calls)
+
+
+WORK = Volume(
+    type="bucket",
+    source="me/jobs-artifacts",
+    mount_path="/work",
+    path="clef-tune-runs/r-1",
+    read_only=False,
+)
+
+
+def job(stage="RUNNING", **overrides):
+    values = {
+        "id": "job123",
+        "url": "https://huggingface.co/jobs/me/job123",
+        "status": SimpleNamespace(stage=stage, message=None),
+        "labels": {"tool": "clef-tune", "run": "r", "timeout": "1h", "name": "set-by-hf"},
+        "docker_image": BASE_IMAGE,
+        "command": ["bash", "-c", "echo train"],
+        "environment": {"PYTHONUNBUFFERED": "1", PRICE_ENV: "0.8"},
+        "flavor": "l4x1",
+        "volumes": [
+            WORK,
+            Volume(type="model", source="Cloudflare/clef-flash", mount_path="/model"),
+        ],
+        "created_at": NOW,
+        "started_at": NOW - timedelta(minutes=30),
+        "finished_at": None,
+    }
+    return SimpleNamespace(**(values | overrides))
+
+
+def test_list_jobs_filters_by_the_tool_label_newest_first():
+    api = FakeApi(jobs=[job(id="a", created_at=NOW - timedelta(hours=1)), job(id="b")])
+    assert [j.id for j in hf_jobs.list_jobs(api=api, token=TOKEN)] == ["b", "a"]
+    assert ("list_jobs", {"tool": "clef-tune"}) in api.calls
+
+
+def test_status_reads_progress_from_the_work_folder_and_prices_the_time():
+    metrics = [
+        {"event": "baseline", "step": 0, "exact_match": 0.1},
+        {"event": "train", "step": 20, "loss": 0.5, "tokens_per_sec": 400.0, "eta_s": 600.0},
+        {"event": "eval", "step": 20, "exact_match": 0.4},
+    ]
+    api = FakeApi(job_info=job(), metrics=metrics)
+    status = job_status("job123", api=api, token=TOKEN, now=NOW)
+    assert (status.stage, status.run, status.flavor) == ("RUNNING", "r", "l4x1")
+    assert status.hours == pytest.approx(0.5) and status.cost == pytest.approx(0.4)
+    assert status.latest("train")["step"] == 20 and status.latest("eval")["exact_match"] == 0.4
+    assert (
+        "download_bucket_files",
+        "me/jobs-artifacts",
+        "clef-tune-runs/r-1/out/metrics.jsonl",
+    ) in api.calls
+
+
+def test_status_before_the_job_starts_has_no_time_cost_or_progress():
+    api = FakeApi(job_info=job(stage="SCHEDULING", started_at=None))
+    status = job_status("job123", api=api, token=TOKEN, now=NOW)
+    assert (status.hours, status.cost, status.progress) == (None, None, [])
+
+
+def test_a_finished_job_is_priced_to_its_finish_time():
+    finished = job(stage="COMPLETED", finished_at=NOW - timedelta(minutes=15))
+    status = job_status("job123", api=FakeApi(job_info=finished), token=TOKEN, now=NOW)
+    assert status.hours == pytest.approx(0.25)
+
+
+def test_resume_rebuilds_the_failed_job_with_a_fresh_token():
+    original = job(stage="ERROR")
+    api = FakeApi(job_info=original)
+    resume_job("job123", api=api, token=TOKEN)
+    assert run_call(api) == {
+        "image": BASE_IMAGE,
+        "command": original.command,
+        "env": original.environment,
+        "secrets": {"HF_TOKEN": TOKEN},
+        "flavor": "l4x1",
+        "timeout": "1h",
+        "labels": {"tool": "clef-tune", "run": "r", "timeout": "1h"},  # HF's own labels dropped
+        "volumes": original.volumes,  # same /work folder: training auto-resumes from its checkpoint
+        "token": TOKEN,
+    }
+
+
+def test_resume_can_extend_the_timeout():
+    api = FakeApi(job_info=job(stage="CANCELED"))
+    resume_job("job123", timeout="3h", api=api, token=TOKEN)
+    run = run_call(api)
+    assert run["timeout"] == "3h" and run["labels"]["timeout"] == "3h"
+
+
+@pytest.mark.parametrize("stage", ["RUNNING", "SCHEDULING", "COMPLETED"])
+def test_only_failed_or_canceled_jobs_resume(stage):
+    with pytest.raises(LaunchError, match="only failed or canceled"):
+        resume_job("job123", api=FakeApi(job_info=job(stage=stage)), token=TOKEN)
+
+
+def test_other_tools_jobs_do_not_resume():
+    with pytest.raises(LaunchError, match="not a clef-tune job"):
+        resume_job("job123", api=FakeApi(job_info=job(stage="ERROR", labels={})), token=TOKEN)
+
+
+def test_logs_and_cancel_pass_the_job_through():
+    api = FakeApi(logs=["line 1", "line 2"])
+    assert list(job_logs("job123", follow=True, api=api, token=TOKEN)) == ["line 1", "line 2"]
+    cancel_job("job123", api=api, token=TOKEN)
+    assert ("fetch_job_logs", "job123", True) in api.calls and ("cancel_job", "job123") in api.calls

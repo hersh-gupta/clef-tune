@@ -1,10 +1,13 @@
 """Train on Hugging Face Jobs: plan a launch (validate, pin the source, estimate, pick hardware)
-before anything is uploaded or started, then stage the bundle and start the job. Torch-free."""
+before anything is uploaded or started, then stage the bundle and start the job; list, watch,
+cancel and resume jobs. Torch-free."""
 
 from __future__ import annotations
 
+import json
 import re
 import tempfile
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -34,7 +37,7 @@ from clef_tune.launch.job_script import (
 )
 from clef_tune.launch.source import Source, SourceError, pin_commit, resolve_source
 from clef_tune.prompt import TokenCounter, counter_for_config
-from clef_tune.runtime import BASE_IMAGE, KERNEL_PINS
+from clef_tune.runtime import BASE_IMAGE, KERNEL_PINS, PRICE_ENV
 from clef_tune.validation import ValidationReport, validate
 from clef_tune.yamlio import load_yaml_file
 
@@ -44,6 +47,8 @@ RUNS_FOLDER = "clef-tune-runs"  # one folder per launch in the jobs-artifacts bu
 KERNEL_CACHE_ROOT = "clef-tune-kernels"
 KERNEL_BUILD_MINUTES = 15  # causal-conv1d compiles in about 12 minutes on 8 vCPUs
 BILLING_URL = "https://huggingface.co/settings/billing"
+METRICS_LOG = "metrics.jsonl"  # what clef_tune.train writes into the output dir
+RESUMABLE = ("ERROR", "CANCELED")
 
 _TIMEOUT = re.compile(r"^(\d+(?:\.\d+)?)([smhd])$")
 _HOURS_PER_UNIT = {"s": 1 / 3600, "m": 1 / 60, "h": 1, "d": 24}
@@ -336,3 +341,152 @@ def submit_launch(
         _remove_folder(api, bucket, folder, token)
         raise
     return LaunchedJob(id=info.id, url=info.url, work_folder=folder, plan=plan)
+
+
+@dataclass(frozen=True)
+class JobStatus:
+    id: str
+    url: str
+    run: str | None
+    flavor: str | None
+    stage: str  # COMPLETED, CANCELED, ERROR, DELETED, SCHEDULING or RUNNING
+    message: str | None
+    hours: float | None
+    cost: float | None
+    progress: list[dict]  # the metrics.jsonl records so far
+
+    def latest(self, event: str) -> dict | None:
+        return next((r for r in reversed(self.progress) if r.get("event") == event), None)
+
+
+def _stage(info: JobInfo) -> str:
+    stage = info.status.stage
+    return str(getattr(stage, "value", stage))  # the real JobStage is an enum
+
+
+def _price(info: JobInfo) -> float | None:
+    try:
+        return float((info.environment or {})[PRICE_ENV])
+    except (KeyError, ValueError):
+        return None
+
+
+def list_jobs(*, api: HfApi | None = None, token: str | None = None) -> list[JobInfo]:
+    """clef-tune jobs, newest first."""
+    api = api or HfApi()
+    jobs = api.list_jobs(labels=dict(TOOL_LABEL), token=token)
+    oldest = datetime.min.replace(tzinfo=UTC)
+    return sorted(jobs, key=lambda info: info.created_at or oldest, reverse=True)
+
+
+def job_progress(
+    info: JobInfo, *, api: HfApi | None = None, token: str | None = None
+) -> list[dict]:
+    """The metrics.jsonl records the job's trainer has written to its work folder so far."""
+    api = api or HfApi()
+    work = next(
+        (v for v in info.volumes or [] if v.type == "bucket" and v.mount_path == WORK_MOUNT), None
+    )
+    if work is None:
+        return []
+    output = JOB_OUTPUT_DIR.removeprefix(WORK_MOUNT + "/")
+    remote = "/".join(part for part in (work.path, output, METRICS_LOG) if part)
+    with tempfile.TemporaryDirectory() as tmp:
+        local = Path(tmp) / METRICS_LOG
+        try:
+            api.download_bucket_files(
+                work.source, [(remote, local)], raise_on_missing_files=False, token=token
+            )
+        except Exception:  # progress is best effort; the job's stage still shows
+            return []
+        if not local.exists():
+            return []
+        records = []
+        for line in local.read_text(encoding="utf-8").splitlines():
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:  # a line still being written
+                continue
+            if isinstance(record, dict):
+                records.append(record)
+        return records
+
+
+def job_status(
+    job_id: str,
+    *,
+    api: HfApi | None = None,
+    token: str | None = None,
+    now: datetime | None = None,
+) -> JobStatus:
+    api = api or HfApi()
+    info = api.inspect_job(job_id=job_id, token=token)
+    hours = cost = None
+    if info.started_at is not None:
+        end = info.finished_at or now or datetime.now(UTC)
+        hours = max((end - info.started_at).total_seconds(), 0.0) / 3600
+        price = _price(info)
+        cost = hours * price if price is not None else None
+    started = info.started_at is not None
+    return JobStatus(
+        id=info.id,
+        url=info.url,
+        run=(info.labels or {}).get("run"),
+        flavor=info.flavor,
+        stage=_stage(info),
+        message=info.status.message,
+        hours=hours,
+        cost=cost,
+        progress=job_progress(info, api=api, token=token) if started else [],
+    )
+
+
+def job_logs(
+    job_id: str, *, follow: bool = False, api: HfApi | None = None, token: str | None = None
+) -> Iterable[str]:
+    api = api or HfApi()
+    return api.fetch_job_logs(job_id=job_id, follow=follow, token=token)
+
+
+def cancel_job(job_id: str, *, api: HfApi | None = None, token: str | None = None) -> None:
+    api = api or HfApi()
+    api.cancel_job(job_id=job_id, token=token)
+
+
+def resume_job(
+    job_id: str,
+    *,
+    timeout: str | None = None,
+    api: HfApi | None = None,
+    token: str | None = None,
+) -> JobInfo:
+    """Start a failed or canceled job again with the same command, hardware and /work folder,
+    so training resumes from its newest checkpoint. JobInfo has only secret names, so the
+    token is always fresh."""
+    api = api or HfApi()
+    token = token or get_token()
+    if token is None:
+        raise LaunchError("no Hugging Face token: run `hf auth login` or set HF_TOKEN")
+    info = api.inspect_job(job_id=job_id, token=token)
+    labels = info.labels or {}
+    if labels.get("tool") != TOOL_LABEL["tool"]:
+        raise LaunchError(f"{job_id} is not a clef-tune job")
+    stage = _stage(info)
+    if stage not in RESUMABLE:
+        raise LaunchError(f"{job_id} is {stage}; only failed or canceled jobs can be resumed")
+    timeout = timeout or labels.get("timeout")  # JobInfo has no timeout, so launches label it
+    if not timeout:
+        raise LaunchError(f"{job_id} has no timeout label; pass --timeout")
+    timeout_hours(timeout)
+    return start_job(
+        api,
+        image=info.docker_image,
+        command=info.command,
+        env=info.environment,
+        secrets={"HF_TOKEN": token},
+        flavor=info.flavor,
+        timeout=timeout,
+        labels={**{k: labels[k] for k in LABEL_KEYS if k in labels}, "timeout": timeout},
+        volumes=info.volumes,
+        token=token,
+    )
