@@ -12,6 +12,67 @@ Fine-tune Cloudflare's [Clef](https://huggingface.co/Cloudflare/clef) decision m
 uv pip install "clef-tune @ git+https://github.com/hersh-gupta/clef-tune"
 ```
 
+## Hugging Face token
+
+clef-tune reads your Hugging Face token the same way `huggingface_hub` does: from the
+`HF_TOKEN` environment variable, or else from the token saved by `hf auth login`. You need it
+to:
+
+- push adapters with `train --push-to-hub REPO`. The token must have **write** access to that
+  repo's namespace, and clef-tune checks this before training starts.
+- load adapters from private Hub repos (adapter repos are created private) with `predict`,
+  `eval`, `export` or `Predictor.load`.
+- download the public Clef models with higher rate limits (optional).
+
+Create a token at <https://huggingface.co/settings/tokens>: either a "Write" token, or a
+fine-grained token with write access to the user or organization you push to. Then use one of
+these:
+
+**Log in once** (the token is stored in your Hugging Face cache):
+
+```bash
+hf auth login
+```
+
+**Set `HF_TOKEN` for the current shell** (it takes precedence over a stored login):
+
+```bash
+export HF_TOKEN=hf_xxx            # bash/zsh
+```
+
+```powershell
+$env:HF_TOKEN = "hf_xxx"          # PowerShell
+```
+
+**Keep it in a `.env` file.** Put this line in a file named `.env` next to your config:
+
+```
+HF_TOKEN=hf_xxx
+```
+
+`.env` is listed in this repository's `.gitignore`, so git ignores it. Never commit the token
+or put it in `config.yaml`. `uv` loads the file when you run a command through it:
+
+```bash
+uv run --env-file .env clef-tune train cfg.yaml --push-to-hub you/clef-support
+uv run --env-file .env accelerate launch -m clef_tune train cfg.yaml --push-to-hub you/clef-support
+```
+
+To have every `uv run` in a shell load it, set `UV_ENV_FILE` once (`export UV_ENV_FILE=.env`
+in bash, `$env:UV_ENV_FILE = ".env"` in PowerShell). If you run `clef-tune` directly rather
+than through `uv run`, load the file into your shell first:
+
+```bash
+set -a; source .env; set +a       # bash/zsh
+```
+
+```powershell
+Get-Content .env | Where-Object { $_ -match '^\s*([^#=]+?)\s*=\s*(.*)$' } | ForEach-Object { Set-Item "env:$($Matches[1])" $Matches[2] }
+```
+
+From Python, set `HF_TOKEN` before starting the interpreter, or pass it directly with
+`Predictor.load("you/clef-support", token="hf_xxx")`.
+
 ## Quickstart
 
 1. Describe your data and questions in a config. See `examples/support_tickets.yaml`:
