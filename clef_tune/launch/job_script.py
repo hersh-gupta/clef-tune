@@ -23,7 +23,7 @@ def kernel_step(cache_dir: str = KERNEL_MOUNT) -> str:
     return f"""mkdir -p /tmp/kernel-wheels
 if ls {cache_dir}/causal_conv1d-*.whl >/dev/null 2>&1; then
     echo "Using the cached causal-conv1d wheel"
-    cp {cache_dir}/causal_conv1d-*.whl /tmp/kernel-wheels/
+    cp {cache_dir}/causal_conv1d-*.whl /tmp/kernel-wheels/ || echo "warning: could not read the cached causal-conv1d wheel"
 else
     echo "Building causal-conv1d {conv} (about 12 minutes on 8 vCPUs; cached for later jobs)"
     if pip wheel --no-deps --no-build-isolation -w /tmp/kernel-wheels causal-conv1d=={conv}; then

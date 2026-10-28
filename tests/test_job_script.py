@@ -101,6 +101,21 @@ def test_a_failed_kernel_build_falls_back_to_the_slow_path(tmp_path):
 
 
 @POSIX_BASH
+def test_an_unreadable_cached_wheel_falls_back_to_the_slow_path(tmp_path):
+    stubs, _ = _stubs(tmp_path, pip_succeeds=False)
+    cache = tmp_path / "cache"
+    (cache / "causal_conv1d-1.7.0-cp312-cp312-linux_x86_64.whl").mkdir(parents=True)  # cp fails
+    result = subprocess.run(
+        ["bash", "-c", "set -euo pipefail\n" + kernel_step(str(cache))],
+        env={"PATH": f"{stubs}:/usr/bin:/bin"},
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "slow PyTorch path" in result.stdout
+
+
+@POSIX_BASH
 def test_a_cached_kernel_wheel_is_reused(tmp_path):
     stubs, log = _stubs(tmp_path, pip_succeeds=True)
     cache = tmp_path / "cache"
