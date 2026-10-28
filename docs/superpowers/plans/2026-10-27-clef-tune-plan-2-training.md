@@ -13,12 +13,7 @@
 ## Global Constraints
 
 - Every Plan 1 global constraint still holds: Python `>=3.11` (dev 3.12), ruff line length 100, `uv run ruff format . && uv run ruff check --fix .` before every commit, spreadsheet row numbers for CSV and line numbers for JSONL.
-- Every commit message ends with:
-
-  ```
-  Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-  Claude-Session: https://claude.ai/code/session_01BydXoAAPdrHBxWFt1mckNw
-  ```
+- Commit messages carry no Claude attribution: no `Co-Authored-By` or session trailer.
 
 - `train` extra: `torch>=2.11,<2.12`, `torchvision>=0.26,<0.27`, `transformers>=5.10.2,<5.11`, `peft>=0.21`, `accelerate>=1.10`, `bitsandbytes>=0.45`, `safetensors>=0.5`. On Windows, torch and torchvision come from `https://download.pytorch.org/whl/cu130` (user decision, roadmap item 10).
 - Never reimplement Clef: encoding, collation, the model, the head and SystemOne answers come from the imported `joint_schema_model` module (`encode_record`, `collate_records`, `ClefModel`, `JointSchemaHead`, `systemone_answer`, `load_release_model`).
@@ -175,9 +170,6 @@ uv run ruff format . && uv run ruff check --fix .
 git add pyproject.toml uv.lock .github/workflows/ci.yml tests/conftest.py tests/torch
 git commit -F - <<'EOF'
 build: add the training stack, cu130 torch on Windows and a CPU-torch CI job
-
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01BydXoAAPdrHBxWFt1mckNw
 EOF
 ```
 
@@ -1775,9 +1767,6 @@ Expected: all PASS; the GPU test is deselected by the default `-m 'not gpu and n
 git add tests/torch
 git commit -F - <<'EOF'
 test: pin tokenization parity, vendored Clef files and an opt-in GPU run
-
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01BydXoAAPdrHBxWFt1mckNw
 EOF
 ```
 

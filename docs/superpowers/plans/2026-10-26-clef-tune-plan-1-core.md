@@ -20,12 +20,7 @@
 - Clef's prompt layout must match `joint_schema_model.py` `encode_record` byte for byte (Task 6 pins it with a golden string).
 - Row numbers in user-facing messages: CSV/TSV use spreadsheet rows (the header is row 1, the first data row is row 2); JSONL uses 1-based line numbers.
 - Code style: ruff, line length 100. Run `uv run ruff format . && uv run ruff check --fix .` before every commit.
-- Every commit message ends with this trailer block (the commit steps below include it):
-
-  ```
-  Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-  Claude-Session: https://claude.ai/code/session_01BydXoAAPdrHBxWFt1mckNw
-  ```
+- Commit messages carry no Claude attribution: no `Co-Authored-By` or session trailer.
 
 ## Review Focus
 
@@ -245,9 +240,6 @@ uv run ruff format . && uv run ruff check --fix .
 git add pyproject.toml uv.lock .python-version .gitignore .github README.md clef_tune tests
 git commit -F - <<'EOF'
 chore: scaffold clef-tune package
-
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01BydXoAAPdrHBxWFt1mckNw
 EOF
 ```
 
@@ -557,9 +549,6 @@ uv run ruff format . && uv run ruff check --fix .
 git add clef_tune/yamlio.py clef_tune/schema.py tests/test_schema.py
 git commit -F - <<'EOF'
 feat: add question schema with YAML 1.2 boolean handling
-
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01BydXoAAPdrHBxWFt1mckNw
 EOF
 ```
 
@@ -860,9 +849,6 @@ uv run ruff format . && uv run ruff check --fix .
 git add clef_tune/labels.py tests/test_labels.py
 git commit -F - <<'EOF'
 feat: parse choice/score/noul and soft labels
-
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01BydXoAAPdrHBxWFt1mckNw
 EOF
 ```
 
@@ -1230,9 +1216,6 @@ uv run ruff format . && uv run ruff check --fix .
 git add clef_tune/config.py tests/test_config.py
 git commit -F - <<'EOF'
 feat: add training config with presets, path resolution and hashing
-
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01BydXoAAPdrHBxWFt1mckNw
 EOF
 ```
 
@@ -1914,9 +1897,6 @@ uv run ruff format . && uv run ruff check --fix .
 git add clef_tune/data.py tests/helpers.py tests/test_data.py
 git commit -F - <<'EOF'
 feat: load CSV/JSONL into Clef records with grouped issues and stratified split
-
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01BydXoAAPdrHBxWFt1mckNw
 EOF
 ```
 
@@ -2279,9 +2259,6 @@ uv run ruff format . && uv run ruff check --fix .
 git add clef_tune/prompt.py tests/test_prompt.py
 git commit -F - <<'EOF'
 feat: mirror Clef's prompt layout and count tokens with the real tokenizer
-
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01BydXoAAPdrHBxWFt1mckNw
 EOF
 ```
 
@@ -2689,9 +2666,6 @@ uv run ruff format . && uv run ruff check --fix .
 git add clef_tune/validation.py tests/test_validation.py
 git commit -F - <<'EOF'
 feat: add validation report with label, image and token checks
-
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01BydXoAAPdrHBxWFt1mckNw
 EOF
 ```
 
@@ -2978,9 +2952,6 @@ uv run ruff format . && uv run ruff check --fix .
 git add clef_tune/metrics.py tests/test_metrics.py
 git commit -F - <<'EOF'
 feat: add per-question metrics and confusion matrices
-
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01BydXoAAPdrHBxWFt1mckNw
 EOF
 ```
 
@@ -3214,9 +3185,6 @@ uv run ruff format . && uv run ruff check --fix .
 git add clef_tune/calibration.py tests/test_calibration.py
 git commit -F - <<'EOF'
 feat: add per-question temperature calibration and ECE
-
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01BydXoAAPdrHBxWFt1mckNw
 EOF
 ```
 
@@ -3703,9 +3671,6 @@ uv run ruff format . && uv run ruff check --fix .
 git add clef_tune/estimate.py tests/test_estimate.py
 git commit -F - <<'EOF'
 feat: estimate run time, cost and memory fit per GPU and HF Jobs flavor
-
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01BydXoAAPdrHBxWFt1mckNw
 EOF
 ```
 
@@ -4368,9 +4333,6 @@ Expected: all tests PASS (network-marked tests download the tokenizer once).
 git add clef_tune/bundle.py clef_tune/cli.py clef_tune/__main__.py scripts examples README.md tests/test_bundle.py tests/test_cli.py tests/test_boundaries.py
 git commit -F - <<'EOF'
 feat: add bundle writer, validate/estimate CLI and example dataset
-
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01BydXoAAPdrHBxWFt1mckNw
 EOF
 ```
 

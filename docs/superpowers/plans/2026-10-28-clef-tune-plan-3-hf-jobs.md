@@ -22,11 +22,7 @@ Launching has two phases, so a person sees the cost before spending anything: `p
 - Every Plan 1 and Plan 2 global constraint still holds:
   - Python `>=3.11` (dev 3.12), ruff line length 100.
   - Run `uv run ruff format . && uv run ruff check --fix .` before every commit.
-  - Every commit message ends with exactly this line (no session line):
-
-    ```
-    Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-    ```
+  - Commit messages carry no Claude attribution: no `Co-Authored-By` or session trailer.
 
 - **No torch:** `clef_tune.launch`, `clef_tune.launch.source`, `clef_tune.launch.job_script` and `clef_tune.launch.hf_jobs` must not import torch, transformers or peft. Add each one to `NO_TORCH_MODULES` in `tests/test_boundaries.py` in the task that creates it.
 - **No new dependencies:** GitHub calls use `urllib.request`. Tests may use `httpx`, which `huggingface_hub` already depends on.
