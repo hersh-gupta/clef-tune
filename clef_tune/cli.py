@@ -588,6 +588,10 @@ def cancel(job_id: Annotated[str, typer.Argument(help="Job id.")]) -> None:
     with _job_errors():
         cancel_job(job_id)
     console.print(f"Cancel requested for {escape(job_id)}")
+    # HF reports CANCELED at once, but the container can take a while to stop writing to /work.
+    console.print(
+        "It can take up to a minute to stop; wait that long before `clef-tune jobs resume`."
+    )
 
 
 @jobs_app.command()

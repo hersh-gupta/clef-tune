@@ -53,7 +53,12 @@ def job_script(
         f'echo "clef-tune job: installing {requirement}"',
         f"pip install --root-user-action=ignore {shlex.quote(requirement)}",
         *([kernel_step()] if kernels else []),
-        train,
+        # A cancel or timeout signals this shell, which as PID 1 would ignore it while training
+        # kept writing to /work for about a minute; pass it on so training stops now.
+        f"{train} &",
+        "train_pid=$!",
+        'trap \'echo "clef-tune job: stopping"; kill -TERM "$train_pid" 2>/dev/null\' TERM INT',
+        'wait "$train_pid"',
     ]
     return "\n".join(lines)
 

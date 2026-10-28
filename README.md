@@ -182,7 +182,8 @@ clef-tune jobs resume <job-id> --timeout 3h    # continue a failed or canceled j
 - The adapter is pushed to a private repo. The bundle is deleted after success unless you pass
   `--keep-data`.
 - A failed, timed-out or canceled job keeps its checkpoints in `/work`, and `jobs resume`
-  restarts it in the same folder from the newest complete one.
+  restarts it in the same folder from the newest complete one. A canceled job shows CANCELED
+  at once but can take up to a minute to stop, so wait that long before resuming it.
 
 **Costs:** `launch` shows the estimated cost and the most the job can cost, which is the
 flavor's price for the whole timeout, and asks before submitting (`--yes` skips the question).

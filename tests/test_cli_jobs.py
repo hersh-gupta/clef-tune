@@ -171,3 +171,9 @@ def test_cancel_and_resume(monkeypatch):
     result = runner.invoke(cli.app, ["jobs", "resume", "job123", "--timeout", "3h"])
     assert result.exit_code == 0 and "job456" in result.output
     assert calls == [("cancel", "job123"), ("resume", "job123", "3h")]
+
+
+def test_cancel_says_to_wait_before_resuming(monkeypatch):
+    monkeypatch.setattr(cli, "cancel_job", lambda job_id, **k: None)
+    result = runner.invoke(cli.app, ["jobs", "cancel", "job123"])
+    assert result.exit_code == 0 and "a minute" in result.output and "jobs resume" in result.output

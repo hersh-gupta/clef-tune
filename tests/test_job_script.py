@@ -1,7 +1,9 @@
 import shlex
 import shutil
+import signal
 import subprocess
 import sys
+import time
 
 import pytest
 
@@ -39,14 +41,14 @@ def script(**overrides):
 def test_a_single_gpu_job_installs_the_pinned_source_and_trains():
     text = script()
     assert f"pip install --root-user-action=ignore {shlex.quote(SOURCE.requirement())}" in text
-    assert text.rstrip().endswith(
+    assert (
         "clef-tune train /work/bundle/config.yaml --push-to-hub me/clef-tune-run "
-        "--delete-bundle-on-success"
+        "--delete-bundle-on-success &" in text
     )
 
 
 def test_keep_data_keeps_the_bundle():
-    assert script(keep_data=True).rstrip().endswith("--push-to-hub me/clef-tune-run")
+    assert "--push-to-hub me/clef-tune-run &" in script(keep_data=True)
 
 
 def test_multi_gpu_flavors_launch_one_process_per_gpu():
@@ -144,3 +146,27 @@ def test_job_env_feeds_cost_tracking_and_never_sets_reserved_names():
     bare = job_env(SOURCE, price_per_hour=None, estimated_hours=None)
     assert PRICE_ENV not in bare and ESTIMATE_ENV not in bare
     assert not any(name.startswith("NVIDIA_") for name in env)
+
+
+@POSIX_BASH
+def test_a_cancel_stops_training_within_seconds(tmp_path):
+    # HF cancels a job by signalling its bash; training must stop, not run on unattended.
+    stubs = tmp_path / "bin"
+    stubs.mkdir()
+    trained = tmp_path / "trained"
+    (stubs / "pip").write_text("#!/bin/sh\nexit 0\n")
+    (stubs / "clef-tune").write_text(f"#!/bin/sh\necho started\nsleep 3\ntouch {trained}\n")
+    for stub in stubs.iterdir():
+        stub.chmod(0o755)
+    job = subprocess.Popen(
+        ["bash", "-c", script(kernels=False)],
+        env={"PATH": f"{stubs}:/usr/bin:/bin"},
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    while job.stdout.readline().strip() != "started":
+        pass
+    job.send_signal(signal.SIGTERM)
+    assert job.wait(timeout=10) != 0
+    time.sleep(5)
+    assert not trained.exists()
