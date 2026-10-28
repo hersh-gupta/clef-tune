@@ -110,8 +110,15 @@ CUDA version):
 uv pip install "clef-tune[train] @ git+https://github.com/hersh-gupta/clef-tune" --torch-backend cu130
 ```
 
-On Linux, `pip install flash-linear-attention causal-conv1d` is optional but much faster:
-without these kernels Clef's linear-attention layers fall back to a slow PyTorch path.
+On Linux, the fast linear-attention kernels are optional but much faster: without them Clef's
+linear-attention layers fall back to a slow PyTorch path. Build `causal-conv1d` against the
+torch you already have; an isolated build compiles against a different torch and makes model
+loading crash.
+
+```bash
+pip install --no-build-isolation causal-conv1d==1.7.0 flash-linear-attention==0.6.0
+python -c "import causal_conv1d"   # if this fails: pip uninstall -y causal-conv1d flash-linear-attention fla-core
+```
 
 ```bash
 clef-tune validate cfg.yaml --bundle out/bundle      # normalized data + self-contained config
@@ -135,6 +142,51 @@ Exit codes: 0 ok, 1 training/data/Hub failure, 2 invalid config or arguments.
 docker build -t clef-tune .
 docker run --gpus all -v "$PWD:/work" -w /work clef-tune train cfg.yaml
 ```
+
+## Train on Hugging Face Jobs
+
+`clef-tune jobs launch` validates a config on your machine, shows the estimate, and after you
+confirm, trains it on [Hugging Face Jobs](https://huggingface.co/docs/huggingface_hub/guides/jobs).
+
+**Before the first launch:**
+
+- **A token with `repo.write` and `job.write`.** A "Write" token works, and so does a
+  fine-grained one with both permissions (see [Hugging Face token](#hugging-face-token)).
+- **Pre-paid Jobs credits.** Jobs bill against them; without them the launch is refused with a
+  link to <https://huggingface.co/settings/billing>.
+- **A clean checkout whose commit is on GitHub.** A job installs the exact clef-tune commit you
+  are running, from `https://github.com/hersh-gupta/clef-tune`, so commit and push first.
+  Uncommitted changes are refused. Set `CLEF_TUNE_SOURCE` to install from your fork, or pass
+  `--source-ref` to pick a commit, tag or branch.
+
+```bash
+clef-tune jobs launch cfg.yaml                 # shows hardware, time and cost, then asks
+clef-tune jobs launch cfg.yaml --flavor h200x2 --timeout 6h --yes
+clef-tune jobs list
+clef-tune jobs status <job-id>                 # stage, time, cost so far, latest step and eval
+clef-tune jobs logs <job-id> -f
+clef-tune jobs cancel <job-id>
+clef-tune jobs resume <job-id> --timeout 3h    # continue a failed or canceled job
+```
+
+`launch` also accepts `--keep-data`, `--push-to-hub REPO` (default
+`<you>/clef-tune-<run_name>`), `--source-ref REF` and `--no-kernels`.
+
+**What a job does:**
+
+- Your bundle is uploaded to a new folder in your private `<you>/jobs-artifacts` bucket and
+  mounted at `/work`; the model is mounted at `/model`, so it is not downloaded.
+- The first job compiles `causal-conv1d` (about 12 minutes) and caches the wheel in that bucket,
+  so later jobs skip the build. If the kernels fail, training continues on the slow path.
+- Flavors with several GPUs train with DDP, one process per GPU.
+- The adapter is pushed to a private repo. The bundle is deleted after success unless you pass
+  `--keep-data`.
+- A failed, timed-out or canceled job keeps its checkpoints in `/work`, and `jobs resume`
+  restarts it in the same folder from the newest complete one.
+
+**Costs:** `launch` shows the estimated cost and the most the job can cost, which is the
+flavor's price for the whole timeout, and asks before submitting (`--yes` skips the question).
+The timeout caps the cost: a job that reaches it is stopped.
 
 ## Using an adapter from Python
 

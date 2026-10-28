@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path, PureWindowsPath
 from typing import Annotated
 
 import typer
+from huggingface_hub.errors import HfHubHTTPError
 from rich.console import Console
 from rich.markup import escape
 from rich.table import Table
@@ -26,6 +29,19 @@ from clef_tune.estimate import (
     suggest_timeout,
     workload_from,
 )
+from clef_tune.hub import HubError
+from clef_tune.launch.hf_jobs import (
+    JobRequest,
+    LaunchError,
+    LaunchPlan,
+    cancel_job,
+    job_logs,
+    job_status,
+    list_jobs,
+    plan_launch,
+    resume_job,
+    submit_launch,
+)
 from clef_tune.prompt import TokenCounter, counter_for_config
 from clef_tune.validation import ValidationReport
 from clef_tune.validation import validate as run_validation
@@ -36,6 +52,8 @@ app = typer.Typer(
     help="Fine-tune Cloudflare's Clef decision models.",
 )
 console = Console(soft_wrap=True)
+jobs_app = typer.Typer(no_args_is_help=True, help="Train on Hugging Face Jobs.")
+app.add_typer(jobs_app, name="jobs")
 
 ConfigArg = Annotated[
     Path, typer.Argument(exists=True, dir_okay=False, help="Path to config.yaml.")
@@ -406,3 +424,178 @@ def export(
     except (OSError, ValueError, ClefCodeError, HubError) as exc:
         raise _fail(f"Export failed: {escape(str(exc))}") from exc
     console.print(f"Merged checkpoint written: {escape(str(path))}")
+
+
+@contextmanager
+def _job_errors() -> Iterator[None]:
+    try:
+        yield
+    except (LaunchError, HubError, HfHubHTTPError) as exc:
+        raise _fail(escape(str(exc))) from exc
+
+
+def _stage(info) -> str:
+    stage = info.status.stage
+    return str(getattr(stage, "value", stage))
+
+
+def _print_launch_plan(plan: LaunchPlan) -> None:
+    source = plan.source
+    console.print(
+        f"Run [bold]{escape(plan.config.run_name)}[/] from {escape(source.repo_url)} "
+        f"@ {escape(source.ref[:12])}"
+    )
+    gpus = f"{plan.gpus} GPU" + ("s" if plan.gpus > 1 else "")
+    console.print(f"Hardware: {escape(plan.flavor)} ({gpus}), timeout {escape(plan.timeout)}")
+    ceiling = (
+        f" (at most {_money(plan.max_cost)} if it runs to the timeout)"
+        if plan.max_cost is not None
+        else ""
+    )
+    row = plan.estimate
+    if row is None:
+        console.print(f"Estimate: unavailable{ceiling}")
+    else:
+        cost = "" if row.cost_low is None else f", {_money(row.cost_low)}-{_money(row.cost_high)}"
+        console.print(f"Estimate: {row.hours_low:.1f}-{row.hours_high:.1f} h{cost}{ceiling}")
+    if not plan.kernels:
+        kernels = "off"
+    elif plan.kernels_cached:
+        kernels = "cached"
+    else:
+        kernels = "compiled once (~12 min), then cached"
+    console.print(f"Kernels: {kernels}")
+    bundle = "kept (--keep-data)" if plan.keep_data else "deleted after success"
+    console.print(f"Adapter: {escape(plan.adapter_repo)} (private); bundle {bundle}")
+
+
+def _print_started(job_id: str, url: str) -> None:
+    console.print(f"Job started: [bold]{escape(job_id)}[/] {escape(url)}")
+    console.print(f"Follow it with: clef-tune jobs logs {escape(job_id)} --follow")
+
+
+@jobs_app.command()
+def launch(
+    config: ConfigArg,
+    flavor: Annotated[
+        str | None, typer.Option(help="HF Jobs hardware; default: the cheapest that fits.")
+    ] = None,
+    timeout: Annotated[
+        str | None, typer.Option(help="Like 90m or 6h; default: from the estimate.")
+    ] = None,
+    keep_data: Annotated[
+        bool, typer.Option("--keep-data", help="Keep the uploaded bundle after success.")
+    ] = False,
+    source_ref: Annotated[
+        str | None,
+        typer.Option("--source-ref", help="Install this clef-tune commit, tag or branch."),
+    ] = None,
+    push_to_hub: Annotated[
+        str | None,
+        typer.Option("--push-to-hub", help="Adapter repo; default: <you>/clef-tune-<run_name>."),
+    ] = None,
+    no_kernels: Annotated[
+        bool, typer.Option("--no-kernels", help="Skip the fast linear-attention kernels.")
+    ] = False,
+    yes: Annotated[bool, typer.Option("--yes", "-y", help="Launch without asking.")] = False,
+) -> None:
+    """Show the estimate for a config, then train it on Hugging Face Jobs."""
+    request = JobRequest(
+        flavor=flavor,
+        timeout=timeout,
+        keep_data=keep_data,
+        kernels=not no_kernels,
+        adapter_repo=push_to_hub,
+        source_ref=source_ref,
+    )
+    with _job_errors():
+        plan = plan_launch(config, request)
+    _print_launch_plan(plan)
+    if not yes:
+        typer.confirm("Launch this job?", abort=True)
+    with _job_errors():
+        job = submit_launch(plan)
+    _print_started(job.id, job.url)
+
+
+@jobs_app.command("list")
+def list_command() -> None:
+    """List clef-tune jobs, newest first."""
+    with _job_errors():
+        jobs = list_jobs()
+    table = Table("id", "run", "flavor", "stage", "created")
+    for info in jobs:
+        created = info.created_at
+        table.add_row(
+            escape(info.id),
+            escape((info.labels or {}).get("run", "-")),
+            escape(info.flavor or "-"),
+            _stage(info),
+            f"{created:%Y-%m-%d %H:%M}" if created else "-",
+        )
+    console.print(table)
+
+
+@jobs_app.command()
+def status(job_id: Annotated[str, typer.Argument(help="Job id.")]) -> None:
+    """Show a job's stage, time, cost and training progress."""
+    with _job_errors():
+        info = job_status(job_id)
+    message = f" ({escape(info.message)})" if info.message else ""
+    console.print(f"[bold]{escape(info.id)}[/]: {info.stage}{message}")
+    console.print(
+        f"Run {escape(info.run or '-')} on {escape(info.flavor or '-')}: {escape(info.url)}"
+    )
+    if info.hours is not None:
+        verb = "Running" if info.stage in ("RUNNING", "SCHEDULING") else "Ran"
+        cost = f", about {_money(info.cost)}" if info.cost is not None else ""
+        console.print(f"{verb} {info.hours:.1f} h{cost}")
+    train_record = info.latest("train")
+    if train_record is not None:
+        parts = []
+        if train_record.get("loss") is not None:
+            parts.append(f"loss {train_record['loss']:.4f}")
+        if train_record.get("tokens_per_sec") is not None:
+            parts.append(f"{train_record['tokens_per_sec']:,.0f} tokens/s")
+        if train_record.get("eta_s") is not None:
+            parts.append(f"ETA {round(train_record['eta_s'] / 60)} min")
+        console.print(f"step {train_record.get('step')}: {', '.join(parts)}")
+    eval_record = info.latest("eval")
+    if eval_record is not None:
+        headline = ("exact_match", "mean_macro_f1", "mean_log_loss")
+        metrics = ", ".join(
+            f"{name} {eval_record[name]:.3f}" for name in headline if name in eval_record
+        )
+        console.print(f"Eval at step {eval_record.get('step')}: {metrics}")
+
+
+@jobs_app.command()
+def logs(
+    job_id: Annotated[str, typer.Argument(help="Job id.")],
+    follow: Annotated[bool, typer.Option("--follow", "-f", help="Keep streaming.")] = False,
+) -> None:
+    """Print a job's logs."""
+    with _job_errors():
+        for line in job_logs(job_id, follow=follow):
+            typer.echo(line)  # not console.print: markup in logs stays literal
+
+
+@jobs_app.command()
+def cancel(job_id: Annotated[str, typer.Argument(help="Job id.")]) -> None:
+    """Cancel a job; its checkpoints stay, so `jobs resume` can continue it."""
+    with _job_errors():
+        cancel_job(job_id)
+    console.print(f"Cancel requested for {escape(job_id)}")
+
+
+@jobs_app.command()
+def resume(
+    job_id: Annotated[str, typer.Argument(help="A failed or canceled job's id.")],
+    timeout: Annotated[
+        str | None, typer.Option(help="A new timeout, like 3h; default: the original.")
+    ] = None,
+) -> None:
+    """Restart a failed or canceled job from its newest checkpoint."""
+    with _job_errors():
+        job = resume_job(job_id, timeout=timeout)
+    _print_started(job.id, job.url)
