@@ -89,6 +89,29 @@ It opens on <http://localhost:7860> (`--port` to change it, `--share` for a publ
 Hugging Face login (`hf auth login`) or a token you paste in; it is used for that browser
 session only. The "Train locally" tab appears when this machine has a CUDA GPU.
 
+### Deploy the web UI as a Hugging Face Space
+
+The Space runs the same UI for many visitors. Each visitor signs in with Hugging Face and
+launches jobs on their own account and credits; the Space never uses its own token for them.
+
+1. Push your commits: the Space installs clef-tune from GitHub at an exact commit.
+2. Write the Space files, with `requirements.txt` pinned to that commit:
+
+   ```bash
+   python scripts/prepare_space.py build/space
+   ```
+
+3. Upload them to a Space (`hf` creates it if needed):
+
+   ```bash
+   hf upload you/clef-tune build/space . --repo-type space
+   ```
+
+Sign-in asks visitors for repo and Jobs access. Hugging Face has no sign-in permission for
+the storage bucket a launch uploads to, so if launching fails with a permission error, paste a
+token with `job.write` and `repo.write` in the Hugging Face Jobs tab. Uploads are capped at
+`CLEF_TUNE_MAX_UPLOAD_MB` (default 200), and the Train locally tab is never shown on a Space.
+
 ## Quickstart (CLI)
 
 1. Describe your data and questions in a config. See `examples/support_tickets.yaml`:
