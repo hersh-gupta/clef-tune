@@ -522,6 +522,7 @@ def _train(
                 tokens_per_sec=_tokens_per_sec(accelerator, tokens_this_run, now - loop_started),
                 eta_s=eta_s,
                 projected_cost=_projected_cost(state.train_seconds, eta_s),
+                total_steps=total_steps,
             )
 
         model.train()

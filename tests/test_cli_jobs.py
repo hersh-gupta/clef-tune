@@ -6,7 +6,7 @@ import pytest
 from typer.testing import CliRunner
 
 from clef_tune import cli
-from clef_tune.launch.hf_jobs import JobRequest, JobStatus, LaunchError
+from clef_tune.launch.hf_jobs import JobRequest, JobStatus, LaunchError, ResumeQuote
 
 EXAMPLE = Path(__file__).resolve().parents[1] / "examples" / "support_tickets.yaml"
 runner = CliRunner()
@@ -167,8 +167,11 @@ def test_cancel_and_resume(monkeypatch):
             or SimpleNamespace(id="job456", url="https://huggingface.co/jobs/me/job456")
         ),
     )
+    monkeypatch.setattr(
+        cli, "quote_resume", lambda job_id, **k: ResumeQuote(job_id, "l4x1", "3h", 0.8)
+    )
     assert runner.invoke(cli.app, ["jobs", "cancel", "job123"]).exit_code == 0
-    result = runner.invoke(cli.app, ["jobs", "resume", "job123", "--timeout", "3h"])
+    result = runner.invoke(cli.app, ["jobs", "resume", "job123", "--timeout", "3h", "--yes"])
     assert result.exit_code == 0 and "job456" in result.output
     assert calls == [("cancel", "job123"), ("resume", "job123", "3h")]
 
@@ -203,3 +206,18 @@ def test_status_of_a_completed_job_points_to_clean(monkeypatch):
     monkeypatch.setattr(cli, "leftover_files", lambda job_id, **k: ["a/out/checkpoints/best/w"])
     result = runner.invoke(cli.app, ["jobs", "status", "job123"])
     assert result.exit_code == 0 and "clef-tune jobs clean job123" in result.output
+
+
+def test_resume_shows_the_cost_and_asks(monkeypatch):
+    calls = []
+    quote = ResumeQuote("job123", "a10g-large", "2h", 1.5)
+    monkeypatch.setattr(cli, "quote_resume", lambda job_id, **k: quote)
+    monkeypatch.setattr(
+        cli,
+        "resume_job",
+        lambda job_id, **k: calls.append(job_id) or SimpleNamespace(id="job9", url="u"),
+    )
+    refused = runner.invoke(cli.app, ["jobs", "resume", "job123"], input="n\n")
+    assert refused.exit_code == 1 and "at most $3.00" in refused.output and calls == []
+    assert runner.invoke(cli.app, ["jobs", "resume", "job123", "--yes"]).exit_code == 0
+    assert calls == ["job123"]

@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import re
+import shlex
 import tempfile
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -371,6 +372,7 @@ class JobStatus:
     hours: float | None
     cost: float | None
     progress: list[dict]  # the metrics.jsonl records so far
+    adapter_repo: str | None = None  # where the job pushes its adapter
 
     def latest(self, event: str) -> dict | None:
         return next((r for r in reversed(self.progress) if r.get("event") == event), None)
@@ -394,6 +396,21 @@ def list_jobs(*, api: HfApi | None = None, token: str | None = None) -> list[Job
     jobs = api.list_jobs(labels=dict(TOOL_LABEL), token=token)
     oldest = datetime.min.replace(tzinfo=UTC)
     return sorted(jobs, key=lambda info: info.created_at or oldest, reverse=True)
+
+
+def adapter_repo_of(info: JobInfo) -> str | None:
+    """The repo a clef-tune job pushes its adapter to: the word after --push-to-hub in its
+    script."""
+    for part in info.command or []:
+        for line in str(part).splitlines():
+            try:
+                words = shlex.split(line)
+            except ValueError:  # a line of the script that is not a whole command
+                continue
+            if "--push-to-hub" in words:
+                index = words.index("--push-to-hub")
+                return words[index + 1] if index + 1 < len(words) else None
+    return None
 
 
 def _work_volume(info: JobInfo) -> Volume | None:
@@ -462,6 +479,7 @@ def job_status(
         hours=hours,
         cost=cost,
         progress=job_progress(info, api=api, token=token) if started else [],
+        adapter_repo=adapter_repo_of(info),
     )
 
 
@@ -498,6 +516,54 @@ def _check_no_job_continues(info: JobInfo, *, api: HfApi, token: str) -> None:
             )
 
 
+@dataclass(frozen=True)
+class ResumeQuote:
+    job_id: str
+    flavor: str | None
+    timeout: str
+    price_per_hour: float | None
+
+    @property
+    def max_cost(self) -> float | None:
+        """What the resumed job costs if it runs until its timeout."""
+        if self.price_per_hour is None:
+            return None
+        return timeout_hours(self.timeout) * self.price_per_hour
+
+
+def _resumable(
+    job_id: str, info: JobInfo, timeout: str | None, *, api: HfApi, token: str | None
+) -> str:
+    """Check the job can be resumed; return the timeout the resumed job gets."""
+    labels = info.labels or {}
+    if labels.get("tool") != TOOL_LABEL["tool"]:
+        raise LaunchError(f"{job_id} is not a clef-tune job")
+    stage = _stage(info)
+    if stage not in RESUMABLE:
+        raise LaunchError(f"{job_id} is {stage}; only failed or canceled jobs can be resumed")
+    _check_no_job_continues(info, api=api, token=token)
+    timeout = timeout or labels.get("timeout")  # JobInfo has no timeout, so launches label it
+    if not timeout:
+        raise LaunchError(f"{job_id} has no timeout label; pass --timeout")
+    timeout_hours(timeout)
+    return timeout
+
+
+def quote_resume(
+    job_id: str,
+    *,
+    timeout: str | None = None,
+    api: HfApi | None = None,
+    token: str | None = None,
+) -> ResumeQuote:
+    """What resuming a job would cost at most, after the checks resume_job makes. Starts
+    nothing."""
+    api = api or HfApi()
+    info = api.inspect_job(job_id=job_id, token=token)
+    timeout = _resumable(job_id, info, timeout, api=api, token=token)
+    return ResumeQuote(job_id, info.flavor, timeout, _price(info))
+
+
 def resume_job(
     job_id: str,
     *,
@@ -514,16 +580,7 @@ def resume_job(
         raise LaunchError("no Hugging Face token: run `hf auth login` or set HF_TOKEN")
     info = api.inspect_job(job_id=job_id, token=token)
     labels = info.labels or {}
-    if labels.get("tool") != TOOL_LABEL["tool"]:
-        raise LaunchError(f"{job_id} is not a clef-tune job")
-    stage = _stage(info)
-    if stage not in RESUMABLE:
-        raise LaunchError(f"{job_id} is {stage}; only failed or canceled jobs can be resumed")
-    _check_no_job_continues(info, api=api, token=token)
-    timeout = timeout or labels.get("timeout")  # JobInfo has no timeout, so launches label it
-    if not timeout:
-        raise LaunchError(f"{job_id} has no timeout label; pass --timeout")
-    timeout_hours(timeout)
+    timeout = _resumable(job_id, info, timeout, api=api, token=token)
     return start_job(
         api,
         image=info.docker_image,

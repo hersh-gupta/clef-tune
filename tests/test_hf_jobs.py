@@ -582,3 +582,31 @@ def test_only_completed_jobs_are_cleaned(stage):
     with pytest.raises(LaunchError, match="only completed jobs"):
         clean_job("job123", api=api, token=TOKEN)
     assert all(call[0] != "batch_bucket_files" for call in api.calls)
+
+
+def test_job_status_names_the_adapter_repo():
+    command = job_command(
+        SOURCE, gpus=1, adapter_repo="me/clef-tune-x", keep_data=False, kernels=True
+    )
+    api = FakeApi(job_info=job(command=command))
+    assert job_status("job123", api=api, token=TOKEN).adapter_repo == "me/clef-tune-x"
+    assert hf_jobs.adapter_repo_of(job()) is None  # "echo train" pushes nowhere
+
+
+def test_quote_resume_prices_the_timeout_and_starts_nothing():
+    info = job(
+        "ERROR",
+        labels={"tool": "clef-tune", "run": "r", "timeout": "2h"},
+        environment={PRICE_ENV: "1.5"},
+    )
+    api = FakeApi(job_info=info, jobs=[info])
+    quote = hf_jobs.quote_resume("job123", api=api, token=TOKEN)
+    assert (quote.timeout, quote.price_per_hour, quote.max_cost) == ("2h", 1.5, 3.0)
+    assert hf_jobs.quote_resume("job123", timeout="3h", api=api, token=TOKEN).max_cost == 4.5
+    assert not [c for c in api.calls if c[0] == "run_job"]
+
+
+def test_quote_resume_refuses_what_resume_refuses():
+    api = FakeApi(job_info=job("RUNNING"))
+    with pytest.raises(LaunchError, match="only failed or canceled"):
+        hf_jobs.quote_resume("job123", api=api, token=TOKEN)

@@ -37,6 +37,7 @@ def test_lora_overfits_sixteen_rows(tiny_project):
         train_events[-1]
     )
     assert train_events[-1]["step"] == result.metrics["run"]["steps"] >= 24 * 4
+    assert train_events[-1]["total_steps"] == result.metrics["run"]["steps"]
     assert train_events[-1]["eta_s"] is not None
     assert not (config.parent / "out" / "checkpoints").exists()
 

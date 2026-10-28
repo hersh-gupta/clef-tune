@@ -3,7 +3,7 @@ import warnings
 import pytest
 
 from clef_tune import hub
-from clef_tune.hub import HubError, ensure_repo, pull_adapter, push_adapter
+from clef_tune.hub import HubError, ensure_repo, pull_adapter, pull_metrics, push_adapter
 
 WRITE_TOKEN = {"name": "me", "auth": {"type": "access_token", "accessToken": {"role": "write"}}}
 
@@ -143,3 +143,23 @@ def test_an_unreadable_token_description_warns_instead_of_refusing(info):
 def test_an_invalid_or_missing_token_is_a_hub_error():
     with pytest.raises(HubError, match="me/run.*Invalid user token"):
         ensure_repo("me/run", api=FakeApi(token_info=OSError("Invalid user token.")))
+
+
+def test_pull_metrics_reads_metrics_json(tmp_path):
+    (tmp_path / "metrics.json").write_text('{"final": {}}')
+    seen = []
+
+    def download(repo_id, filename, **kwargs):
+        seen.append((repo_id, filename, kwargs.get("token")))
+        return str(tmp_path / filename)
+
+    assert pull_metrics("me/a", token="t", download=download) == {"final": {}}
+    assert seen == [("me/a", "metrics.json", "t")]
+
+
+def test_pull_metrics_explains_a_missing_file():
+    def download(*args, **kwargs):
+        raise FileNotFoundError("404")
+
+    with pytest.raises(HubError, match="cannot read metrics.json from me/a"):
+        pull_metrics("me/a", download=download)

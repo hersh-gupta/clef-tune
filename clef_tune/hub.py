@@ -3,11 +3,13 @@ Torch-free, so the CLI can use it without loading the training stack."""
 
 from __future__ import annotations
 
+import json
 import warnings
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from huggingface_hub import HfApi, snapshot_download
+from huggingface_hub import HfApi, hf_hub_download, snapshot_download
 
 WRITE_ROLES = ("write", "admin")
 REPO_WRITE = "repo.write"  # the fine-grained permission to create and push to repos
@@ -120,3 +122,14 @@ def push_adapter(
 def pull_adapter(repo_id: str, *, revision: str | None = None, token: str | None = None) -> Path:
     """Download an adapter repo (cached) and return its local folder."""
     return Path(snapshot_download(repo_id, revision=revision, token=token))
+
+
+def pull_metrics(
+    repo_id: str, *, token: str | None = None, download: Callable[..., str] = hf_hub_download
+) -> dict:
+    """An adapter repo's metrics.json (what the results view shows), without its weights."""
+    try:
+        path = download(repo_id, "metrics.json", token=token)
+        return json.loads(Path(path).read_text(encoding="utf-8"))
+    except Exception as exc:
+        raise HubError(f"cannot read metrics.json from {repo_id}: {exc}") from exc

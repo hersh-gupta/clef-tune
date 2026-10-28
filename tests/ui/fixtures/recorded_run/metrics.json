@@ -1,0 +1,245 @@
+{
+  "baseline": {
+    "questions": {
+      "department": {
+        "question_id": "department",
+        "question_type": "choice",
+        "n": 30,
+        "accuracy": 0.36666666666666664,
+        "f1": 0.36944444444444446,
+        "log_loss": 1.177676601726808,
+        "mae": null,
+        "confusion": {
+          "labels": [
+            "account",
+            "billing",
+            "technical"
+          ],
+          "matrix": [
+            [
+              4,
+              2,
+              4
+            ],
+            [
+              1,
+              3,
+              5
+            ],
+            [
+              5,
+              2,
+              4
+            ]
+          ]
+        }
+      },
+      "urgency": {
+        "question_id": "urgency",
+        "question_type": "score",
+        "n": 30,
+        "accuracy": 0.3333333333333333,
+        "f1": 0.30146520146520145,
+        "log_loss": 1.2911840734617352,
+        "mae": 0.7139093328348449,
+        "confusion": {
+          "labels": [
+            "0",
+            "1",
+            "2"
+          ],
+          "matrix": [
+            [
+              6,
+              5,
+              3
+            ],
+            [
+              3,
+              3,
+              5
+            ],
+            [
+              3,
+              1,
+              1
+            ]
+          ]
+        }
+      },
+      "outage": {
+        "question_id": "outage",
+        "question_type": "noul",
+        "n": 30,
+        "accuracy": 0.6333333333333333,
+        "f1": 0.15384615384615385,
+        "log_loss": 0.6525564087170287,
+        "mae": null,
+        "confusion": {
+          "labels": [
+            "true",
+            "false"
+          ],
+          "matrix": [
+            [
+              1,
+              4
+            ],
+            [
+              7,
+              18
+            ]
+          ]
+        }
+      }
+    },
+    "exact_match": 0.06666666666666667,
+    "mean_macro_f1": 0.2749185999185999,
+    "mean_log_loss": 1.0404723613018574,
+    "n_records": 30
+  },
+  "final": {
+    "questions": {
+      "department": {
+        "question_id": "department",
+        "question_type": "choice",
+        "n": 30,
+        "accuracy": 0.9333333333333333,
+        "f1": 0.933249791144528,
+        "log_loss": 0.24882437401850116,
+        "mae": null,
+        "confusion": {
+          "labels": [
+            "account",
+            "billing",
+            "technical"
+          ],
+          "matrix": [
+            [
+              9,
+              1,
+              0
+            ],
+            [
+              0,
+              9,
+              0
+            ],
+            [
+              1,
+              0,
+              10
+            ]
+          ]
+        }
+      },
+      "urgency": {
+        "question_id": "urgency",
+        "question_type": "score",
+        "n": 30,
+        "accuracy": 0.9,
+        "f1": 0.8885003885003885,
+        "log_loss": 0.26273217579470803,
+        "mae": 0.21574308784198906,
+        "confusion": {
+          "labels": [
+            "0",
+            "1",
+            "2"
+          ],
+          "matrix": [
+            [
+              12,
+              1,
+              1
+            ],
+            [
+              0,
+              10,
+              1
+            ],
+            [
+              0,
+              0,
+              5
+            ]
+          ]
+        }
+      },
+      "outage": {
+        "question_id": "outage",
+        "question_type": "noul",
+        "n": 30,
+        "accuracy": 0.9,
+        "f1": 0.7692307692307693,
+        "log_loss": 0.5647198054071353,
+        "mae": null,
+        "confusion": {
+          "labels": [
+            "true",
+            "false"
+          ],
+          "matrix": [
+            [
+              5,
+              0
+            ],
+            [
+              3,
+              22
+            ]
+          ]
+        }
+      }
+    },
+    "exact_match": 0.8,
+    "mean_macro_f1": 0.8636603162918952,
+    "mean_log_loss": 0.35875878507344816,
+    "n_records": 30
+  },
+  "calibration": {
+    "department": {
+      "temperature": 0.9451187987839109,
+      "n": 30,
+      "ece_before": 0.1263494397553631,
+      "ece_after": 0.12134340880162993,
+      "log_loss_before": 0.2488243740185011,
+      "log_loss_after": 0.24832878382966284,
+      "fitted": true
+    },
+    "urgency": {
+      "temperature": 0.9578901666652107,
+      "n": 30,
+      "ece_before": 0.09634104417166316,
+      "ece_after": 0.11273845537949505,
+      "log_loss_before": 0.26273217579470803,
+      "log_loss_after": 0.26250359020343045,
+      "fitted": true
+    },
+    "outage": {
+      "temperature": 2.5242656450333008,
+      "n": 30,
+      "ece_before": 0.1184390144719473,
+      "ece_after": 0.16957834815557915,
+      "log_loss_before": 0.5647198054071351,
+      "log_loss_after": 0.3850562310859677,
+      "fitted": true
+    }
+  },
+  "data": {
+    "train_rows": 170,
+    "eval_rows": 30
+  },
+  "run": {
+    "steps": 120,
+    "best_step": 120,
+    "stopped_early": false,
+    "select_metric": "mean_macro_f1",
+    "class_weighting": "none",
+    "hours": 0.42,
+    "estimated_hours": 0.5,
+    "price_per_hour": 0.8,
+    "cost": 0.336,
+    "estimated_cost": 0.4
+  }
+}

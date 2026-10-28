@@ -41,6 +41,7 @@ from clef_tune.launch.hf_jobs import (
     leftover_files,
     list_jobs,
     plan_launch,
+    quote_resume,
     resume_job,
     submit_launch,
 )
@@ -612,10 +613,20 @@ def resume(
     timeout: Annotated[
         str | None, typer.Option(help="A new timeout, like 3h; default: the original.")
     ] = None,
+    yes: Annotated[bool, typer.Option("--yes", "-y", help="Resume without asking.")] = False,
 ) -> None:
     """Restart a failed or canceled job from its newest checkpoint."""
     with _job_errors():
-        job = resume_job(job_id, timeout=timeout)
+        quote = quote_resume(job_id, timeout=timeout)
+    cost = "cost unknown" if quote.max_cost is None else f"at most {_money(quote.max_cost)}"
+    console.print(
+        f"Resume {escape(job_id)} on {escape(quote.flavor or '-')} "
+        f"with timeout {escape(quote.timeout)}: {cost}"
+    )
+    if not yes:
+        typer.confirm("Resume this job?", abort=True)
+    with _job_errors():
+        job = resume_job(job_id, timeout=quote.timeout)
     _print_started(job.id, job.url)
 
 
