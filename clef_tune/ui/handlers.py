@@ -128,8 +128,10 @@ def data_view(session: Session, page: int = 0, error: str | None = None) -> Data
     chunk = table.rows[start : start + PREVIEW_PAGE]
     rows = [[_cell(row.get(column)) for column in table.columns] for row in chunk]
     label = f"Rows {start + 1}–{start + len(chunk)} of {total:,}" if total else "No rows"
-    summary = fragments.stat_tiles(
-        [("File", table.path.name), ("Rows", f"{total:,}"), ("Columns", str(len(table.columns)))]
+    summary = (
+        f'<div class="ct-file"><span class="ct-file-icon" aria-hidden="true">▤</span>'
+        f"{fragments.esc(table.path.name)}</div>"
+        + fragments.stat_tiles([("Rows", f"{total:,}"), ("Columns", str(len(table.columns)))])
     )
     chips = fragments.column_chips(table.columns, column_roles(session))
     return DataView(summary, chips, list(table.columns), rows, page, label, error)

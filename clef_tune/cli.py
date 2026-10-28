@@ -431,6 +431,25 @@ def export(
     console.print(f"Merged checkpoint written: {escape(str(path))}")
 
 
+@app.command()
+def ui(
+    share: Annotated[
+        bool, typer.Option("--share", help="Also serve it on a public gradio.live link.")
+    ] = False,
+    port: Annotated[int | None, typer.Option(help="Port to serve on; default 7860.")] = None,
+) -> None:
+    """Open the web UI: data, schema, checks, settings, launch and results."""
+    try:
+        from clef_tune.ui import app as ui_app
+    except ImportError as exc:
+        raise _fail(
+            "The web UI needs the ui extra: "
+            'uv pip install "clef-tune[ui] @ git+https://github.com/hersh-gupta/clef-tune" '
+            f"({escape(str(exc))})"
+        ) from exc
+    ui_app.launch(share=share, port=port)
+
+
 @contextmanager
 def _job_errors() -> Iterator[None]:
     try:

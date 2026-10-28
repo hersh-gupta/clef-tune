@@ -340,9 +340,10 @@ def run_view_from(
     losses = [(e["step"], e["loss"]) for e in events if e.get("event") == "train"]
     evals = [e for e in events if e.get("event") == "eval"]
     baseline = _latest(events, "baseline")
+    scored = ([baseline] if baseline else []) + evals  # each line starts at the baseline
     eval_series = {
-        "mean macro-F1": [(e["step"], e["mean_macro_f1"]) for e in evals],
-        "exact match": [(e["step"], e["exact_match"]) for e in evals],
+        "mean macro-F1": [(e.get("step", 0), e["mean_macro_f1"]) for e in scored],
+        "exact match": [(e.get("step", 0), e["exact_match"]) for e in scored],
     }
     reference = {"baseline macro-F1": baseline["mean_macro_f1"]} if baseline else None
     if logs:

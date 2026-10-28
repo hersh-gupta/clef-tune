@@ -3,8 +3,8 @@
 Fine-tune Cloudflare's [Clef](https://huggingface.co/Cloudflare/clef) decision models
 (Clef 27B and Clef-Flash 9.4B) on your own labeled CSV or JSONL data.
 
-> Status: data validation, estimates, training, evaluation, prediction and merged export are
-> done. Hugging Face Jobs launching and the web UI are next (see `docs/superpowers/`).
+> Status: data validation, estimates, training, evaluation, prediction, merged export,
+> Hugging Face Jobs launching and the web UI are done (see `docs/superpowers/`).
 
 ## Install
 
@@ -73,7 +73,23 @@ Get-Content .env | Where-Object { $_ -match '^\s*([^#=]+?)\s*=\s*(.*)$' } | ForE
 From Python, set `HF_TOKEN` before starting the interpreter, or pass it directly with
 `Predictor.load("you/clef-support", token="hf_xxx")`.
 
-## Quickstart
+## Web UI
+
+The web UI takes you from a CSV to a trained adapter without writing YAML: upload your data,
+check the proposed questions, see the checks and the cost estimate, then launch on Hugging Face
+Jobs and follow the run to its results.
+
+```bash
+uv pip install "clef-tune[ui] @ git+https://github.com/hersh-gupta/clef-tune"
+clef-tune ui
+```
+
+It opens on <http://localhost:7860> (`--port` to change it, `--share` for a public link).
+"Load the example" walks through 200 synthetic support tickets. Launching uses your
+Hugging Face login (`hf auth login`) or a token you paste in; it is used for that browser
+session only. The "Train locally" tab appears when this machine has a CUDA GPU.
+
+## Quickstart (CLI)
 
 1. Describe your data and questions in a config. See `examples/support_tickets.yaml`:
    each CSV row supplies the state (`state_columns`) and one label column per question.

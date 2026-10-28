@@ -1,6 +1,8 @@
 import subprocess
 import sys
 
+import pytest
+
 NO_TORCH_MODULES = [
     "clef_tune",
     "clef_tune.cli",
@@ -55,4 +57,11 @@ def test_core_modules_never_import_torch():
 def test_ui_logic_never_imports_gradio():
     imports = "; ".join(f"import {module}" for module in NO_GRADIO_MODULES)
     code = f"import sys; {imports}; assert 'gradio' not in sys.modules"
+    subprocess.run([sys.executable, "-c", code], check=True)
+
+
+def test_the_ui_layout_never_imports_torch():
+    pytest.importorskip("gradio")
+    check = "bad = [m for m in ('torch', 'transformers', 'peft') if m in sys.modules]"
+    code = f"import sys; import clef_tune.ui.app, clef_tune.ui.theme; {check}; assert not bad, bad"
     subprocess.run([sys.executable, "-c", code], check=True)

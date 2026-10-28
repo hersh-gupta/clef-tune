@@ -68,12 +68,13 @@ extend-immutable-calls = ["clef_tune.launch.hf_jobs.JobRequest"]  # a frozen dat
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-m 'not gpu and not hfjobs'"
+addopts = "-m 'not gpu and not hfjobs and not browser'"
 markers = [
   "torch: needs torch (tiny-model tests)",
   "gpu: needs a CUDA GPU and real model weights (opt-in)",
   "hfjobs: submits a real Hugging Face Job (opt-in, costs money)",
   "network: downloads from the Hugging Face Hub",
+  "browser: drives the web UI in a real browser (opt-in; needs Playwright's chromium)",
 ]
 
 [tool.uv.sources]
