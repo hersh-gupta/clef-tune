@@ -51,6 +51,11 @@ SCOPE_ADVICE = 'use a "Write" token, or a fine-grained token with job.write and 
 METRICS_LOG = "metrics.jsonl"  # what clef_tune.train writes into the output dir
 RESUMABLE = ("ERROR", "CANCELED")
 CONTINUING = ("SCHEDULING", "RUNNING", "COMPLETED")  # a job in these stages owns its run's folder
+# What a successful job deletes from its work folder, relative to it: the bundle (unless launched
+# with --keep-data) and the checkpoints clef_tune.checkpoints keeps under the output dir.
+BUNDLE_FOLDER = "bundle"
+CHECKPOINTS_FOLDER = f"{JOB_OUTPUT_DIR.removeprefix(WORK_MOUNT + '/')}/checkpoints"
+DELETE_BUNDLE_FLAG = "--delete-bundle-on-success"
 
 _TIMEOUT = re.compile(r"^(\d+(?:\.\d+)?)([smhd])$")
 _HOURS_PER_UNIT = {"s": 1 / 3600, "m": 1 / 60, "h": 1, "d": 24}
@@ -530,3 +535,39 @@ def resume_job(
         volumes=info.volumes,
         token=token,
     )
+
+
+def _leftovers(info: JobInfo, *, api: HfApi, token: str | None) -> list[str]:
+    work = _work_volume(info)
+    if work is None or _stage(info) != "COMPLETED":
+        return []
+    root = f"{work.path.rstrip('/')}/" if work.path else ""
+    prefixes = [f"{root}{CHECKPOINTS_FOLDER}/"]
+    if DELETE_BUNDLE_FLAG in " ".join(info.command or []):
+        prefixes.append(f"{root}{BUNDLE_FOLDER}/")
+    files = api.list_bucket_tree(work.source, work.path or None, recursive=True, token=token)
+    return sorted(f.path for f in files if f.type == "file" and f.path.startswith(tuple(prefixes)))
+
+
+def leftover_files(job_id: str, *, api: HfApi | None = None, token: str | None = None) -> list[str]:
+    """Files a completed job deleted that its bucket folder still holds: the bucket mount can
+    finish an upload after the job deleted the file. A failed or canceled job has none; it keeps
+    its checkpoints for a resume."""
+    api = api or HfApi()
+    return _leftovers(api.inspect_job(job_id=job_id, token=token), api=api, token=token)
+
+
+def clean_job(job_id: str, *, api: HfApi | None = None, token: str | None = None) -> list[str]:
+    """Delete a completed job's leftover bundle and checkpoint files; return their paths."""
+    api = api or HfApi()
+    info = api.inspect_job(job_id=job_id, token=token)
+    stage = _stage(info)
+    if stage != "COMPLETED":
+        raise LaunchError(
+            f"{job_id} is {stage}; only completed jobs are cleaned "
+            "(a failed or canceled job keeps its checkpoints for `jobs resume`)"
+        )
+    paths = _leftovers(info, api=api, token=token)
+    if paths:
+        api.batch_bucket_files(_work_volume(info).source, delete=paths, token=token)
+    return paths

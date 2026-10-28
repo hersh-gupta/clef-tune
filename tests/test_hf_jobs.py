@@ -17,9 +17,11 @@ from clef_tune.launch.hf_jobs import (
     JobRequest,
     LaunchError,
     cancel_job,
+    clean_job,
     job_logs,
     job_status,
     kernel_cache_folder,
+    leftover_files,
     plan_launch,
     resume_job,
     submit_launch,
@@ -538,3 +540,45 @@ def test_a_canceled_job_without_a_finish_time_has_no_time_or_cost():
     canceled = job(stage="CANCELED", finished_at=None)
     status = job_status("job123", api=FakeApi(job_info=canceled), token=TOKEN, now=NOW)
     assert (status.hours, status.cost) == (None, None)
+
+
+TRAIN = "clef-tune train /work/bundle/config.yaml --push-to-hub me/x --delete-bundle-on-success"
+FINISHED = [
+    "clef-tune-runs/r-1/bundle/config.yaml",
+    "clef-tune-runs/r-1/out/checkpoints/best/trainable.safetensors",
+    "clef-tune-runs/r-1/out/final/joint_head.safetensors",
+    "clef-tune-runs/r-1/out/metrics.jsonl",
+]
+
+
+def test_clean_removes_what_a_completed_job_left_behind():
+    # The bucket mount can finish an upload after the job deleted the file.
+    done = job(stage="COMPLETED", command=["bash", "-c", TRAIN])
+    api = FakeApi(job_info=done, bucket_files=FINISHED)
+    assert leftover_files("job123", api=api, token=TOKEN) == FINISHED[:2]
+    assert clean_job("job123", api=api, token=TOKEN) == FINISHED[:2]
+    assert ("batch_bucket_files", "me/jobs-artifacts", FINISHED[:2]) in api.calls
+
+
+def test_clean_keeps_a_bundle_launched_with_keep_data():
+    done = job(
+        stage="COMPLETED", command=["bash", "-c", TRAIN.removesuffix(" --delete-bundle-on-success")]
+    )
+    api = FakeApi(job_info=done, bucket_files=FINISHED)
+    assert clean_job("job123", api=api, token=TOKEN) == [FINISHED[1]]
+
+
+def test_clean_with_nothing_left_deletes_nothing():
+    done = job(stage="COMPLETED", command=["bash", "-c", TRAIN])
+    api = FakeApi(job_info=done, bucket_files=FINISHED[2:])
+    assert clean_job("job123", api=api, token=TOKEN) == []
+    assert all(call[0] != "batch_bucket_files" for call in api.calls)
+
+
+@pytest.mark.parametrize("stage", ["RUNNING", "SCHEDULING", "CANCELED", "ERROR"])
+def test_only_completed_jobs_are_cleaned(stage):
+    api = FakeApi(job_info=job(stage=stage, command=["bash", "-c", TRAIN]), bucket_files=FINISHED)
+    assert leftover_files("job123", api=api, token=TOKEN) == []  # checkpoints for a resume
+    with pytest.raises(LaunchError, match="only completed jobs"):
+        clean_job("job123", api=api, token=TOKEN)
+    assert all(call[0] != "batch_bucket_files" for call in api.calls)

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import re
 import time
+import warnings
 from collections import defaultdict
 from datetime import UTC, datetime
 from pathlib import Path
@@ -19,10 +20,12 @@ from huggingface_hub import HfApi, get_token
 from clef_tune.launch.hf_jobs import (
     JobRequest,
     cancel_job,
+    clean_job,
     job_logs,
     job_status,
     jobs_bucket,
     kernel_cache_folder,
+    leftover_files,
     plan_launch,
     resume_job,
     submit_launch,
@@ -171,12 +174,20 @@ def test_a_job_resumes_after_cancel_and_pushes_the_adapter(tmp_path):
 
         left = []
 
-        def cleaned():  # the mount's deletes also land in the background
-            paths = _bucket_paths(api, bucket, first.work_folder)
-            left[:] = [p for p in paths if "/bundle/" in p or "/checkpoints/" in p]
+        def bundle_deleted():  # the mount's deletes also land in the background
+            left[:] = [p for p in _bucket_paths(api, bucket, first.work_folder) if "/bundle/" in p]
             return not left
 
-        _wait_for(cleaned, 5 * 60, "the bundle and checkpoints to be deleted", detail=lambda: left)
+        _wait_for(bundle_deleted, 5 * 60, "the bundle to be deleted", detail=lambda: left)
+        # The mount can finish uploading a checkpoint file after the job deleted it.
+        leftovers = leftover_files(resumed.id, api=api, token=token)
+        if leftovers:
+            warnings.warn(
+                f"the bucket kept {leftovers}; `clef-tune jobs clean {resumed.id}` removes them",
+                stacklevel=1,
+            )
+        assert clean_job(resumed.id, api=api, token=token) == leftovers
+        assert leftover_files(resumed.id, api=api, token=token) == []
         assert saw_progress, "jobs status never showed metrics.jsonl progress while the job ran"
     finally:
         for job_id in jobs:  # only active ones: canceling a finished job relabels it CANCELED

@@ -167,6 +167,7 @@ clef-tune jobs status <job-id>                 # stage, time, cost so far, lates
 clef-tune jobs logs <job-id> -f
 clef-tune jobs cancel <job-id>
 clef-tune jobs resume <job-id> --timeout 3h    # continue a failed or canceled job
+clef-tune jobs clean <job-id>                  # remove files a completed job left in the bucket
 ```
 
 `launch` also accepts `--keep-data`, `--push-to-hub REPO` (default
@@ -179,8 +180,9 @@ clef-tune jobs resume <job-id> --timeout 3h    # continue a failed or canceled j
 - The first job compiles `causal-conv1d` (about 12 minutes) and caches the wheel in that bucket,
   so later jobs skip the build. If the kernels fail, training continues on the slow path.
 - Flavors with several GPUs train with DDP, one process per GPU.
-- The adapter is pushed to a private repo. The bundle is deleted after success unless you pass
-  `--keep-data`.
+- The adapter is pushed to a private repo. The bundle and checkpoints are deleted after success
+  (the bundle stays with `--keep-data`). The bucket mount can still finish uploading a checkpoint
+  file the job had already deleted; `jobs status` then says so, and `jobs clean` removes it.
 - A failed, timed-out or canceled job keeps its checkpoints in `/work`, and `jobs resume`
   restarts it in the same folder from the newest complete one. A canceled job shows CANCELED
   at once but can take up to a minute to stop, so wait that long before resuming it.

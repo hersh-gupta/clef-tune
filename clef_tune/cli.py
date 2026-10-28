@@ -35,8 +35,10 @@ from clef_tune.launch.hf_jobs import (
     LaunchError,
     LaunchPlan,
     cancel_job,
+    clean_job,
     job_logs,
     job_status,
+    leftover_files,
     list_jobs,
     plan_launch,
     resume_job,
@@ -569,6 +571,16 @@ def status(job_id: Annotated[str, typer.Argument(help="Job id.")]) -> None:
             f"{name} {eval_record[name]:.3f}" for name in headline if name in eval_record
         )
         console.print(f"Eval at step {eval_record.get('step')}: {metrics}")
+    if info.stage == "COMPLETED":
+        try:
+            leftovers = leftover_files(job_id)
+        except Exception:  # only a hint; the status above is what was asked for
+            leftovers = []
+        if leftovers:
+            console.print(
+                f"{len(leftovers)} leftover file(s) in the bucket; "
+                f"remove them with `clef-tune jobs clean {escape(job_id)}`"
+            )
 
 
 @jobs_app.command()
@@ -605,3 +617,14 @@ def resume(
     with _job_errors():
         job = resume_job(job_id, timeout=timeout)
     _print_started(job.id, job.url)
+
+
+@jobs_app.command()
+def clean(job_id: Annotated[str, typer.Argument(help="A completed job's id.")]) -> None:
+    """Remove the bundle and checkpoint files a completed job left in its bucket folder."""
+    with _job_errors():
+        removed = clean_job(job_id)
+    if removed:
+        console.print(f"Removed {len(removed)} leftover files from {escape(job_id)}'s folder")
+    else:
+        console.print("Nothing to clean")

@@ -177,3 +177,29 @@ def test_cancel_says_to_wait_before_resuming(monkeypatch):
     monkeypatch.setattr(cli, "cancel_job", lambda job_id, **k: None)
     result = runner.invoke(cli.app, ["jobs", "cancel", "job123"])
     assert result.exit_code == 0 and "a minute" in result.output and "jobs resume" in result.output
+
+
+def test_clean_reports_what_it_removed(monkeypatch):
+    monkeypatch.setattr(cli, "clean_job", lambda job_id, **k: ["a/bundle/x", "a/out/checkpoints/y"])
+    result = runner.invoke(cli.app, ["jobs", "clean", "job123"])
+    assert result.exit_code == 0 and "Removed 2 leftover files" in result.output
+    monkeypatch.setattr(cli, "clean_job", lambda job_id, **k: [])
+    assert "Nothing to clean" in runner.invoke(cli.app, ["jobs", "clean", "job123"]).output
+
+
+def test_status_of_a_completed_job_points_to_clean(monkeypatch):
+    status = JobStatus(
+        id="job123",
+        url="u",
+        run="r",
+        flavor="l4x1",
+        stage="COMPLETED",
+        message=None,
+        hours=0.2,
+        cost=0.16,
+        progress=[],
+    )
+    monkeypatch.setattr(cli, "job_status", lambda job_id, **k: status)
+    monkeypatch.setattr(cli, "leftover_files", lambda job_id, **k: ["a/out/checkpoints/best/w"])
+    result = runner.invoke(cli.app, ["jobs", "status", "job123"])
+    assert result.exit_code == 0 and "clef-tune jobs clean job123" in result.output
