@@ -1,16 +1,27 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
+import httpx
 import pytest
 from huggingface_hub import Volume
+from huggingface_hub.errors import HfHubHTTPError
 
-from clef_tune.config import load_config
+from clef_tune.config import PINNED_REVISIONS, load_config
 from clef_tune.estimate import HF_FLAVORS, suggest_timeout
 from clef_tune.launch import hf_jobs
-from clef_tune.launch.hf_jobs import JobRequest, LaunchError, kernel_cache_folder, plan_launch
+from clef_tune.launch.hf_jobs import (
+    JobRequest,
+    LaunchError,
+    kernel_cache_folder,
+    plan_launch,
+    submit_launch,
+)
+from clef_tune.launch.job_script import job_command, job_env
 from clef_tune.launch.source import Source, SourceError
+from clef_tune.runtime import BASE_IMAGE
 from clef_tune.yamlio import dump_yaml
 from tests.helpers import SCHEMA, CharCounter, ticket_rows, write_csv
 
@@ -79,6 +90,15 @@ class FakeApi:
             path=remote_name,
             read_only=read_only,
         )
+
+    def run_job(self, **kwargs):
+        self.calls.append(("run_job", kwargs))
+        if self.run_error:
+            raise self.run_error
+        return SimpleNamespace(id="job123", url="https://huggingface.co/jobs/me/job123")
+
+    def batch_bucket_files(self, bucket_id, *, add=None, delete=None, token=None, **kwargs):
+        self.calls.append(("batch_bucket_files", bucket_id, delete))
 
 
 def project(tmp_path, rows=None, **sections):
@@ -234,3 +254,115 @@ def test_without_a_tokenizer_the_flavor_and_timeout_must_be_given(monkeypatch):
         plan_launch(EXAMPLE, **kwargs)
     p = plan_launch(EXAMPLE, JobRequest(flavor="l4x1", timeout="1h"), **kwargs)
     assert p.estimate is None and p.estimated_hours is None and p.gpus == 1
+
+
+NOW = datetime(2026, 10, 28, 12, 0, 0, tzinfo=UTC)
+FOLDER = "clef-tune-runs/support-tickets-20261028-120000"
+
+
+def run_call(api):
+    return next(call[1] for call in api.calls if call[0] == "run_job")
+
+
+def test_submit_uploads_the_bundle_and_starts_the_job():
+    api = FakeApi()
+    p = plan(api)
+    job = submit_launch(p, api=api, token=TOKEN, now=NOW)
+    assert (job.id, job.url, job.work_folder) == (
+        "job123",
+        "https://huggingface.co/jobs/me/job123",
+        FOLDER,
+    )
+    syncs = [call for call in api.calls if call[0] == "sync_job_volume"]
+    assert syncs == [
+        ("sync_job_volume", "/work", FOLDER, False),
+        ("sync_job_volume", "/kernels", kernel_cache_folder(), False),
+    ]
+    run = run_call(api)
+    assert run["image"] == BASE_IMAGE and run["flavor"] == p.flavor and run["timeout"] == p.timeout
+    assert run["secrets"] == {"HF_TOKEN": TOKEN} and run["token"] == TOKEN
+    assert run["labels"] == {"tool": "clef-tune", "run": "support-tickets", "timeout": p.timeout}
+    assert run["command"] == job_command(
+        SOURCE,
+        gpus=p.gpus,
+        adapter_repo="me/clef-tune-support-tickets",
+        keep_data=False,
+        kernels=True,
+    )
+    assert run["env"] == job_env(
+        SOURCE, price_per_hour=p.price_per_hour, estimated_hours=p.estimated_hours
+    )
+    work, model, kernels = run["volumes"]
+    assert (work.mount_path, work.path, work.read_only) == ("/work", FOLDER, False)
+    assert model == Volume(
+        type="model",
+        source="Cloudflare/clef-flash",
+        mount_path="/model",
+        revision=PINNED_REVISIONS["Cloudflare/clef-flash"],
+    )
+    assert kernels.mount_path == "/kernels"
+
+
+def test_the_staged_bundle_points_at_the_job_mounts(tmp_path):
+    config = project(
+        tmp_path,
+        model={"id": "Cloudflare/clef-flash", "local_path": "weights"},
+        output={"dir": "runs/x", "push_to_hub": "me/other"},
+    )
+    api = FakeApi()
+    submit_launch(plan(api, config=config), api=api, token=TOKEN, now=NOW)
+    staged = api.staged["config"]
+    assert staged.model.local_path == "/model" and staged.output.dir == "/work/out"
+    assert staged.output.push_to_hub is None  # the job passes --push-to-hub
+    assert api.staged["files"] == ["config.yaml", "eval.jsonl", "train.jsonl"]
+
+
+def test_keep_data_keeps_the_bundle():
+    api = FakeApi()
+    submit_launch(plan(api, JobRequest(keep_data=True)), api=api, token=TOKEN, now=NOW)
+    assert "--delete-bundle-on-success" not in run_call(api)["command"][-1]
+
+
+def test_without_kernels_no_cache_is_mounted():
+    api = FakeApi()
+    submit_launch(plan(api, JobRequest(kernels=False)), api=api, token=TOKEN, now=NOW)
+    run = run_call(api)
+    assert len(run["volumes"]) == 2 and "causal" not in run["command"][-1]
+
+
+def test_each_launch_gets_its_own_work_folder():
+    api = FakeApi()
+    p = plan(api)
+    first = submit_launch(p, api=api, token=TOKEN, now=NOW)
+    second = submit_launch(p, api=api, token=TOKEN, now=NOW + timedelta(seconds=1))
+    assert first.work_folder != second.work_folder
+
+
+@pytest.mark.parametrize(
+    "status, message",
+    [(402, r"pre-paid credits.*settings/billing"), (500, "could not start the job")],
+)
+def test_out_of_credits_is_explained_and_the_upload_removed(status, message):
+    request = httpx.Request("POST", "https://huggingface.co/api/jobs/me")
+    error = HfHubHTTPError(f"{status} error", response=httpx.Response(status, request=request))
+    staged = [f"{FOLDER}/bundle/config.yaml", f"{FOLDER}/bundle/train.jsonl"]
+    api = FakeApi(run_error=error, bucket_files=staged)
+    with pytest.raises(LaunchError, match=message):
+        submit_launch(plan(api), api=api, token=TOKEN, now=NOW)
+    assert ("batch_bucket_files", "me/jobs-artifacts", staged) in api.calls
+
+
+def test_a_failed_upload_is_explained_and_cleaned_up():
+    staged = [f"{FOLDER}/bundle/config.yaml"]
+    api = FakeApi(bucket_files=staged)
+    p = plan(api)
+
+    def refuse(*args, **kwargs):
+        request = httpx.Request("POST", "https://huggingface.co/api/buckets/me/jobs-artifacts")
+        raise HfHubHTTPError("403 Forbidden", response=httpx.Response(403, request=request))
+
+    api.sync_job_volume = refuse
+    with pytest.raises(LaunchError, match="could not upload the bundle.*403"):
+        submit_launch(p, api=api, token=TOKEN, now=NOW)
+    assert ("batch_bucket_files", "me/jobs-artifacts", staged) in api.calls
+    assert all(call[0] != "run_job" for call in api.calls)

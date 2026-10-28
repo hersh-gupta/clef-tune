@@ -1,14 +1,17 @@
 """Train on Hugging Face Jobs: plan a launch (validate, pin the source, estimate, pick hardware)
-before anything is uploaded or started. Torch-free."""
+before anything is uploaded or started, then stage the bundle and start the job. Torch-free."""
 
 from __future__ import annotations
 
 import re
+import tempfile
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 
-from huggingface_hub import HfApi, constants, get_token
+from huggingface_hub import HfApi, JobInfo, Volume, constants, get_token
 
+from clef_tune.bundle import write_bundle
 from clef_tune.config import Config, load_config
 from clef_tune.estimate import (
     HF_FLAVORS,
@@ -21,10 +24,19 @@ from clef_tune.estimate import (
     workload_from,
 )
 from clef_tune.hub import HubError, check_write_access
+from clef_tune.launch.job_script import (
+    JOB_OUTPUT_DIR,
+    KERNEL_MOUNT,
+    MODEL_MOUNT,
+    WORK_MOUNT,
+    job_command,
+    job_env,
+)
 from clef_tune.launch.source import Source, SourceError, pin_commit, resolve_source
 from clef_tune.prompt import TokenCounter, counter_for_config
 from clef_tune.runtime import BASE_IMAGE, KERNEL_PINS
 from clef_tune.validation import ValidationReport, validate
+from clef_tune.yamlio import load_yaml_file
 
 TOOL_LABEL = {"tool": "clef-tune"}
 LABEL_KEYS = ("tool", "run", "timeout")
@@ -199,3 +211,128 @@ def plan_launch(
         kernels_cached=cached,
         keep_data=request.keep_data,
     )
+
+
+@dataclass(frozen=True)
+class LaunchedJob:
+    id: str
+    url: str
+    work_folder: str  # the run's folder in the jobs-artifacts bucket, mounted at /work
+    plan: LaunchPlan
+
+
+def run_folder(run_name: str, now: datetime) -> str:
+    """A folder per launch, so launching a run_name again never resumes from or collides with
+    an earlier job's checkpoints."""
+    return f"{RUNS_FOLDER}/{run_name}-{now:%Y%m%d-%H%M%S}"
+
+
+def stage_bundle(plan: LaunchPlan, staging_dir: Path) -> Path:
+    """Write the bundle with its config pointed at the job's mounts. The job passes
+    --push-to-hub itself, so the config's own target is dropped."""
+    config_path = write_bundle(plan.report, plan.config, staging_dir / "bundle")
+    data = load_yaml_file(config_path)
+    data.setdefault("model", {})["local_path"] = MODEL_MOUNT
+    output = data.setdefault("output", {})
+    output["dir"] = JOB_OUTPUT_DIR
+    output.pop("push_to_hub", None)
+    Config.model_validate(data).save(config_path)
+    return config_path
+
+
+def _status_code(error: Exception) -> int | None:
+    return getattr(getattr(error, "response", None), "status_code", None)
+
+
+def start_job(api: HfApi, **run_job_kwargs) -> JobInfo:
+    try:
+        return api.run_job(**run_job_kwargs)
+    except Exception as error:
+        if _status_code(error) == 402:
+            raise LaunchError(
+                f"Hugging Face Jobs needs pre-paid credits; add them at {BILLING_URL}"
+            ) from error
+        raise LaunchError(f"could not start the job: {error}") from error
+
+
+def _remove_folder(api: HfApi, bucket: str, folder: str, token: str) -> None:
+    try:
+        files = api.list_bucket_tree(bucket, folder, recursive=True, token=token)
+        paths = [f.path for f in files if f.type == "file"]
+        if paths:
+            api.batch_bucket_files(bucket, delete=paths, token=token)
+    except Exception:  # best effort: the launch error is what the person needs to see
+        pass
+
+
+def submit_launch(
+    plan: LaunchPlan,
+    *,
+    api: HfApi | None = None,
+    token: str | None = None,
+    now: datetime | None = None,
+) -> LaunchedJob:
+    """Upload the bundle to a fresh folder in the private jobs-artifacts bucket and start the
+    job. A failed upload or a rejected job removes what was uploaded."""
+    api = api or HfApi()
+    token = token or get_token()
+    if token is None:
+        raise LaunchError("no Hugging Face token: run `hf auth login` or set HF_TOKEN")
+    config = plan.config
+    folder = run_folder(config.run_name, now or datetime.now(UTC))
+    bucket = jobs_bucket(plan.namespace)
+    sync = {"read_only": False, "namespace": plan.namespace, "token": token}
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            try:
+                stage_bundle(plan, Path(tmp) / "stage")
+                work = api.sync_job_volume(
+                    Path(tmp) / "stage", WORK_MOUNT, remote_name=folder, **sync
+                )
+                volumes = [
+                    work,
+                    Volume(
+                        type="model",
+                        source=config.model.id,
+                        mount_path=MODEL_MOUNT,
+                        revision=config.model.resolved_revision(),
+                    ),
+                ]
+                if plan.kernels:
+                    # an empty folder uploads a .keep, and syncing never deletes, so a cached
+                    # wheel survives
+                    empty = Path(tmp) / "kernels"
+                    empty.mkdir()
+                    volumes.append(
+                        api.sync_job_volume(
+                            empty, KERNEL_MOUNT, remote_name=kernel_cache_folder(), **sync
+                        )
+                    )
+            except Exception as exc:
+                raise LaunchError(f"could not upload the bundle to {bucket}: {exc}") from exc
+        info = start_job(
+            api,
+            image=BASE_IMAGE,
+            command=job_command(
+                plan.source,
+                gpus=plan.gpus,
+                adapter_repo=plan.adapter_repo,
+                keep_data=plan.keep_data,
+                kernels=plan.kernels,
+            ),
+            env=job_env(
+                plan.source,
+                price_per_hour=plan.price_per_hour,
+                estimated_hours=plan.estimated_hours,
+            ),
+            secrets={"HF_TOKEN": token},
+            flavor=plan.flavor,
+            timeout=plan.timeout,
+            labels={**TOOL_LABEL, "run": config.run_name, "timeout": plan.timeout},
+            volumes=volumes,
+            token=token,
+        )
+    except LaunchError:
+        _remove_folder(api, bucket, folder, token)
+        raise
+    return LaunchedJob(id=info.id, url=info.url, work_folder=folder, plan=plan)
