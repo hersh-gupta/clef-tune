@@ -26,6 +26,8 @@ NO_TORCH_MODULES = [
     "clef_tune.ui.fragments",
     "clef_tune.ui.settings",
     "clef_tune.ui.session",
+    "clef_tune.ui.services",
+    "clef_tune.ui.handlers",
 ]
 
 # The UI's logic stays importable and testable without gradio; only the layout imports it.
@@ -34,6 +36,8 @@ NO_GRADIO_MODULES = [
     "clef_tune.ui.fragments",
     "clef_tune.ui.settings",
     "clef_tune.ui.session",
+    "clef_tune.ui.services",
+    "clef_tune.ui.handlers",
 ]
 
 

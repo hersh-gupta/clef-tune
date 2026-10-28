@@ -126,3 +126,8 @@ def test_question_weights_for_unknown_questions_are_a_warning(tmp_path):
     assert report.ok
     warning = [m for m in messages(report.warnings) if "question_weights" in m]
     assert len(warning) == 1 and "departmnt" in warning[0] and "outage" not in warning[0]
+
+
+def test_the_tokenizer_warning_says_why(tmp_path):
+    report = validate(config_for(tmp_path, ticket_rows(60)), None, counter_error="hub unreachable")
+    assert any("tokenizer unavailable (hub unreachable)" in i.message for i in report.warnings)

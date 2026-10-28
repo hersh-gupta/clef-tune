@@ -89,7 +89,11 @@ class ValidationReport:
         return not self.errors
 
 
-def validate(config: Config, counter: TokenCounter | None) -> ValidationReport:
+def validate(
+    config: Config, counter: TokenCounter | None, *, counter_error: str | None = None
+) -> ValidationReport:
+    """Check a config and its data. Without a counter, token statistics are skipped;
+    counter_error says why the tokenizer could not be loaded."""
     report = ValidationReport()
     try:
         config.get_schema()
@@ -124,7 +128,8 @@ def validate(config: Config, counter: TokenCounter | None) -> ValidationReport:
     _check_question_weights(report, config)
     _check_images(report)
     if counter is None:
-        message = "tokenizer unavailable; token statistics and truncation checks skipped"
+        reason = f" ({counter_error})" if counter_error else ""
+        message = f"tokenizer unavailable{reason}; token statistics and truncation checks skipped"
         report.issues.append(Issue("warning", message))
     else:
         _token_stats(report, config, counter)

@@ -148,12 +148,13 @@ def plan_launch(
         config = load_config(config_path)
     except (ValueError, OSError) as exc:
         raise LaunchError(f"invalid config: {exc}") from exc
+    counter_error = None
     if counter is None:
         try:
             counter = counter_for_config(config)
-        except Exception:  # offline or no tokenizer: validate without token statistics
-            counter = None
-    report = validate(config, counter)
+        except Exception as exc:  # offline or no tokenizer: validate without token statistics
+            counter, counter_error = None, str(exc)
+    report = validate(config, counter, counter_error=counter_error)
     if not report.ok:
         raise LaunchError("validation failed:\n" + "\n".join(str(i) for i in report.errors))
 
