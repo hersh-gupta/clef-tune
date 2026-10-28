@@ -50,6 +50,11 @@ version-file = "clef_tune/_version.py"
 [tool.hatch.build.targets.wheel]
 packages = ["clef_tune"]
 
+# The UI's "Load example" needs the example inside the wheel (a Space installs the wheel).
+[tool.hatch.build.targets.wheel.force-include]
+"examples/support_tickets.csv" = "clef_tune/_examples/support_tickets.csv"
+"examples/support_tickets.yaml" = "clef_tune/_examples/support_tickets.yaml"
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"
