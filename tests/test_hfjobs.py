@@ -33,16 +33,17 @@ EXAMPLES = Path(__file__).resolve().parents[1] / "examples"
 POLL_SECONDS = 15
 ACTIVE = ("SCHEDULING", "RUNNING")
 HARDWARE_WAIT_S = 2 * 60 * 60  # queueing for a GPU costs nothing, so it gets its own budget
+CANCEL_SETTLE_S = 3 * 60  # a canceled job shows CANCELED at once but can run on for a minute
 _STEP_FILE = re.compile(r"/checkpoints/step-(\d+)/([^/]+)$")  # not step-N.tmp, not best/
 
 
-def _wait_for(predicate, timeout_s, what, poll_s=POLL_SECONDS):
+def _wait_for(predicate, timeout_s, what, poll_s=POLL_SECONDS, detail=None):
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
         if predicate():
             return
         time.sleep(poll_s)
-    pytest.fail(f"timed out waiting for {what}")
+    pytest.fail(f"timed out waiting for {what}" + (f": {detail()}" if detail else ""))
 
 
 def _wait_until_running(stage, job_id, poll_s=POLL_SECONDS):
@@ -148,6 +149,7 @@ def test_a_job_resumes_after_cancel_and_pushes_the_adapter(tmp_path):
         )
         cancel_job(first.id, api=api, token=token)
         _wait_for(lambda: stage(first.id) == "CANCELED", 5 * 60, "the cancel")
+        time.sleep(CANCEL_SETTLE_S)  # so the old container no longer writes to /work
 
         resumed = resume_job(first.id, api=api, token=token)
         jobs.append(resumed.id)
@@ -167,15 +169,23 @@ def test_a_job_resumes_after_cancel_and_pushes_the_adapter(tmp_path):
             "adapter/adapter_config.json",
         } <= files
 
-        def cleaned():  # the mount's deletes also land in the background
-            left = _bucket_paths(api, bucket, first.work_folder)
-            return not any("/bundle/" in p or "/checkpoints/" in p for p in left)
+        left = []
 
-        _wait_for(cleaned, 5 * 60, "the bundle and checkpoints to be deleted")
+        def cleaned():  # the mount's deletes also land in the background
+            paths = _bucket_paths(api, bucket, first.work_folder)
+            left[:] = [p for p in paths if "/bundle/" in p or "/checkpoints/" in p]
+            return not left
+
+        _wait_for(cleaned, 5 * 60, "the bundle and checkpoints to be deleted", detail=lambda: left)
         assert saw_progress, "jobs status never showed metrics.jsonl progress while the job ran"
     finally:
-        for job_id in jobs:
-            _quietly(lambda job_id=job_id: cancel_job(job_id, api=api, token=token))
+        for job_id in jobs:  # only active ones: canceling a finished job relabels it CANCELED
+
+            def stop(job_id=job_id):
+                if stage(job_id) in ACTIVE:
+                    cancel_job(job_id, api=api, token=token)
+
+            _quietly(stop)
         _quietly(lambda: api.delete_repo(plan.adapter_repo, missing_ok=True))
 
         def remove_work_folder():
@@ -218,3 +228,10 @@ def test_waiting_for_hardware_does_not_use_the_job_budget():
     assert next(stages, None) is None
     with pytest.raises(pytest.fail.Exception, match="job1 ended as CANCELED"):
         _wait_until_running(lambda job_id: "CANCELED", "job1", poll_s=0)
+
+
+def test_a_timed_out_wait_says_what_it_last_saw():
+    with pytest.raises(pytest.fail.Exception, match=r"the cleanup: \['w/bundle/config.yaml'\]"):
+        _wait_for(
+            lambda: False, 0, "the cleanup", poll_s=0, detail=lambda: ["w/bundle/config.yaml"]
+        )
