@@ -318,12 +318,19 @@
   // ---------------------------------------------------------------- framed on Hugging Face
   // A Space runs inside huggingface.co's frame, where some browsers keep no cookies for it (so
   // nothing set up would stick). Inside a frame, the header offers the page in its own tab.
+  // The frame's sandbox also keeps it from taking over the whole tab, so a link meant to
+  // (sign-in) opens in its own tab there instead.
   function framed() {
     try { return window.top !== window.self; } catch (e) { return true; }
   }
   document.addEventListener("click", (event) => {
     const own = event.target.closest("[data-own-tab]");
     if (own) own.href = window.location.href; // the address may have moved (data-nav)
+    const whole = event.target.closest('a[target="_top"]');
+    if (whole && framed()) {
+      whole.target = "_blank";
+      whole.rel = "noopener";
+    }
   });
 
   // ---------------------------------------------------------------- tips

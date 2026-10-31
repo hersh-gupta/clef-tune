@@ -185,6 +185,26 @@ def test_a_framed_page_offers_to_open_in_its_own_tab(page, base_url):
     assert link.get_attribute("href") == f"{base_url}/data"
 
 
+# The sandbox huggingface.co puts on a Space's frame (seen on a live Space, 2026-10-31): it
+# may open tabs, but not take over its own tab.
+SPACE_SANDBOX = (
+    "allow-downloads allow-forms allow-modals allow-pointer-lock allow-popups "
+    "allow-popups-to-escape-sandbox allow-same-origin allow-scripts "
+    "allow-storage-access-by-user-activation"
+)
+
+
+def test_sign_in_from_hugging_face_s_frame_opens_its_own_tab(page, space_url):
+    page.set_content(
+        f'<iframe src="{space_url}/data" sandbox="{SPACE_SANDBOX}" width="1000" height="600">'
+        "</iframe>"
+    )
+    link = page.frame_locator("iframe").get_by_role("link", name="Sign in with Hugging Face")
+    with page.expect_popup() as popup:
+        link.click()
+    assert popup.value.url.startswith(space_url)
+
+
 def test_a_refused_post_says_so_on_the_page(page, base_url):
     page.goto(f"{base_url}/")
     page.evaluate(
