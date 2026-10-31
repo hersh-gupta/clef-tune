@@ -19,9 +19,15 @@ SCRIPT = {"X-Requested-With": "clef-tune"}
 HERE = "http://localhost"  # on this computer the app answers only to its own names
 
 
+@pytest.fixture(autouse=True)
+def machine_login(monkeypatch):
+    """This computer's Hugging Face login, used outside a Space: a fake one, so no test reads
+    the real one (CI has none). logged_out takes it away."""
+    monkeypatch.setenv("HF_TOKEN", "hf_machine")
+
+
 @pytest.fixture
-def services_and_calls(monkeypatch):
-    monkeypatch.setenv("HF_TOKEN", "hf_machine")  # the machine's login, used outside a Space
+def services_and_calls():
     return fake_services()
 
 
