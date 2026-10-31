@@ -19,6 +19,9 @@ def test_the_space_is_a_docker_app_with_hugging_face_sign_in():
     assert meta["hf_oauth"] is True
     assert {"read-repos", "write-repos", "manage-repos", "jobs"} <= set(meta["hf_oauth_scopes"])
     assert len(meta["short_description"]) <= 60  # the Hub refuses longer ones
+    # The social thumbnail is the app's own cover, from GitHub so it shows while the Space sleeps.
+    cover = Path(__file__).resolve().parents[2] / "clef_tune" / "ui" / "static" / "cover.png"
+    assert meta["thumbnail"].endswith("/main/clef_tune/ui/static/cover.png") and cover.exists()
     dockerfile = (SPACE / "Dockerfile").read_text(encoding="utf-8")
     assert "requirements.txt" in dockerfile and "uvicorn app:app" in dockerfile
     assert "--port 7860" in dockerfile and "--proxy-headers" in dockerfile

@@ -73,6 +73,18 @@ def test_the_welcome_page_greets_a_newcomer(logged_out):
     assert 'action="/signout"' not in page  # on this computer, its own login is used
 
 
+def test_a_shared_link_previews_with_a_cover_and_a_description(client):
+    page = client.get("/data").text
+    assert '<meta property="og:image" content="http://localhost/static/cover.png">' in page
+    assert '<meta property="og:url" content="http://localhost/">' in page
+    assert '<meta name="twitter:card" content="summary_large_image">' in page
+    description = 'content="Upload a spreadsheet of examples with the expected outputs filled in.'
+    assert f'<meta name="description" {description}' in page
+    assert f'<meta property="og:description" {description}' in page
+    cover = client.get("/static/cover.png")
+    assert cover.status_code == 200 and cover.headers["content-type"] == "image/png"
+
+
 def test_a_returning_person_sees_their_latest_models(client):
     page = client.get("/").text
     assert "Hello again" in page and "run-a" in page and "See all 4 models" in page

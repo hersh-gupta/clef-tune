@@ -13,6 +13,7 @@ hf_oauth_scopes:
   - manage-repos
   - jobs
 pinned: false
+thumbnail: https://raw.githubusercontent.com/hersh-gupta/clef-tune/main/clef_tune/ui/static/cover.png
 short_description: Bespoke intelligence, owned by you. Tune decision models.
 ---
 
