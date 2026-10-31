@@ -19,6 +19,7 @@
     <span class="dn">{{ view.dots_caption }}</span>
   </div>
   {% endif %}
+  {% if view.quick_note %}<p class="fine">{{ view.quick_note }}</p>{% endif %}
 </div>
 <p class="label in" style="--i:2; margin-top: 18px">Question by question</p>
 {%- for q in view.questions %}

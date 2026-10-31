@@ -800,6 +800,21 @@ def test_results_that_are_not_readable_yet_are_tried_again():
             assert ready in c.get(f"/runs/{job_id}").text
 
 
+def test_a_quick_tests_results_say_it_barely_trained():
+    from clef_tune.hub import RunFiles
+    from clef_tune.yamlio import load_yaml_file
+
+    def pull(repo_id, **kwargs):
+        config = load_yaml_file(fakes.EXAMPLE_CONFIG) | {
+            "train": {"mode": "head_only", "epochs": 1}
+        }
+        return RunFiles(fakes.recorded_metrics(), config, None)
+
+    with local_client(fake_services(pull_run_files=pull)[0]) as c:
+        page = c.get("/runs/job-b").text
+    assert "This was a quick test, so it barely trained." in page
+
+
 def test_deleting_a_runs_files_forgets_its_downloaded_spreadsheet(client, services_and_calls):
     _, calls = services_and_calls
 

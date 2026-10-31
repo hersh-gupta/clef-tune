@@ -154,6 +154,16 @@ def test_many_questions_use_the_averaged_headline():
     assert view.dots is None
 
 
+def test_a_quick_test_says_it_barely_trained():
+    config = load_yaml_file(EXAMPLE_CONFIG)
+    assert runs.results_view(recorded_metrics(), config, None, name="x").quick_note is None
+    config["train"] = {"mode": "head_only", "epochs": 1}
+    assert runs.results_view(recorded_metrics(), config, None, name="x").quick_note == (
+        "This was a quick test, so it barely trained. "
+        "For a real model, train again and choose Balanced."
+    )
+
+
 def test_your_models_lists_every_run_with_a_plain_status():
     services, _ = fake_services()
     rows, error = runs.list_models(services, token=TOKEN)

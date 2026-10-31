@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Literal
 
+from clef_tune.config import PRESETS
 from clef_tune.estimate import HF_FLAVORS
 from clef_tune.hub import HubError
 from clef_tune.launch.hf_jobs import JobRequest, JobStatus, LaunchError, timeout_hours
@@ -290,6 +291,7 @@ class ResultsView:
     snippet: str
     calibration_note: str | None
     state_columns: list[str] = field(default_factory=list)
+    quick_note: str | None = None
 
 
 def predictor_snippet(repo: str, state_columns: list[str] | None) -> str:
@@ -330,6 +332,13 @@ def _tech(before: dict, after: dict, calibration: dict | None) -> str:
         if None not in ece:
             parts.append(f"calibration error {ece[0]:.1%} → {ece[1]:.1%}")
     return " · ".join(parts)
+
+
+def was_quick_test(config: dict) -> bool:
+    """Whether a run trained like the Quick test preset: the answer layer only, for one pass
+    over the data. That checks everything works, but barely trains."""
+    train, quick = config.get("train") or {}, PRESETS["quick"]
+    return train.get("mode") == quick["train.mode"] and train.get("epochs") == quick["train.epochs"]
 
 
 def was_calibrated(metrics: dict) -> bool:
@@ -436,6 +445,12 @@ def results_view(
         snippet=predictor_snippet(repo or local_path or "path/to/adapter", state_columns),
         calibration_note=note,
         state_columns=state_columns,
+        quick_note=(
+            "This was a quick test, so it barely trained. "
+            "For a real model, train again and choose Balanced."
+            if was_quick_test(config)
+            else None
+        ),
     )
 
 
