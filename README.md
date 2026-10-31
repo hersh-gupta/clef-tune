@@ -4,6 +4,13 @@ Fine-tune Cloudflare's [Clef](https://huggingface.co/Cloudflare/clef) decision m
 and Clef-Flash 9.4B) on your own labeled spreadsheet. Use the web UI, or the CLI on your own GPU
 or on [Hugging Face Jobs](https://huggingface.co/docs/huggingface_hub/guides/jobs).
 
+[![Open in Spaces](https://huggingface.co/datasets/huggingface/badges/resolve/main/open-in-hf-spaces-md.svg)](https://huggingface.co/spaces/hvgupta1/clef-tune)
+
+**Try it with nothing to install: [clef-tune on Hugging Face Spaces](https://huggingface.co/spaces/hvgupta1/clef-tune).**
+Sign in with Hugging Face, and training runs on your own account and credits.
+
+[![The clef-tune web UI: upload a spreadsheet, say what to predict, and train](docs/images/welcome.png)](https://huggingface.co/spaces/hvgupta1/clef-tune)
+
 ## Install
 
 ```bash
@@ -30,6 +37,8 @@ start. The UI shows the time and the most a run can cost before it starts. It tr
 Face Jobs, so you can close the page and come back. Results are reported in plain words. A
 finished model can then fill in the answers for a new spreadsheet. Three samples let you try it
 without your own data.
+
+![A finished model's results: tested on 31 tickets it never saw, before and after training](docs/images/results.png)
 
 The UI answers only to `localhost`. `--host 0.0.0.0` opens it, and this computer's Hugging Face
 login, to your whole network.
