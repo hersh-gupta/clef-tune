@@ -49,6 +49,41 @@ def test_bundle_round_trip_preserves_split_and_labels(tmp_path):
     assert "config.yaml" in zipfile.ZipFile(archive).namelist()
 
 
+def test_a_bundle_keeps_what_predicting_and_the_web_ui_read_later(tmp_path):
+    """Training reads only the bundle's rows, but the trained model's config is read again to
+    predict a new file and to word its results: those need each column's role and the noun."""
+    from clef_tune.config import Config
+    from clef_tune.predictions import check_input
+
+    rows = ticket_rows(40)
+    for row in rows:
+        row["team"] = row.pop("department")
+    write_csv(tmp_path / "src" / "train.csv", rows)
+    data = {
+        "train": "train.csv",
+        "id_column": "id",
+        "state_columns": ["subject", "body"],
+        "label_columns": {"department": "team"},
+        "row_noun": "ticket",
+    }
+    cfg = make_config(tmp_path / "src", data=data)
+    report = validate(cfg, CharCounter())
+    assert report.ok, [str(i) for i in report.errors]
+    bundled = load_config(write_bundle(report, cfg, tmp_path / "bundle"))
+    assert bundled.data.model_dump(exclude={"train", "eval"}) == cfg.data.model_dump(
+        exclude={"train", "eval"}
+    )
+    again = validate(bundled, CharCounter())
+    assert again.ok and [r.state for r in again.train] == [r.state for r in report.train]
+
+    new = write_csv(tmp_path / "new.csv", [{"id": "T1", "subject": "s", "body": "b"}])
+    kept = Config.model_validate(bundled.to_dict()).with_base_dir(tmp_path)
+    original = check_input(cfg, new, CharCounter())
+    assert check_input(kept, new, CharCounter()).tokens == original.tokens  # the same input
+    no_body = write_csv(tmp_path / "no_body.csv", [{"id": "T1", "subject": "s"}])
+    assert check_input(kept, no_body, CharCounter()).missing == ["body"]
+
+
 def test_bundle_refuses_reports_with_errors(tmp_path):
     rows = ticket_rows(20)
     rows[0]["department"] = "biling"

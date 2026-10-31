@@ -38,7 +38,9 @@ def write_bundle(report: ValidationReport, config: Config, out_dir: str | Path) 
                 handle.write(json.dumps(row(record), ensure_ascii=False) + "\n")
 
     bundled = config.to_portable_dict()
-    bundled["data"] = {"train": "train.jsonl", "eval": "eval.jsonl"}
+    # Training reads only these rows, which ignore the column settings; the rest stays for what
+    # reads the trained model's config later (predicting a new file, the web UI's wording).
+    bundled["data"] |= {"train": "train.jsonl", "eval": "eval.jsonl"}
     bundled.get("output", {}).pop("dir", None)
     config_path = out_dir / "config.yaml"
     Config.model_validate(bundled).save(config_path)
