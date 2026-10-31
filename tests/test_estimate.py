@@ -100,10 +100,10 @@ def test_fetch_prices(monkeypatch):
         SimpleNamespace(name="h200", unit_cost_usd=0.0833, unit_label="minute"),
         SimpleNamespace(name="weird", unit_cost_usd=None, unit_label="minute"),
     ]
-    monkeypatch.setattr(huggingface_hub, "list_jobs_hardware", lambda: hardware)
+    monkeypatch.setattr(huggingface_hub, "list_jobs_hardware", lambda token=None: hardware)
     assert est.fetch_hf_prices() == {"h200": pytest.approx(4.998)}
 
-    def offline():
+    def offline(token=None):
         raise OSError("no network")
 
     monkeypatch.setattr(huggingface_hub, "list_jobs_hardware", offline)

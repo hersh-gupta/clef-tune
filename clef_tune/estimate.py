@@ -323,12 +323,13 @@ def suggest_timeout(row: EstimateRow, extra_minutes: float = 0) -> str:
     return f"{minutes // 60}h" if minutes % 60 == 0 else f"{minutes / 60:g}h"
 
 
-def fetch_hf_prices() -> dict[str, float]:
-    """Live $/hour per HF Jobs flavor; empty when the Hub can't be reached."""
+def fetch_hf_prices(token: bool | str | None = None) -> dict[str, float]:
+    """Live $/hour per HF Jobs flavor; empty when the Hub can't be reached. `token` is passed
+    to the Hub as it is (False sends none)."""
     try:
         from huggingface_hub import list_jobs_hardware
 
-        hardware = list_jobs_hardware()
+        hardware = list_jobs_hardware(token=token)
     except Exception:  # best effort: offline, rate-limited, or API changes fall back to defaults
         return {}
     per_unit_to_hour = {"second": 3600, "minute": 60, "hour": 1}

@@ -623,3 +623,23 @@ def test_status_carries_the_kind_price_and_time_limit():
     status = job_status("job123", api=FakeApi(job_info=predicting), token=TOKEN, now=NOW)
     assert status.kind == "predict" and status.adapter_repo == "me/model"
     assert status.timeout == "30m"
+
+
+def test_the_plans_own_tokenizer_lookup_uses_the_given_token(monkeypatch):
+    seen = []
+
+    def counter_for(config, *, token=None):
+        seen.append(token)
+        return CharCounter()
+
+    monkeypatch.setattr(hf_jobs, "counter_for_config", counter_for)
+    plan_launch(EXAMPLE, api=FakeApi(), token=TOKEN, prices={}, source=SOURCE)
+    assert seen == [TOKEN]
+
+
+def test_status_carries_the_runs_own_estimate():
+    from clef_tune.runtime import ESTIMATE_ENV
+
+    estimated = job(environment={PRICE_ENV: "0.8", ESTIMATE_ENV: "0.5"})
+    assert job_status("job123", api=FakeApi(job_info=estimated), token=TOKEN).estimated_hours == 0.5
+    assert job_status("job123", api=FakeApi(job_info=job()), token=TOKEN).estimated_hours is None

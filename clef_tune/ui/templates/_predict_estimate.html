@@ -1,9 +1,12 @@
-{% if need_signin %}
+{% import "macros.html" as m %}
+{% if need_signin and space %}
 <div class="signin">
   <span class="avatar" aria-hidden="true">?</span>
   <span>Sign in to predict<small>Predicting runs and is billed under your own Hugging Face account.</small></span>
   <a class="btn primary end" href="{{ login_url(request.url.path.rsplit('/', 1)[0]) }}" target="_top">Sign in with Hugging Face</a>
 </div>
+{% elif need_signin %}
+{{ m.local_login("/models") }}
 {% elif error %}
 <p class="error-box" role="alert">{{ error }}</p>
 {% else %}

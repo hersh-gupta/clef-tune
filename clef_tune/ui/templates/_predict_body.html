@@ -21,8 +21,8 @@
 {% else %}
 <form class="review-line editable" data-post data-autosubmit="input" data-debounce="500" action="/predict/{{ page.job_id }}/threshold">
   <label for="threshold">Mark a row for review when the model is less than</label>
-  <input class="word" id="threshold" name="percent" value="{{ page.threshold }}" inputmode="numeric" autocomplete="off" aria-describedby="threshold-help"><span class="pen" aria-hidden="true">✎</span>% sure of an answer.
-  <small id="threshold-help">Its confidence was calibrated on your test {{ plural(page.noun) }}, so 70% sure means right about 70% of the time.</small>
+  <input class="word" id="threshold" name="percent" value="{{ page.threshold }}" inputmode="numeric" autocomplete="off"{% if page.calibrated %} aria-describedby="threshold-help"{% endif %}><span class="pen" aria-hidden="true">✎</span>% sure of an answer.
+  {% if page.calibrated %}<small id="threshold-help">Its confidence was calibrated on your test {{ plural(page.noun) }}, so 70% sure means right about 70% of the time.</small>{% endif %}
 </form>
 {% endif %}
 {% if page.can_check_cost %}

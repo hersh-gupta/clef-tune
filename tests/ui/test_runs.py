@@ -30,13 +30,13 @@ def review(session, services, **overrides):
 
 
 def test_review_shows_time_cost_cap_and_the_split(session):
-    services, calls = fake_services(plan_warning="could not check main on GitHub")
+    services, calls = fake_services(plan_warning="could not confirm write access to me/x")
     ready = review(session, services)
     assert ready.can_start and ready.cap_cost == "$0.80" and ready.cap_time == "1 hour"
     assert ready.time == "21–45 minutes" and ready.cost == "$0.28–$0.60"
     assert ready.data_line == "200 tickets · 3 questions"
     assert ready.split_line == "169 to learn from, 31 set aside to test it"
-    assert ready.first_build and ready.notes == ["could not check main on GitHub"]
+    assert ready.first_build and ready.notes == ["could not confirm write access to me/x"]
     request = next(c for c in calls if c[0] == "plan_launch")[1][1]
     assert (request.keep_data, request.adapter_repo) == (False, "me/support-tickets")
 
@@ -179,3 +179,42 @@ def test_files_can_be_deleted_and_runs_stopped():
     assert runs.delete_files(services, "job-p", token=TOKEN) == (1, None)
     assert runs.stop_run(services, "job-a", token=TOKEN) is None
     assert ("cancel_job", ("job-a",), {"token": TOKEN}) in calls
+
+
+def test_a_github_check_that_could_not_run_stays_in_the_logs(session, caplog):
+    from clef_tune.launch.source import SourceWarning
+
+    unchecked = SourceWarning("could not check abc on GitHub (rate limited); launching anyway")
+    services, _ = fake_services(plan_warning=unchecked)
+    with caplog.at_level("WARNING"):
+        ready = review(session, services)
+    assert ready.can_start and ready.notes == []
+    assert "could not check abc on GitHub" in caplog.text
+
+
+def test_a_run_says_how_long_it_should_take():
+    scheduled = {**job_status("job-a").__dict__, "stage": "SCHEDULING", "progress": []}
+    status_type = job_status("job-a").__class__
+    estimated = runs.run_state(status_type(**{**scheduled, "estimated_hours": 0.25}))
+    assert estimated.usual == "Expected to take about 15 minutes"
+    limited = runs.run_state(status_type(**scheduled))
+    assert limited.usual == "It stops itself after 1 hour at the latest"
+    unknown = runs.run_state(status_type(**{**scheduled, "timeout": None}))
+    assert unknown.usual is None
+
+
+def test_a_models_line_reads_its_run_once(session):
+    services, calls = fake_services()
+    line = runs.model_line(session, services, "job-b", token=TOKEN)
+    assert line.startswith("It now matches every expected output on 24 of 30 tickets.")
+    assert len([c for c in calls if c[0] == "job_status"]) == 1
+    assert runs.model_line(session, services, "job-a", token=TOKEN).startswith("About")
+
+
+def test_whether_a_model_was_calibrated():
+    metrics = recorded_metrics()
+    assert runs.was_calibrated(metrics)
+    for entry in metrics["calibration"].values():
+        entry["fitted"] = False
+    assert not runs.was_calibrated(metrics)
+    assert not runs.was_calibrated({"final": {}})

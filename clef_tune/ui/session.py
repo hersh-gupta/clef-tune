@@ -1,5 +1,10 @@
 """One browser session's state: its private folder, the uploaded table, and the draft config the
-person edits step by step. Holds no tokens or processes."""
+person edits step by step. Holds no processes.
+
+The only token it holds is one the person pasted (pasted_token), kept on the server for this
+browser session: pages are plain form posts, so a token kept in the browser would have to be
+sent back with every request, or stored in a cookie. It is never written to disk, and signing
+out or "Switch" forgets it. Sign-in tokens stay in Hugging Face's own session cookie."""
 
 from __future__ import annotations
 
@@ -201,7 +206,7 @@ class Session:
     flavor: str | None = None  # hardware chosen in Advanced settings; None picks the cheapest
     delete_data: bool = True  # delete the training data from the bucket after a good run
     flash: str | None = None  # a message for the page a form post redirects to
-    pasted_token: str | None = None  # a token pasted when sign-in lacks a permission
+    pasted_token: str | None = None  # pasted for this browser session (see the module docstring)
 
     def workdir(self) -> Path:
         if self.root is None:

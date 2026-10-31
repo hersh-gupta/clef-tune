@@ -6,6 +6,7 @@ review that shows the most it can cost."""
 from __future__ import annotations
 
 import json
+import logging
 import math
 import warnings
 from dataclasses import dataclass, field
@@ -15,6 +16,7 @@ from typing import Any, Literal
 from clef_tune.estimate import HF_FLAVORS
 from clef_tune.hub import HubError
 from clef_tune.launch.hf_jobs import JobRequest, JobStatus, LaunchError, timeout_hours
+from clef_tune.launch.source import SourceWarning
 from clef_tune.ui import wording as w
 from clef_tune.ui.services import Services
 from clef_tune.ui.session import Session
@@ -27,6 +29,7 @@ DOTS_MAX = 60
 _ERRORS = (LaunchError, HubError, OSError, ValueError)
 Status = Literal["running", "done", "stopped", "failed"]
 StageState = Literal["done", "now", "todo", "stopped"]
+log = logging.getLogger(__name__)
 
 
 def _status(stage: str) -> Status:
@@ -87,6 +90,7 @@ class RunState:
     url: str | None = None
     hours: float | None = None
     cost: float | None = None
+    usual: str | None = None  # how long it should take, from its own estimate or time limit
 
 
 def _latest(events: list[dict], event: str) -> dict | None:
@@ -233,6 +237,7 @@ def run_state(status: JobStatus, *, model: str = "the model", noun: str = "examp
         url=status.url,
         hours=status.hours,
         cost=status.cost,
+        usual=w.usual_time(status.estimated_hours, status.timeout),
     )
 
 
@@ -325,6 +330,12 @@ def _tech(before: dict, after: dict, calibration: dict | None) -> str:
         if None not in ece:
             parts.append(f"calibration error {ece[0]:.1%} → {ece[1]:.1%}")
     return " · ".join(parts)
+
+
+def was_calibrated(metrics: dict) -> bool:
+    """Whether training fitted a confidence calibration for at least one question."""
+    calibration = metrics.get("calibration") or {}
+    return any(isinstance(entry, dict) and entry.get("fitted") for entry in calibration.values())
 
 
 def results_view(
@@ -510,6 +521,12 @@ def review_launch(
             )
     except _ERRORS as exc:
         return ReadyView(False, str(exc))
+    notes = []
+    for item in caught:
+        if issubclass(item.category, SourceWarning):  # nothing the person can do about it
+            log.warning("%s", item.message)
+        else:
+            notes.append(str(item.message))
     session.pending = PendingLaunch(plan, session.draft.fingerprint())
     noun = w.noun_or_default(session.draft.row_noun)
     report = session.report
@@ -533,7 +550,7 @@ def review_launch(
         cap_cost=w.money(plan.max_cost) if plan.max_cost is not None else None,
         cap_time=w.timeout_text(plan.timeout),
         first_build=bool(plan.kernels and not plan.kernels_cached),
-        notes=[str(item.message) for item in caught],
+        notes=notes,
     )
 
 
@@ -607,6 +624,22 @@ def list_models(services: Services, *, token: str) -> tuple[list[ModelRow], str 
             )
         )
     return rows, None
+
+
+def model_line(session: Session, services: Services, job_id: str, *, token: str) -> str:
+    """The line under a run in Your models, from one read of its status (and, for a finished
+    training run, its results)."""
+    try:
+        status = services.job_status(job_id, token=token)
+    except _ERRORS:
+        last = session.last_states.get(job_id)
+        return model_detail(last, None) if last is not None else ""
+    state = run_state(status)
+    session.last_states[job_id] = state
+    results = None
+    if state.status == "done" and state.kind == "train":
+        results, _ = job_results(session, services, status, token=token)
+    return model_detail(state, results)
 
 
 def model_detail(state: RunState, results: ResultsView | None) -> str:

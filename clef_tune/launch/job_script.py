@@ -74,16 +74,19 @@ def predict_script(
     keep_input: bool,
     kernels: bool,
 ) -> str:
-    """Predict the uploaded file with an adapter into /work/out/predictions.csv, then (unless
-    the input is kept) delete the uploaded file. The output stays for the person to download."""
+    """Predict the uploaded file with an adapter into /work/out/predictions.csv. Unless the
+    input is kept, the uploaded file is deleted however the job ends: when it succeeds, when it
+    fails and when it is stopped. The output stays for the person to download."""
     requirement = source.requirement()
     input_path = f"{INPUT_DIR}/{input_name}"
     predict = (
         f"clef-tune predict {shlex.quote(adapter_repo)} {shlex.quote(input_path)} "
         f"-o {PREDICTIONS_PATH} --review-below {review_below:g} --base-model {MODEL_MOUNT}"
     )
+    cleanup = shlex.quote(f"rm -f {shlex.quote(input_path)}")
     lines = [
         "set -euo pipefail",
+        *([] if keep_input else [f"trap {cleanup} EXIT"]),
         f'echo "clef-tune job: installing {requirement}"',
         f"pip install --root-user-action=ignore {shlex.quote(requirement)}",
         *([kernel_step()] if kernels else []),
@@ -93,8 +96,6 @@ def predict_script(
         'trap \'echo "clef-tune job: stopping"; kill -TERM "$predict_pid" 2>/dev/null\' TERM INT',
         'wait "$predict_pid"',
     ]
-    if not keep_input:
-        lines.append(f"rm -f {shlex.quote(input_path)}")
     return "\n".join(lines)
 
 

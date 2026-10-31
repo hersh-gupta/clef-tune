@@ -157,3 +157,22 @@ def test_rows_without_the_id_column_are_numbered(tmp_path):
     assert check.ok and check.numbered_ids and check.missing == []
     with open(p.write_input_csv(check, tmp_path / "s.csv"), encoding="utf-8", newline="") as f:
         assert [row["id"] for row in csv.DictReader(f)] == ["1", "2", "3"]
+
+
+def test_the_output_gives_the_persons_own_column_names_back(tmp_path):
+    config = make_config(
+        tmp_path, data={"train": "t.csv", "id_column": "id", "state_columns": ["subject", "body"]}
+    )
+    rows = [{"title": r["subject"], "body": r["body"]} for r in ticket_rows(3)]
+    path = write_csv(tmp_path / "renamed.csv", rows)
+    check = p.check_input(config, path, CharCounter(), rename={"title": "subject"})
+    assert check.table_columns == ["id", "subject", "body"]
+    assert check.output_names() == {"id": "row", "subject": "title"}
+    own = [{"row": str(k), "title": r["title"], "body": r["body"]} for k, r in enumerate(rows)]
+    clash = p.check_input(
+        config, write_csv(tmp_path / "row.csv", own), CharCounter(), {"title": "subject"}
+    )
+    assert clash.output_names() == {"id": "row_number", "subject": "title"}
+    with_ids = [{"id": "a", "subject": "s", "body": "b"}]
+    same = p.check_input(config, write_csv(tmp_path / "same.csv", with_ids), CharCounter())
+    assert same.output_names() == {}

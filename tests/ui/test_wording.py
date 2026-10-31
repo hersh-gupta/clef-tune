@@ -162,3 +162,28 @@ def test_the_headline_fits_the_number_of_questions():
     )
     assert w.dots_caption(2, "claim").endswith("both answers matched.")
     assert w.dots_caption(1, "log line").endswith("the answer matched.")
+
+
+def test_one_scale_mistake_is_singular():
+    names = ["Can wait", "This week", "Today"]
+    one = w.mistake_summary("score", names, [[12, 1, 0], [0, 10, 0], [0, 0, 5]], "ticket")
+    assert w.plain(one) == (
+        "When it's wrong, it leans toward the top of the scale (Today): "
+        "the 1 mistake picked a higher answer. Every mistake was one step off."
+    )
+
+
+def test_the_averaged_headline_says_which_way_it_moved():
+    kwargs = {"exact_before": 2, "exact_after": 1, "n": 30, "noun": "ticket"}
+    fell = w.headline(questions=5, mean_before=0.62, mean_after=0.55, **kwargs)
+    assert w.plain(fell) == "Across its 5 questions, it's now right 55% of the time, down from 62%."
+    same = w.headline(questions=5, mean_before=0.6, mean_after=0.6, **kwargs)
+    assert w.plain(same) == (
+        "Across its 5 questions, it's now right 60% of the time, the same as before training."
+    )
+
+
+def test_how_long_a_run_should_take_comes_from_its_own_numbers():
+    assert w.usual_time(0.5, "1h") == "Expected to take about 30 minutes"
+    assert w.usual_time(None, "1.5h") == "It stops itself after 1 hour 30 minutes at the latest"
+    assert w.usual_time(None, None) is None

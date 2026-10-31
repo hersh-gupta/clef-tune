@@ -17,6 +17,9 @@
   <header class="top">
     <a class="brand" href="/"><span class="mark" aria-hidden="true"></span><b>clef-tune</b></a>
     <span class="right">
+      {#- Shown only inside a frame (a Space on huggingface.co), where some browsers keep no
+         cookies, so the page can be opened on its own. clef-tune.js shows it. #}
+      <a class="own-tab" href="{{ request.url.path }}" target="_blank" rel="noopener" aria-label="Open in its own tab" data-own-tab hidden><span class="wide" aria-hidden="true">Open in its own tab</span><span class="narrow" aria-hidden="true">Own tab</span> ↗</a>
       {% if user %}
         <a href="/models">Your models</a><span class="who">{{ user }}</span>
         {%- if space %}

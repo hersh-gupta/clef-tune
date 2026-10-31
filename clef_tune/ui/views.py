@@ -909,6 +909,7 @@ class PredictionDraft:
     threshold: float = 0.7
     plan: Any = None
     error: str | None = None
+    calibrated: bool = False  # training fitted its confidence, so "70% sure" means what it says
 
 
 @dataclass
@@ -925,6 +926,7 @@ class PredictPage:
     threshold: int
     can_check_cost: bool
     error: str | None
+    calibrated: bool = False
 
 
 def predict_page(draft: PredictionDraft) -> PredictPage:
@@ -989,6 +991,7 @@ def predict_page(draft: PredictionDraft) -> PredictPage:
         threshold=round(draft.threshold * 100),
         can_check_cost=check is not None and check.ok,
         error=draft.error,
+        calibrated=draft.calibrated,
     )
 
 

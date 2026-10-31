@@ -103,10 +103,15 @@ class HFTokenCounter:
 
 
 @lru_cache(maxsize=4)
-def get_token_counter(model_id: str, revision: str) -> HFTokenCounter:
+def get_token_counter(
+    model_id: str, revision: str, token: bool | str | None = None
+) -> HFTokenCounter:
+    """The model's tokenizer. `token` is passed to the Hub as it is: None uses this machine's
+    login, and False sends none (a public download)."""
     from huggingface_hub import hf_hub_download
 
-    return HFTokenCounter(hf_hub_download(model_id, "tokenizer.json", revision=revision))
+    path = hf_hub_download(model_id, "tokenizer.json", revision=revision, token=token)
+    return HFTokenCounter(path)
 
 
 @lru_cache(maxsize=4)
@@ -114,12 +119,12 @@ def _counter_from_file(path: str) -> HFTokenCounter:
     return HFTokenCounter(path)
 
 
-def counter_for_config(config: Config) -> HFTokenCounter:
+def counter_for_config(config: Config, *, token: bool | str | None = None) -> HFTokenCounter:
     if config.model.local_path:
         local = config.resolve_path(config.model.local_path) / "tokenizer.json"
         if local.exists():
             return _counter_from_file(str(local))
-    return get_token_counter(config.model.id, config.model.resolved_revision())
+    return get_token_counter(config.model.id, config.model.resolved_revision(), token)
 
 
 @dataclass(frozen=True)

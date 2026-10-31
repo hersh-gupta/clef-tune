@@ -1,7 +1,8 @@
 {%- set e = page.selected %}
 {%- if e %}
 {%- set ask_index = (page.items | map(attribute="id") | list).index(e.id) + 1 %}
-<form data-post data-autosubmit="input" data-debounce="700" action="/questions/{{ e.id | urlencode }}/ask">
+<form data-post data-autosubmit="input" data-debounce="700" action="/questions/ask">
+  <input type="hidden" name="qid" value="{{ e.id }}">
   <span class="label" id="ask-label">Asked as
     <span class="info-tip">
       <button type="button" aria-label="How this question is used" aria-describedby="ask-tip">?</button>
@@ -12,7 +13,8 @@
   <div class="askmeta"><span>From the column <b>{{ e.column }}</b></span><span>{{ e.counted }}</span></div>
 </form>
 <span class="label">Type of answer</span>
-<form class="kinds" data-post action="/questions/{{ e.id | urlencode }}/type" aria-label="Type of answer">
+<form class="kinds" data-post action="/questions/type" aria-label="Type of answer">
+  <input type="hidden" name="qid" value="{{ e.id }}">
   {%- for key, name, small in kinds %}
   <button type="submit" name="kind" value="{{ key }}" class="{{ 'on' if key == e.kind }}" aria-pressed="{{ 'true' if key == e.kind else 'false' }}">{{ name }}<small>{{ small }}</small></button>
   {%- endfor %}
@@ -22,7 +24,8 @@
   {%- for a in e.answers %}
   <div class="val" role="cell">
     {%- if e.kind == "score" %}
-    <form class="ord" data-post action="/questions/{{ e.id | urlencode }}/move">
+    <form class="ord" data-post action="/questions/move">
+      <input type="hidden" name="qid" value="{{ e.id }}">
       <input type="hidden" name="option" value="{{ a.id }}">
       <button type="submit" name="offset" value="-1" aria-label="Move {{ a.id }} lower on the scale">▲</button>
       <button type="submit" name="offset" value="1" aria-label="Move {{ a.id }} higher on the scale">▼</button>
@@ -31,7 +34,8 @@
     {{ a.id }}
   </div>
   <div role="cell">
-    <form data-post data-autosubmit="input" data-debounce="700" action="/questions/{{ e.id | urlencode }}/describe">
+    <form data-post data-autosubmit="input" data-debounce="700" action="/questions/describe">
+      <input type="hidden" name="qid" value="{{ e.id }}">
       <input type="hidden" name="option" value="{{ a.id }}">
       <input class="desc-in" id="desc-{{ loop.index }}" name="description" value="{{ a.description }}" placeholder="Optional: what this answer means" aria-label="What {{ a.id }} means" autocomplete="off">
     </form>

@@ -6,7 +6,8 @@
 <h1 class="title in">Your data</h1>
 <div class="rule in"></div>
 <p class="lede in">Upload a spreadsheet of examples with the expected outputs filled in, from past work or labeled just for this. The closer they are to what the model will see in real use, the better it learns.</p>
-{% if page.error %}<p class="error-box" role="alert">{{ page.error }}</p>{% endif %}
+{#- With data, the error shows in the body below, which a column-role change swaps. -#}
+{% if page.error and not page.has_data %}<p class="error-box" role="alert">{{ page.error }}</p>{% endif %}
 {% if not page.has_data %}
 <div class="in" style="--i:1">{{ m.drop("/data/upload", page.max_mb) }}</div>
 <div class="samples-line in" style="--i:2">No data yet? Try a sample:

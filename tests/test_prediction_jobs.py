@@ -12,7 +12,7 @@ from clef_tune.launch.hf_jobs import LaunchError
 from clef_tune.launch.job_script import predict_script
 from tests.helpers import write_csv
 from tests.test_hf_jobs import EXAMPLE, SOURCE, TOKEN, FakeApi
-from tests.test_job_script import BASH
+from tests.test_job_script import BASH, POSIX_BASH
 
 CONFIG = load_config(EXAMPLE)
 
@@ -153,3 +153,78 @@ def test_a_runs_files_come_from_its_adapter_repo(tmp_path):
     files = hub.pull_run_files("me/x", token=TOKEN, download=download)
     assert files.metrics == {"final": {}} and files.config == {"run_name": "x"}
     assert files.schema == {"questions": {}}
+
+
+def test_a_prediction_job_remembers_its_threshold_and_the_persons_column_names(tmp_path):
+    from tests.test_hf_jobs import job as hf_job
+
+    api = FakeApi()
+    names = {"ticket_id": "row", "subject": "title"}
+    hf_jobs.submit_prediction(plan(tmp_path, api, output_names=names), api=api, token=TOKEN)
+    run = next(call[1] for call in api.calls if call[0] == "run_job")
+    info = hf_job("COMPLETED", command=run["command"], environment=run["env"], labels=run["labels"])
+    status = hf_jobs.job_status("job123", api=FakeApi(job_info=info), token=TOKEN)
+    assert status.output_names == names and status.review_below == 0.7
+    assert hf_jobs.review_below_of(job()) is None
+    bare = hf_job("COMPLETED", labels=run["labels"])
+    assert hf_jobs.job_status("job123", api=FakeApi(job_info=bare), token=TOKEN).output_names == {}
+
+
+def test_a_failed_or_stopped_prediction_still_removes_the_uploaded_input():
+    script = predict_script(
+        SOURCE,
+        adapter_repo="me/support-tickets",
+        input_name="new.csv",
+        review_below=0.7,
+        keep_input=False,
+        kernels=False,
+    )
+    lines = script.splitlines()
+    cleanup = lines.index("trap 'rm -f /work/input/new.csv' EXIT")
+    assert cleanup < next(k for k, line in enumerate(lines) if line.startswith("clef-tune predict"))
+    kept = predict_script(
+        SOURCE,
+        adapter_repo="me/x",
+        input_name="a.csv",
+        review_below=0.5,
+        keep_input=True,
+        kernels=False,
+    )
+    assert "EXIT" not in kept
+
+
+@POSIX_BASH
+@pytest.mark.parametrize("outcome", ["exit 1", "sleep 30"])
+def test_the_input_is_removed_however_predicting_ends(tmp_path, outcome):
+    import signal
+
+    work = tmp_path / "work"
+    (work / "input").mkdir(parents=True)
+    uploaded = work / "input" / "new.csv"
+    uploaded.write_text("a\n1\n", encoding="utf-8")
+    stubs = tmp_path / "bin"
+    stubs.mkdir()
+    (stubs / "pip").write_text("#!/bin/sh\nexit 0\n")
+    (stubs / "clef-tune").write_text(f"#!/bin/sh\necho started\n{outcome}\n")
+    for stub in stubs.iterdir():
+        stub.chmod(0o755)
+    script = predict_script(
+        SOURCE,
+        adapter_repo="me/x",
+        input_name="new.csv",
+        review_below=0.7,
+        keep_input=False,
+        kernels=False,
+    ).replace("/work", str(work))
+    job = subprocess.Popen(
+        ["bash", "-c", script],
+        env={"PATH": f"{stubs}:/usr/bin:/bin"},
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    while job.stdout.readline().strip() != "started":
+        pass
+    if outcome.startswith("sleep"):
+        job.send_signal(signal.SIGTERM)
+    assert job.wait(timeout=10) != 0
+    assert not uploaded.exists()

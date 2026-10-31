@@ -90,8 +90,16 @@ clef-tune ui
 
 It opens on <http://localhost:7860> (`--port` and `--host` to change that). Three samples (support
 tickets, claim triage, server logs) let you look around without your own data. Locally, the UI
-uses this machine's Hugging Face login (`hf auth login`); "Train on this computer's GPU" appears
-when the machine has a CUDA GPU. Files can be CSV, TSV, Excel (.xlsx), JSONL, or a zip with images.
+uses this machine's Hugging Face login (`hf auth login`), or a token pasted on the Train step when
+there is none; "Train on this computer's GPU" appears when the machine has a CUDA GPU. Files can be
+CSV, TSV, Excel (.xlsx), JSONL, or a zip with images.
+
+The UI answers only to this computer's own names (`localhost`, `127.0.0.1`) and the address it
+listens on. `--host 0.0.0.0` serves your whole network instead, and anyone on it can then train,
+predict and spend with this computer's Hugging Face login, so use it only on a network you trust.
+`CLEF_TUNE_SECRET` sets the key that signs the browser's session cookie on this computer (a Space
+signs it with its Hugging Face sign-in secret instead); without it, each start picks a random
+key. Sessions themselves live in memory, so a restart starts every open page over either way.
 
 ### Deploy the web UI as a Hugging Face Space
 
@@ -117,6 +125,13 @@ may not reach the storage bucket a launch uploads to), the Train step offers to 
 with `job.write` and `repo.write` for that browser session only. Uploads are capped at
 `CLEF_TUNE_MAX_UPLOAD_MB` (default 200), and training on the machine's own GPU is never offered
 on a Space.
+
+**Not yet checked on a live Space:** the app runs inside huggingface.co's frame, so a visitor's
+session lives in a third-party cookie. Whether sign-in and an uploaded file survive in Safari
+(macOS and iOS, which block third-party cookies by default) and Firefox (which partitions them)
+still needs checking on the live Space, as does whether the sign-in token can stage a launch in
+the jobs bucket. Inside the frame, the header offers "Open in its own tab", which avoids the
+frame's cookie rules.
 
 ## Quickstart (CLI)
 
@@ -214,12 +229,14 @@ clef-tune jobs list
 clef-tune jobs status <job-id>                 # stage, time, cost so far, latest step and eval
 clef-tune jobs logs <job-id> -f
 clef-tune jobs cancel <job-id>
-clef-tune jobs resume <job-id> --timeout 3h    # continue a failed or canceled job
+clef-tune jobs resume <job-id> --timeout 3h    # continue a failed or canceled job; asks first
 clef-tune jobs clean <job-id>                  # remove files a completed job left in the bucket
 ```
 
 `launch` also accepts `--keep-data`, `--push-to-hub REPO` (default
-`<you>/clef-tune-<run_name>`), `--source-ref REF` and `--no-kernels`.
+`<you>/clef-tune-<run_name>`), `--source-ref REF` and `--no-kernels`. `resume` shows the hardware,
+the time limit and the most the resumed job can cost, then asks before starting it (`--yes`
+skips the question).
 
 **What a job does:**
 

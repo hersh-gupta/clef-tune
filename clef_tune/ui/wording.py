@@ -129,6 +129,16 @@ def timeout_text(timeout: str) -> str:
     return _hours_minutes(round(float(match.group(1)) * _MINUTES_PER_UNIT[match.group(2)]))
 
 
+def usual_time(estimated_hours: float | None, timeout: str | None) -> str | None:
+    """How long a run should take, from its own numbers: its estimate, or else the time limit
+    it stops itself at. None when it has neither, rather than a guess."""
+    if estimated_hours:
+        return f"Expected to take about {duration(estimated_hours)}"
+    if timeout and _TIMEOUT.match(timeout):
+        return f"It stops itself after {timeout_text(timeout)} at the latest"
+    return None
+
+
 # ---------------------------------------------------------------------------- results
 
 
@@ -189,10 +199,11 @@ def _score(names: list[str], errors: list[tuple[int, int, int]]) -> Phrase:
     tail = [(" Every mistake was one step off.", False)] if one_step else []
     if not down or not up:
         end, name, way = ("top", names[-1], "higher") if not down else ("bottom", names[0], "lower")
+        which = "the 1 mistake" if total == 1 else f"all {total} mistakes"
         return [
             (f"When it's wrong, it leans toward the {end} of the scale (", False),
             (name, True),
-            (f"): all {total} mistakes picked a {way} answer.", False),
+            (f"): {which} picked a {way} answer.", False),
             *tail,
         ]
     return [(f"Its mistakes go both ways: {up} too high and {down} too low.", False), *tail]
@@ -254,10 +265,15 @@ def headline(
     """The results headline: rows where every answer matched for up to three questions, and
     the average share right for more, where matching all of them is too harsh a bar."""
     if questions >= 4:
+        before, after = round(mean_before * 100), round(mean_after * 100)
+        if after == before:
+            change = "the same as before training"
+        else:
+            change = f"{'up' if after > before else 'down'} from {before}%"
         return [
             (f"Across its {questions} questions, it's now right ", False),
-            (f"{round(mean_after * 100)}%", True),
-            (f" of the time, up from {round(mean_before * 100)}%.", False),
+            (f"{after}%", True),
+            (f" of the time, {change}.", False),
         ]
     what = "the expected output" if questions == 1 else "every expected output"
     return [

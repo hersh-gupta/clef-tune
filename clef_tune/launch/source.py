@@ -28,6 +28,10 @@ class SourceError(RuntimeError):
     """The commit a job should install cannot be determined; the message says what to do."""
 
 
+class SourceWarning(UserWarning):
+    """GitHub could not be asked about the commit, so a launch goes ahead unchecked."""
+
+
 @dataclass(frozen=True)
 class Source:
     repo_url: str
@@ -115,9 +119,16 @@ def github_json(url: str) -> dict:
         return json.load(response)
 
 
+_confirmed: set[tuple[Source, Callable[[str], dict]]] = set()
+
+
 def pin_commit(source: Source, *, fetch: Callable[[str], dict] = github_json) -> Source:
     """Resolve the ref to a full SHA on GitHub, so a job cannot install anything else. A ref
-    GitHub doesn't have aborts; a GitHub that cannot be reached only warns."""
+    GitHub doesn't have aborts; a GitHub that cannot be reached only warns. A commit never
+    moves, so one GitHub confirmed is not asked about again in this process: GitHub allows only
+    60 unauthenticated lookups an hour, shared by everyone on a Space."""
+    if (source, fetch) in _confirmed:
+        return source
     ref = urllib.parse.quote(source.ref, safe="/")
     url = f"https://api.github.com/repos/{source.owner_repo}/commits/{ref}"
     try:
@@ -129,6 +140,9 @@ def pin_commit(source: Source, *, fetch: Callable[[str], dict] = github_json) ->
                 "push your commits first, or pass --source-ref"
             ) from error
         message = f"could not check {source.ref} on GitHub ({error}); launching anyway"
-        warnings.warn(message, stacklevel=2)
+        warnings.warn(message, SourceWarning, stacklevel=2)
         return source
-    return Source(source.repo_url, response["sha"])
+    pinned = Source(source.repo_url, response["sha"])
+    if pinned == source:  # a full SHA, confirmed; a branch or tag can move
+        _confirmed.add((source, fetch))
+    return pinned

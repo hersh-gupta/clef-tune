@@ -1,0 +1,8 @@
+{#- Trying a stopped run again: this computer's run, or a Hugging Face run with what it costs. -#}
+{% if quote is none %}
+<form action="/runs/{{ job_id }}/resume" method="post"><button class="btn" type="submit">Try again from where it stopped</button></form>
+{% elif quote.can_resume %}
+<form action="/runs/{{ job_id }}/resume" method="post" class="start"><button class="btn" type="submit">Try again from where it stopped</button><small>On {{ quote.hardware }}, for up to {{ quote.cap_time }}{% if quote.cap_cost %}, at most {{ quote.cap_cost }}{% endif %}.</small></form>
+{% else %}
+<p class="fine">{{ quote.error }}</p>
+{% endif %}

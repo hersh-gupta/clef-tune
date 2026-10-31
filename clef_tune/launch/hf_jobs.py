@@ -9,7 +9,7 @@ import re
 import shlex
 import tempfile
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -41,7 +41,7 @@ from clef_tune.launch.job_script import (
 )
 from clef_tune.launch.source import Source, SourceError, pin_commit, resolve_source
 from clef_tune.prompt import TokenCounter, counter_for_config
-from clef_tune.runtime import BASE_IMAGE, KERNEL_PINS, PRICE_ENV
+from clef_tune.runtime import BASE_IMAGE, ESTIMATE_ENV, KERNEL_PINS, PRICE_ENV
 from clef_tune.validation import ValidationReport, validate
 from clef_tune.yamlio import load_yaml_file
 
@@ -61,6 +61,9 @@ CONTINUING = ("SCHEDULING", "RUNNING", "COMPLETED")  # a job in these stages own
 BUNDLE_FOLDER = "bundle"
 CHECKPOINTS_FOLDER = f"{JOB_OUTPUT_DIR.removeprefix(WORK_MOUNT + '/')}/checkpoints"
 DELETE_BUNDLE_FLAG = "--delete-bundle-on-success"
+# A prediction job's output columns to rename for the person (JSON: staged name -> their name):
+# the job reads the model's column names, and the person gets their own back.
+OUTPUT_NAMES_ENV = "CLEF_TUNE_OUTPUT_NAMES"
 
 _TIMEOUT = re.compile(r"^(\d+(?:\.\d+)?)([smhd])$")
 _HOURS_PER_UNIT = {"s": 1 / 3600, "m": 1 / 60, "h": 1, "d": 24}
@@ -155,8 +158,8 @@ def plan_launch(
         raise LaunchError(f"invalid config: {exc}") from exc
     counter_error = None
     if counter is None:
-        try:
-            counter = counter_for_config(config)
+        try:  # with the caller's token: on a Space, never the server's own login
+            counter = counter_for_config(config, token=token)
         except Exception as exc:  # offline or no tokenizer: validate without token statistics
             counter, counter_error = None, str(exc)
     report = validate(config, counter, counter_error=counter_error)
@@ -382,6 +385,9 @@ class JobStatus:
     timeout: str | None = None
     started_at: datetime | None = None
     created_at: datetime | None = None
+    estimated_hours: float | None = None  # the launch's own estimate
+    review_below: float | None = None  # a prediction job's review threshold
+    output_names: dict[str, str] = field(default_factory=dict)  # a prediction's column renames
 
     def latest(self, event: str) -> dict | None:
         return next((r for r in reversed(self.progress) if r.get("event") == event), None)
@@ -392,11 +398,26 @@ def _stage(info: JobInfo) -> str:
     return str(getattr(stage, "value", stage))  # the real JobStage is an enum
 
 
-def _price(info: JobInfo) -> float | None:
+def _env_number(info: JobInfo, name: str) -> float | None:
     try:
-        return float((info.environment or {})[PRICE_ENV])
-    except (KeyError, ValueError):
+        return float((getattr(info, "environment", None) or {})[name])
+    except (KeyError, TypeError, ValueError):
         return None
+
+
+def _price(info: JobInfo) -> float | None:
+    return _env_number(info, PRICE_ENV)
+
+
+def _output_names(info: JobInfo) -> dict[str, str]:
+    raw = (getattr(info, "environment", None) or {}).get(OUTPUT_NAMES_ENV)
+    try:
+        names = json.loads(raw) if raw else {}
+    except (TypeError, ValueError):
+        return {}
+    if not isinstance(names, dict):
+        return {}
+    return {str(k): str(v) for k, v in names.items()}
 
 
 def list_jobs(*, api: HfApi | None = None, token: str | None = None) -> list[JobInfo]:
@@ -495,6 +516,9 @@ def job_status(
         timeout=(info.labels or {}).get("timeout"),
         started_at=info.started_at,
         created_at=getattr(info, "created_at", None),
+        estimated_hours=_env_number(info, ESTIMATE_ENV),
+        review_below=review_below_of(info) if kind == PREDICT_KIND else None,
+        output_names=_output_names(info) if kind == PREDICT_KIND else {},
     )
 
 
@@ -668,6 +692,7 @@ class PredictionPlan:
     kernels: bool
     kernels_cached: bool
     keep_input: bool
+    output_names: dict[str, str] = field(default_factory=dict)  # see OUTPUT_NAMES_ENV
 
     @property
     def max_cost(self) -> float | None:
@@ -690,9 +715,11 @@ def plan_prediction(
     api: HfApi | None = None,
     prices: dict[str, float] | None = None,
     source: Source | None = None,
+    output_names: dict[str, str] | None = None,
 ) -> PredictionPlan:
     """What predicting a checked CSV with an adapter needs and costs. `config` is the
-    adapter's training config. Uploads nothing and starts nothing."""
+    adapter's training config; `output_names` renames the output's columns back to the
+    person's own (see OUTPUT_NAMES_ENV). Uploads nothing and starts nothing."""
     try:
         source = source or pin_commit(resolve_source(None))
     except SourceError as exc:
@@ -730,6 +757,7 @@ def plan_prediction(
         kernels=kernels,
         kernels_cached=cached,
         keep_input=keep_input,
+        output_names=dict(output_names or {}),
     )
 
 
@@ -791,11 +819,14 @@ def submit_prediction(
                 keep_input=plan.keep_input,
                 kernels=plan.kernels,
             ),
-            env=job_env(
-                plan.source,
-                price_per_hour=plan.price_per_hour,
-                estimated_hours=plan.estimate.hours if plan.estimate else None,
-            ),
+            env={
+                **job_env(
+                    plan.source,
+                    price_per_hour=plan.price_per_hour,
+                    estimated_hours=plan.estimate.hours if plan.estimate else None,
+                ),
+                **({OUTPUT_NAMES_ENV: json.dumps(plan.output_names)} if plan.output_names else {}),
+            },
             secrets={"HF_TOKEN": token},
             flavor=plan.flavor,
             timeout=plan.timeout,
@@ -830,6 +861,23 @@ def prediction_adapter_of(info: JobInfo) -> str | None:
             for k in range(len(words) - 2):
                 if words[k] == "clef-tune" and words[k + 1] == "predict":
                     return words[k + 2]
+    return None
+
+
+def review_below_of(info: JobInfo) -> float | None:
+    """The review threshold a prediction job ran with: the number after --review-below."""
+    for part in info.command or []:
+        for line in str(part).splitlines():
+            try:
+                words = shlex.split(line)
+            except ValueError:
+                continue
+            if "--review-below" in words:
+                index = words.index("--review-below")
+                try:
+                    return float(words[index + 1])
+                except (IndexError, ValueError):
+                    return None
     return None
 
 

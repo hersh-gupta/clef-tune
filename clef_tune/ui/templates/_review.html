@@ -4,12 +4,17 @@
   <div class="srow"><span class="sk">Model</span><span class="sv">{{ model }} · {{ preset }}</span><a href="/settings">Change</a></div>
 </div>
 {% if settings_estimate %}{{ m.estimate(settings_estimate) }}{% endif %}
+{% if space %}
 <div class="signin">
   <span class="avatar" aria-hidden="true">?</span>
   <span>Sign in to train<small>Training runs and is billed under your own Hugging Face account.</small></span>
   <a class="btn primary end" href="{{ login_url('/train') }}" target="_top">Sign in with Hugging Face</a>
 </div>
 <div class="start"><button class="btn primary" type="button" disabled>Start training</button><small>Sign in first.</small></div>
+{% else %}
+{{ m.local_login("/train") }}
+<div class="start"><button class="btn primary" type="button" disabled>Start training</button><small>Log in to Hugging Face first.</small></div>
+{% endif %}
 {% elif not ready.can_start %}
 <p class="error-box" role="alert">{{ ready.error }}</p>
 {% if "credits" in (ready.error or "") %}<p><a class="btn" href="https://huggingface.co/settings/billing" target="_blank" rel="noopener">Add credits on Hugging Face ↗</a></p>{% endif %}
@@ -35,7 +40,7 @@
 <div class="signin">
   <span class="avatar" aria-hidden="true">{{ user[:1] }}</span>
   <span>Signed in as <b>{{ user }}</b><small>Training runs and is billed under this account</small></span>
-  {% if space %}<a class="end" href="/oauth/huggingface/logout?_target_url=/train">Switch</a>{% endif %}
+  {% if space or pasted %}<form class="end" action="/train/switch" method="post"><button class="linkbtn" type="submit">Switch</button></form>{% endif %}
 </div>
 {% endif %}
 <form class="check-line" data-post data-autosubmit="change" action="/train/delete-data">

@@ -459,7 +459,11 @@ def export(
 def ui(
     port: Annotated[int | None, typer.Option(help="Port to serve on; default 7860.")] = None,
     host: Annotated[
-        str, typer.Option(help="Address to listen on; 0.0.0.0 serves your whole network.")
+        str,
+        typer.Option(
+            help="Address to listen on. 0.0.0.0 serves your whole network, and anyone on it "
+            "can then act with this computer's Hugging Face login."
+        ),
     ] = "127.0.0.1",
 ) -> None:
     """Open the web UI: your data, what to predict, settings, training and results."""

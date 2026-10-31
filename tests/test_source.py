@@ -122,3 +122,29 @@ def test_an_unreachable_github_only_warns(error):
 
     with pytest.warns(UserWarning, match="could not check"):
         assert pin_commit(Source(DEFAULT_SOURCE, SHA), fetch=fetch) == Source(DEFAULT_SOURCE, SHA)
+
+
+def test_a_confirmed_commit_is_looked_up_once_per_process():
+    urls = []
+
+    def fetch(url):
+        urls.append(url)
+        return {"sha": SHA}
+
+    pinned = Source(DEFAULT_SOURCE, SHA)
+    assert pin_commit(pinned, fetch=fetch) == pinned
+    assert pin_commit(pinned, fetch=fetch) == pinned  # a commit never moves
+    assert len(urls) == 1
+    pin_commit(Source(DEFAULT_SOURCE, "main"), fetch=fetch)
+    pin_commit(Source(DEFAULT_SOURCE, "main"), fetch=fetch)  # a branch does
+    assert len(urls) == 3
+
+
+def test_an_unreachable_github_warns_in_its_own_category():
+    from clef_tune.launch.source import SourceWarning
+
+    def fetch(url):
+        raise urllib.error.URLError("offline")
+
+    with pytest.warns(SourceWarning):
+        pin_commit(Source(DEFAULT_SOURCE, "f" * 40), fetch=fetch)

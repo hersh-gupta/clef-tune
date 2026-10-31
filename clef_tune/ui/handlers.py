@@ -5,6 +5,7 @@ what the pages show."""
 from __future__ import annotations
 
 import json
+import math
 import shutil
 from collections import Counter
 from dataclasses import dataclass
@@ -51,6 +52,7 @@ ROLE_CHOICES = (
 )
 ROLES = tuple(role for role, _, _ in ROLE_CHOICES)
 MODELS = {"Cloudflare/clef-flash": "Clef-Flash", "Cloudflare/clef": "Clef"}
+NO_DATA = "Load data on the first step first"  # an edit that arrives after the setup is gone
 _MISSING = object()
 
 
@@ -134,6 +136,8 @@ def set_role(session: Session, column: str, role: str) -> str | None:
     """Make a column the state, a question, the ID, an image or nothing. A column has one role,
     so a label column never ends up in the state Clef reads."""
     draft, table = session.draft, session.table
+    if draft is None or table is None:
+        return NO_DATA
     if role not in ROLES:
         return f"Unknown role {role!r}; choose one of {', '.join(ROLES)}"
     if draft.native:
@@ -286,6 +290,8 @@ def update_question(
     options: list[list[Any]] | None = None,
 ) -> str | None:
     draft = session.draft
+    if draft is None:
+        return NO_DATA
     question = draft.question(qid)
     if question is None:
         return f"There is no question {qid}"
@@ -503,6 +509,8 @@ def _coerce(spec: FieldSpec, value: Any) -> Any:
 
 
 def _try_override(session: Session, path: str, value: Any) -> str | None:
+    if session.draft is None:
+        return NO_DATA
     overrides = session.draft.overrides
     previous = overrides.get(path, _MISSING)
     overrides[path] = value
@@ -556,13 +564,16 @@ def set_question_weights(session: Session, rows: list[list[Any]]) -> str | None:
     return _try_override(session, "train.question_weights", weights)
 
 
-def set_preset(session: Session, preset: str) -> None:
+def set_preset(session: Session, preset: str) -> str | None:
     if preset not in PRESETS:
         raise ValueError(f"unknown preset {preset!r}")
     draft = session.draft
+    if draft is None:
+        return NO_DATA
     draft.preset = preset
     for path in PRESETS[preset]:
         draft.overrides.pop(path, None)
+    return None
 
 
 def set_model(session: Session, model_id: str) -> None:
@@ -574,6 +585,8 @@ def set_model(session: Session, model_id: str) -> None:
 
 def set_run_name(session: Session, name: str) -> str | None:
     draft = session.draft
+    if draft is None:
+        return NO_DATA
     previous = draft.run_name
     draft.run_name = name.strip()
     try:
@@ -584,6 +597,23 @@ def set_run_name(session: Session, name: str) -> str | None:
             "Use up to 64 letters, digits, dots, dashes or underscores, "
             "starting with a letter or digit"
         )
+    return None
+
+
+THRESHOLD_PERCENT = (1, 99)  # how sure the model must be before a row is marked for review
+
+
+def set_threshold(prediction: Any, percent: str) -> str | None:
+    """Mark a predicted row for review when the model is less than this percent sure of an
+    answer (a ui.views.PredictionDraft); return why not, or None. Out of range is clamped."""
+    low, high = THRESHOLD_PERCENT
+    try:
+        value = float(percent.strip().rstrip("%"))
+    except ValueError:
+        value = math.nan
+    if not math.isfinite(value):
+        return f"Choose a number from {low} to {high}"
+    prediction.threshold = min(max(value, low), high) / 100
     return None
 
 

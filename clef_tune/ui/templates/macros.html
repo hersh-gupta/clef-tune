@@ -44,6 +44,21 @@
 </ul>
 {%- endmacro %}
 
+{#- This computer has no Hugging Face login: how to log in, or paste a token. `back` is the page
+   the token form returns to. -#}
+{% macro local_login(back) -%}
+<div class="signin">
+  <span class="avatar" aria-hidden="true">?</span>
+  <span>This computer isn't logged in to Hugging Face<small>Run <code>hf auth login</code> in a terminal, then reload this page. Or paste a token below.</small></span>
+</div>
+<form class="map" action="/train/token" method="post">
+  <input type="hidden" name="back" value="{{ back }}">
+  <label for="pasted-token">A <a href="https://huggingface.co/settings/tokens" target="_blank" rel="noopener">token</a> with job.write and repo.write. It's kept for this browser session only.</label>
+  <input id="pasted-token" type="password" name="token" autocomplete="off" spellcheck="false">
+  <button class="btn" type="submit">Use this token</button>
+</form>
+{%- endmacro %}
+
 {% macro file_glyph() -%}<span class="file-glyph" aria-hidden="true"></span>{%- endmacro %}
 
 {% macro drop(action, max_mb, accept=".csv,.tsv,.xlsx,.jsonl,.ndjson,.zip") -%}

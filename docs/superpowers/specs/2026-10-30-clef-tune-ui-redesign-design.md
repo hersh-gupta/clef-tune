@@ -566,6 +566,10 @@ Tables never make the page scroll sideways. Desktop targets are 1440 and 1024 px
   - *Locally:* the machine's login.
   - The existing `user_token` rule stays: the server's own token is never used for a visitor's
     action.
+  - *A pasted token is kept server-side* in the in-memory `Session`, for that browser session
+    only (pages are plain form posts, so the browser would otherwise have to send it back with
+    every request). This deviates from Plan 4's "tokens are never stored in `Session`"
+    (final-review ruling m18, 2026-10-31).
 - **Live views** poll every few seconds (`data-poll`).
 - **Hosting:** the Space switches from `sdk: gradio` to `sdk: docker`, with its own small
   Dockerfile serving on port 7860. The training `Dockerfile` is unrelated and unchanged.

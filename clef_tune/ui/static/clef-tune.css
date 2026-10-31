@@ -50,6 +50,11 @@ code, pre, .mono { font-family: ui-monospace, "Cascadia Mono", Menlo, monospace;
 .brand b { font-weight: 500; letter-spacing: .14em; text-transform: uppercase; font-size: 11.5px; }
 .top .right { margin-left: auto; display: flex; align-items: center; gap: 16px; font-size: 12.5px; }
 .top .who { color: var(--muted); }
+.top .own-tab { color: var(--muted); border-bottom-color: var(--line-soft); }
+.top .own-tab:hover { color: var(--sage-ink); border-bottom-color: var(--sage); }
+.top .own-tab[hidden] { display: none; }
+.top .own-tab .narrow { display: none; }
+.brand b { white-space: nowrap; }
 .theme-toggle { width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--line); background: none; cursor: pointer; display: grid; place-items: center; padding: 0; }
 .theme-toggle::after { content: ""; width: 10px; height: 10px; border-radius: 50%; background: linear-gradient(90deg, var(--ink) 50%, transparent 50%); border: 1px solid var(--ink); }
 
@@ -519,6 +524,9 @@ pre.snippet { font-size: 12px; background: var(--field); border: 1px solid var(-
 @media (max-width: 680px) {
   .wrap { padding: 16px 18px 120px; }
   .top .right .who { display: none; }
+  .top .right { flex-wrap: wrap; justify-content: flex-end; gap: 6px 14px; }
+  .top .own-tab .wide { display: none; }
+  .top .own-tab .narrow { display: inline; }
   .steps { display: none; }
   .msteps { display: block; }
   .title { font-size: 21px; margin-top: 22px; }

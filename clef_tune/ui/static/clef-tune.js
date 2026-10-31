@@ -1,10 +1,13 @@
 // clef-tune's page behaviour. Forms marked data-post send in the background; the answer holds
 // <template data-swap="#id"> blocks that replace just those parts of the page, so only what
 // changed moves. Also: polling, menus, the theme, the drop zone, the phone row pager,
-// notifications and local clock times.
+// notifications, local clock times, and a way out of Hugging Face's frame.
 (function () {
   "use strict";
   const THEME_KEY = "clef-tune-theme";
+  const FAILED = "That didn't work. Reload the page and try again.";
+  const OFFLINE = "Couldn't reach the app; check your connection and try again.";
+  let returnFocus = null; // where focus goes once a menu choice's answer has been swapped in
   const store = {
     get(key) { try { return localStorage.getItem(key); } catch (e) { return null; } },
     set(key, value) { try { localStorage.setItem(key, value); } catch (e) { /* private mode */ } },
@@ -54,6 +57,30 @@
       }
       if (fresh) wire(fresh);
     });
+    if (returnFocus) {
+      const trigger = document.querySelector(returnFocus);
+      returnFocus = null;
+      if (trigger && !document.activeElement?.closest("main, header")) {
+        trigger.focus({ preventScroll: true });
+      }
+    }
+  }
+
+  // The page's error box, for an answer that went wrong. It hides again on the next answer
+  // that works, so a poll that recovers clears it.
+  function showError(text) {
+    const box = document.querySelector("#page-error");
+    if (!box) return;
+    box.hidden = false;
+    box.textContent = text;
+    box.dataset.fromScript = "1";
+  }
+  function clearError() {
+    const box = document.querySelector("#page-error");
+    if (box && box.dataset.fromScript) {
+      box.hidden = true;
+      delete box.dataset.fromScript;
+    }
   }
 
   async function send(url, options) {
@@ -62,6 +89,11 @@
       headers: { "X-Requested-With": "clef-tune" },
       ...options,
     });
+    if (!response.ok) {
+      showError(FAILED);
+      return response;
+    }
+    clearError();
     const ended = response.headers.get("X-Run-Ended");
     if (ended) notifyEnded(ended);
     if (response.headers.get("X-Redirect")) {
@@ -90,9 +122,9 @@
     try {
       await send(form.getAttribute("action"), { method: "POST", body: formData(form, submitter) });
     } catch (error) {
-      const box = document.querySelector("#page-error");
-      if (box) { box.hidden = false; box.textContent = "Couldn't reach the app; check your connection and try again."; }
+      showError(OFFLINE);
     } finally {
+      returnFocus = null;
       delete form.dataset.busy;
       form.removeAttribute("aria-busy");
       if (form.dataset.again) { delete form.dataset.again; post(form); }
@@ -103,7 +135,10 @@
     const form = event.target.closest("form[data-post]");
     if (!form) return;
     event.preventDefault();
-    closeMenus();
+    const menu = form.closest(".menu");
+    closeMenus(null, true);
+    // The answer may replace the menu's button; focus goes to the new one.
+    if (menu && menu.id) returnFocus = `[data-menu="#${menu.id}"]`;
     post(form, event.submitter);
   });
 
@@ -187,15 +222,35 @@
     try { new Notification("clef-tune", { body: text }); } catch (e) { /* not allowed */ }
   }
 
-  // ---------------------------------------------------------------- menus and toggles
-  function closeMenus(except) {
+  // ---------------------------------------------------------------- menus, panels and toggles
+  // An open menu or panel holds the keyboard: focus moves into it, Tab stays inside it, and
+  // closing it with Escape or a choice gives focus back to what opened it.
+  let panelOpener = null;
+
+  function focusables(root) {
+    return [...root.querySelectorAll("a[href], button, input, select, textarea, [tabindex]")]
+      .filter((el) => !el.disabled && el.tabIndex >= 0 && el.getClientRects().length > 0);
+  }
+
+  function closeMenus(except, giveBack) {
     document.querySelectorAll("[data-menu][aria-expanded='true']").forEach((button) => {
       if (button === except) return;
       button.setAttribute("aria-expanded", "false");
       const menu = document.querySelector(button.dataset.menu);
       if (menu) menu.hidden = true;
+      if (giveBack) button.focus({ preventScroll: true });
     });
   }
+
+  function closePanels() {
+    const open = document.querySelectorAll(".panel-wrap.show");
+    open.forEach((p) => p.classList.remove("show"));
+    if (open.length && panelOpener && document.body.contains(panelOpener)) {
+      panelOpener.focus({ preventScroll: true });
+    }
+    panelOpener = null;
+  }
+
   document.addEventListener("click", (event) => {
     const button = event.target.closest("[data-menu]");
     if (button) {
@@ -206,11 +261,12 @@
       button.setAttribute("aria-expanded", open ? "true" : "false");
       if (menu) {
         menu.hidden = !open;
-        if (open) menu.querySelector("button, a, input")?.focus({ preventScroll: true });
+        if (open) focusables(menu)[0]?.focus({ preventScroll: true });
       }
       return;
     }
-    if (!event.target.closest(".menu") || event.target.closest(".menu a")) closeMenus();
+    const link = event.target.closest(".menu a");
+    if (!event.target.closest(".menu") || link) closeMenus(null, !!link);
     const toggle = event.target.closest("[data-toggle]");
     if (toggle) {
       const target = document.querySelector(toggle.dataset.toggle);
@@ -221,22 +277,53 @@
       const panel = document.querySelector(open.dataset.openPanel);
       if (panel) {
         panel.classList.add("show");
+        panelOpener = open;
+        focusables(panel.querySelector(".panel") || panel)[0]?.focus({ preventScroll: true });
         const url = open.dataset.panelUrl;
         if (url) send(url, { method: "GET" });
       }
     }
-    if (event.target.closest("[data-close-panel]")) {
-      document.querySelectorAll(".panel-wrap.show").forEach((p) => p.classList.remove("show"));
-    }
+    if (event.target.closest("[data-close-panel]")) closePanels();
   });
+
+  function holding() {
+    const trigger = document.querySelector("[data-menu][aria-expanded='true']");
+    const menu = trigger && document.querySelector(trigger.dataset.menu);
+    return menu && !menu.hidden ? menu : document.querySelector(".panel-wrap.show .panel");
+  }
+
   document.addEventListener("keydown", (event) => {
+    if (event.key === "Tab") {
+      const box = holding();
+      const items = box ? focusables(box) : [];
+      if (!items.length) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      const here = document.activeElement;
+      if (!box.contains(here) || (event.shiftKey ? here === first : here === last)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus({ preventScroll: true });
+      }
+      return;
+    }
     if (event.key !== "Escape") return;
-    closeMenus();
-    document.querySelectorAll(".panel-wrap.show").forEach((p) => p.classList.remove("show"));
+    closeMenus(null, true);
+    closePanels();
     closeTips();
     if (document.activeElement && document.activeElement.closest(".info-tip")) {
       document.activeElement.blur();
     }
+  });
+
+  // ---------------------------------------------------------------- framed on Hugging Face
+  // A Space runs inside huggingface.co's frame, where some browsers keep no cookies for it (so
+  // nothing set up would stick). Inside a frame, the header offers the page in its own tab.
+  function framed() {
+    try { return window.top !== window.self; } catch (e) { return true; }
+  }
+  document.addEventListener("click", (event) => {
+    const own = event.target.closest("[data-own-tab]");
+    if (own) own.href = window.location.href; // the address may have moved (data-nav)
   });
 
   // ---------------------------------------------------------------- tips
@@ -303,7 +390,8 @@
   // change, and the address bar follows so Back and reload still work.
   async function navigate(url, push) {
     try {
-      await send(url, { method: "GET" });
+      const response = await send(url, { method: "GET" });
+      if (!response.ok) throw new Error(String(response.status));
       if (push) history.pushState({ nav: true }, "", url);
     } catch (error) {
       window.location.assign(url);
@@ -336,5 +424,12 @@
     pager.querySelector("[data-row-label]").textContent = cards[next].dataset.label;
   });
 
-  document.addEventListener("DOMContentLoaded", () => wire(document));
+  document.addEventListener("DOMContentLoaded", () => {
+    wire(document);
+    const own = document.querySelector("[data-own-tab]");
+    if (own && framed()) {
+      own.href = window.location.href;
+      own.hidden = false;
+    }
+  });
 })();

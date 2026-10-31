@@ -18,6 +18,7 @@ from clef_tune.prompt import RecordTokenCounter, TokenCounter
 from clef_tune.validation import media_tokens
 
 REVIEW_COLUMN = "review"
+NUMBERED_ID_NAMES = ("row", "row_number")  # the output's name for rows numbered from 1
 DEFAULT_REVIEW_BELOW = 0.7
 PREVIEW_ROWS = 5
 NOUL_WORDS = {"true": "yes", "false": "no"}
@@ -211,6 +212,21 @@ class InputCheck:
     @property
     def ok(self) -> bool:
         return not self.missing and not any(issue.level == "error" for issue in self.issues)
+
+    def output_names(self) -> dict[str, str]:
+        """How to name the output's columns for the person: each column renamed for the model
+        gets its own name back, and an ID column added to number the rows is called "row"."""
+        names: dict[str, str] = {}
+        staged = list(self.table_columns)
+        if self.numbered_ids and staged:
+            added = staged.pop(0)
+            free = next((name for name in NUMBERED_ID_NAMES if name not in self.columns), None)
+            if free is not None:  # else it keeps the model's name for its ID column
+                names[added] = free
+        for model_name, own in zip(staged, self.columns, strict=False):
+            if model_name != own:
+                names[model_name] = own
+        return names
 
 
 def check_input(

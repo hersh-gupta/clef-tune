@@ -5,35 +5,56 @@ the parts of a page that changed are replaced.
 
 Sessions live in memory, keyed by a signed cookie. On a Hugging Face Space, people sign in
 with Hugging Face (attach_huggingface_oauth) and every Hub call uses their own token; the
-server's token is never used for a visitor. Elsewhere the machine's own login is used."""
+server's token is never used for a visitor. Elsewhere the machine's own login is used, and the
+app answers only to this computer's own names (a page elsewhere can't rebind a name to it).
+Either way, a state-changing request another site's page sent is refused."""
 
 from __future__ import annotations
 
 import dataclasses
+import hashlib
 import os
+import re
 import secrets
 import shutil
+import sys
 import threading
 import time
 import uuid
 import zipfile
+from collections import OrderedDict
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 
-from fastapi import FastAPI, File, Form, Request, UploadFile
+from fastapi import APIRouter, Depends, FastAPI, Form, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from markupsafe import escape
+from starlette.concurrency import run_in_threadpool
+from starlette.datastructures import Headers
+from starlette.datastructures import UploadFile as FormFile
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
+from starlette.responses import PlainTextResponse
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from clef_tune.config import Config
-from clef_tune.predictions import check_input, read_table, summarize, write_input_csv, write_table
+from clef_tune.predictions import (
+    DEFAULT_REVIEW_BELOW,
+    check_input,
+    read_table,
+    summarize,
+    write_input_csv,
+    write_table,
+)
 from clef_tune.ui import handlers, local, runs, views
 from clef_tune.ui import wording as w
-from clef_tune.ui.services import Services
+from clef_tune.ui.services import Services, public_services
 from clef_tune.ui.session import STALE_HOURS, Session, UploadError, extract_zip, sweep_stale
 from clef_tune.ui.settings import Settings, SignInRequired, user_token
 
@@ -41,8 +62,21 @@ HERE = Path(__file__).parent
 SESSION_KEY = "clef_tune_sid"
 FROM_SCRIPT = "clef-tune"  # the X-Requested-With header clef-tune.js sends
 CHUNK = 1 << 20
+FORM_ROOM = 64 * 1024  # an upload's form framing, on top of the file itself
 LOSS_WIDTH, LOSS_HEIGHT = 600, 90
 LATEST_SHOWN = 2
+JOB_ID = re.compile(r"[A-Za-z0-9_-]{1,64}")  # a Hugging Face job id
+LOOPBACK_HOSTS = ("localhost", "127.0.0.1", "[::1]")
+ANY_ADDRESS = ("0.0.0.0", "::", "")  # listening on every network the computer is on
+UNSAFE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+SAFE_FETCH_SITES = ("same-origin", "none")  # "none": typed in the address bar, or a bookmark
+DEFAULT_PORTS = {"http": 80, "https": 443}
+LOCAL_RETURNS = ("/train", "/models")  # where pasting a token on this computer may go back to
+EXPIRED = "This page has expired, so that change wasn't saved. Start again from your data."
+NETWORK_WARNING = (
+    "Warning: clef-tune is serving your whole network, so anyone on your network can open it "
+    "and act with this computer's Hugging Face login."
+)
 
 
 class SessionStore:
@@ -78,6 +112,100 @@ class SessionStore:
             session.close()
 
 
+class AccountNames:
+    """Which account each token belongs to, remembered for the process. Only answers are kept,
+    so a lookup that failed (offline, or a moment's outage) is tried again next time. At most
+    `limit` are kept, keyed by each token's hash, so pasted tokens don't pile up."""
+
+    def __init__(self, limit: int = 256) -> None:
+        self.limit = limit
+        self.names: OrderedDict[str, str] = OrderedDict()
+        self.guard = threading.Lock()
+
+    def __len__(self) -> int:
+        return len(self.names)
+
+    def lookup(self, token: str, whoami: Callable[[str], str]) -> str | None:
+        key = hashlib.sha256(token.encode("utf-8")).hexdigest()
+        with self.guard:
+            if key in self.names:
+                self.names.move_to_end(key)
+                return self.names[key]
+        try:
+            name = whoami(token)
+        except Exception:  # offline, or a token without read access
+            return None
+        if not name:
+            return None
+        with self.guard:
+            self.names[key] = name
+            while len(self.names) > self.limit:
+                self.names.popitem(last=False)
+        return name
+
+
+def _host_and_port(value: str, default: int | None) -> tuple[str, int | None]:
+    host, colon, port = value.rpartition(":")
+    if colon and port.isdigit():
+        return host.strip("[]").lower(), int(port)
+    return value.strip("[]").lower(), default
+
+
+def same_origin(origin: str, host: str) -> bool:
+    """Whether an Origin header names the host and port the request was sent to."""
+    parts = urlsplit(origin)
+    default = DEFAULT_PORTS.get(parts.scheme)
+    if not parts.hostname or default is None:  # "null", or not a web page
+        return False
+    try:
+        port = parts.port or default
+    except ValueError:
+        return False
+    return (parts.hostname.lower(), port) == _host_and_port(host, default)
+
+
+class SameOriginPosts:
+    """Refuses a state-changing request that another site's page sent (cross-site request
+    forgery: on a Space the session cookie must be SameSite=None to work in Hugging Face's
+    frame, so any site's form would carry it). Browsers say where a request came from in
+    Sec-Fetch-Site and Origin; a request with neither is not from a page, and passes."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] == "http" and scope["method"] in UNSAFE_METHODS:
+            headers = Headers(scope=scope)
+            site, origin = headers.get("sec-fetch-site"), headers.get("origin")
+            if (site is not None and site not in SAFE_FETCH_SITES) or (
+                origin is not None and not same_origin(origin, headers.get("host", ""))
+            ):
+                refused = PlainTextResponse(
+                    "This request came from another site, so it was refused.", status_code=403
+                )
+                await refused(scope, receive, send)
+                return
+        await self.app(scope, receive, send)
+
+
+def bound_hosts(host: str) -> list[str]:
+    """The names the app answers to on this computer: its loopback names and the address it was
+    told to listen on. Listening on every address (0.0.0.0) is choosing the whole network, so
+    any name is taken."""
+    if host in ANY_ADDRESS:
+        return ["*"]
+    name = f"[{host}]" if ":" in host and not host.startswith("[") else host
+    return [*LOOPBACK_HOSTS, name.lower()]
+
+
+def checked_job_id(job_id: str) -> str:
+    """A run id from the address: a Hugging Face job id, or this computer's run. Anything else
+    (a path, markup) is not a run, so it never reaches a file path, a Hub call or a page."""
+    if job_id != local.LOCAL_ID and not JOB_ID.fullmatch(job_id):
+        raise HTTPException(status_code=404)
+    return job_id
+
+
 @dataclass
 class Ctx:
     """What one request knows: its session (and lock), and who is signed in."""
@@ -98,7 +226,7 @@ def _day(value: datetime | None) -> str:
 
 def _swaps(*parts: tuple[str, str], animate: tuple[str, ...] = ()) -> HTMLResponse:
     body = "".join(
-        f'<template data-swap="{selector}"{" data-animate" if selector in animate else ""}>'
+        f'<template data-swap="{escape(selector)}"{" data-animate" if selector in animate else ""}>'
         f"{html}</template>"
         for selector, html in parts
     )
@@ -128,6 +256,17 @@ def _noun(session: Session) -> str:
     return w.noun_or_default(session.draft.row_noun if session.draft else None)
 
 
+def _upload_name(filename: str | None) -> str:
+    """A safe name for an uploaded file: its base name without characters a file system
+    refuses, or "upload" when nothing is left (a name such as ".." or an empty one)."""
+    base = re.split(r"[/\\]", filename or "")[-1]
+    return re.sub(r'[<>:"|?*\x00-\x1f]', "-", base).strip(" .") or "upload"
+
+
+def _too_big(name: str, max_mb: int) -> str:
+    return f"Could not use {name}: it is over the {max_mb} MB limit"
+
+
 def pop_flash(session: Session) -> str | None:
     """A message left by a form post for the page it redirects to."""
     message, session.flash = session.flash, None
@@ -147,14 +286,18 @@ def create_app(
     services: Services | None = None,
     *,
     secret: str | None = None,
+    allowed_hosts: Sequence[str] | None = None,
 ) -> FastAPI:
+    """The app. On a Space every visitor signs in; elsewhere the app answers only to
+    `allowed_hosts` (by default this computer's loopback names; see bound_hosts)."""
     settings = settings or Settings.from_env()
-    services = services or Services()
+    services = services or (public_services() if settings.space else Services())
     app = FastAPI(title="clef-tune", docs_url=None, redoc_url=None, openapi_url=None)
     if settings.space:
         from huggingface_hub import attach_huggingface_oauth
 
         attach_huggingface_oauth(app)  # also adds the (SameSite=None) session middleware
+        app.add_middleware(SameOriginPosts)
     else:
         app.add_middleware(
             SessionMiddleware,
@@ -162,6 +305,10 @@ def create_app(
             session_cookie="clef_tune",
             same_site="lax",
             https_only=False,
+        )
+        app.add_middleware(SameOriginPosts)
+        app.add_middleware(
+            TrustedHostMiddleware, allowed_hosts=list(allowed_hosts or LOOPBACK_HOSTS)
         )
     app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
     templates = Jinja2Templates(directory=HERE / "templates")
@@ -173,10 +320,26 @@ def create_app(
     )
     templates.env.filters["day"] = _day
     store = SessionStore()
-    names: dict[str, str] = {}
+    names = AccountNames()
+    # Every route with a run's id in its address checks the id first (checked_job_id).
+    jobs = APIRouter(dependencies=[Depends(checked_job_id)])
     sweep_stale()
 
     # ------------------------------------------------------------------------ helpers
+
+    def signed_in(request: Request) -> Any:
+        """This visitor's Hugging Face sign-in, or None. One that has expired counts as signed
+        out and is forgotten, so they're asked to sign in again instead of shown errors."""
+        from huggingface_hub import parse_huggingface_oauth
+
+        try:
+            info = parse_huggingface_oauth(request)
+        except (TypeError, ValueError, OverflowError, OSError):  # a session it can't read
+            info = None
+        if info is not None and info.access_token_expires_at > datetime.now():
+            return info
+        request.session.pop("oauth_info", None)
+        return None
 
     def ctx(request: Request) -> Ctx:
         sid = request.session.get(SESSION_KEY)
@@ -186,9 +349,7 @@ def create_app(
         session, lock = store.get(sid)
         oauth, user = None, None
         if settings.space:
-            from huggingface_hub import parse_huggingface_oauth
-
-            info = parse_huggingface_oauth(request)
+            info = signed_in(request)
             if info is not None:
                 oauth = info.access_token
                 user = getattr(info.user_info, "preferred_username", None)
@@ -196,13 +357,8 @@ def create_app(
             token = user_token(settings, oauth, session.pasted_token)
         except SignInRequired:
             token = None
-        if user is None and token:
-            if token not in names:
-                try:
-                    names[token] = services.whoami(token)
-                except Exception:  # offline, or a token without read access
-                    names[token] = ""
-            user = names[token] or None
+        if token and (user is None or token != oauth):  # a pasted token shows its own account
+            user = names.lookup(token, services.whoami)
         return Ctx(session, lock, token, user)
 
     def render(request: Request, c: Ctx, name: str, **context: Any) -> HTMLResponse:
@@ -220,12 +376,34 @@ def create_app(
             return Response(status_code=204, headers={"X-Redirect": url})
         return RedirectResponse(url, status_code=303)
 
+    def sign_in(target: str) -> str:
+        """Where a signed-out person goes to sign in: Hugging Face's sign-in on a Space. On this
+        computer there is none, so back to the page, which says how to log in."""
+        return _login_url(target) if settings.space else target
+
+    def lost(request: Request, c: Ctx) -> Response | None:
+        """For an in-page edit whose setup is gone (a restart, a day idle, or signing out in
+        another tab): back to the first step, saying why. None while the setup is there."""
+        if c.session.draft is not None:
+            return None
+        c.session.flash = EXPIRED
+        return go(request, "/data")
+
     def refresh(c: Ctx) -> None:
         handlers.refresh(c.session, services)
 
-    def save_upload(c: Ctx, upload: UploadFile, folder: str) -> tuple[Path | None, str | None]:
+    def too_large(request: Request) -> bool:
+        """Whether an upload says it is over the cap, so it can be refused before it is read
+        (with room for the form's own framing; save_upload checks the file itself)."""
+        try:
+            declared = int(request.headers.get("content-length", ""))
+        except ValueError:
+            return False
+        return declared > settings.max_upload_bytes + FORM_ROOM
+
+    def save_upload(c: Ctx, upload: FormFile, folder: str) -> tuple[Path | None, str | None]:
         """Stream an upload into the session's folder under its own name, within the cap."""
-        name = Path(upload.filename or "upload").name or "upload"
+        name = _upload_name(upload.filename)
         target_dir = c.session.workdir() / folder / uuid.uuid4().hex[:8]
         target_dir.mkdir(parents=True, exist_ok=True)
         target = target_dir / name
@@ -236,9 +414,7 @@ def create_app(
                 if size > settings.max_upload_bytes:
                     out.close()
                     shutil.rmtree(target_dir, ignore_errors=True)
-                    return None, (
-                        f"Could not use {name}: it is over the {settings.max_upload_mb} MB limit"
-                    )
+                    return None, _too_big(name, settings.max_upload_mb)
                 out.write(chunk)
         return target, None
 
@@ -249,6 +425,20 @@ def create_app(
         if index > furthest:
             return RedirectResponse(views.STEPS[furthest][2], status_code=303)
         return None
+
+    def signin_page(request: Request, c: Ctx, error: str | None = None) -> Response:
+        """Your models, asking a signed-out person to sign in (or, with an error, saying why a
+        run can't be shown)."""
+        return render(
+            request,
+            c,
+            "models.html",
+            need_signin=error is None,
+            rows=[],
+            error=error,
+            local=None,
+            local_label="",
+        )
 
     # ------------------------------------------------------------------------ welcome, models
 
@@ -296,45 +486,26 @@ def create_app(
             "stopped": "Stopped",
             "failed": "Didn't finish",
         }
-        if not c.token:
-            return render(
-                request,
-                c,
-                "models.html",
-                need_signin=settings.space,
-                rows=[],
-                error=None,
-                local=local_state,
-                local_label=labels.get(local_state.status) if local_state else "",
-            )
-        rows, error = runs.list_models(services, token=c.token)
+        rows, error = runs.list_models(services, token=c.token) if c.token else ([], None)
         return render(
             request,
             c,
             "models.html",
-            need_signin=False,
+            need_signin=not c.token,
             rows=rows,
             error=error,
             local=local_state,
             local_label=labels.get(local_state.status) if local_state else "",
         )
 
-    @app.get("/models/{job_id}/line", response_class=HTMLResponse)
+    @jobs.get("/models/{job_id}/line", response_class=HTMLResponse)
     def model_line(request: Request, job_id: str) -> Response:
         c = ctx(request)
         if not c.token:
             return HTMLResponse("")
         with c.lock:
-            state, _ = runs.job_state(
-                c.session, services, job_id, token=c.token, model="the model", noun="example"
-            )
-            if state is None:
-                return HTMLResponse("")
-            results = None
-            if state.status == "done" and state.kind == "train":
-                status = services.job_status(job_id, token=c.token)
-                results, _ = runs.job_results(c.session, services, status, token=c.token)
-        return _swaps((f"#line-{job_id}", runs.model_detail(state, results)))
+            line = runs.model_line(c.session, services, job_id, token=c.token)
+        return _swaps((f"#line-{job_id}", str(escape(line))))
 
     # ------------------------------------------------------------------------ step 1: data
 
@@ -347,11 +518,13 @@ def create_app(
             steps = views.step_bar(c.session, "data")
         return render(request, c, "data.html", page=page, steps=steps, roles=handlers.ROLE_CHOICES)
 
-    @app.post("/data/upload")
-    def data_upload(request: Request, file: UploadFile = File(...)) -> Response:
+    def use_data_upload(request: Request, upload: Any) -> Response:
         c = ctx(request)
         with c.lock:
-            path, error = save_upload(c, file, "incoming")
+            if not isinstance(upload, FormFile):
+                c.session.flash = "Choose a file to upload."
+                return go(request, "/data")
+            path, error = save_upload(c, upload, "incoming")
             if path is not None:
                 error = handlers.upload(c.session, path, settings)
                 shutil.rmtree(path.parent, ignore_errors=True)
@@ -360,6 +533,21 @@ def create_app(
             if error:
                 c.session.flash = error
         return go(request, "/data")
+
+    def refuse_data_upload(request: Request) -> Response:
+        c = ctx(request)
+        with c.lock:
+            c.session.flash = _too_big("that file", settings.max_upload_mb)
+        return go(request, "/data")
+
+    @app.post("/data/upload")
+    async def data_upload(request: Request) -> Response:
+        """Async only so an oversized upload is refused before its body is read; the work
+        runs in the thread pool, off the event loop."""
+        if too_large(request):
+            return await run_in_threadpool(refuse_data_upload, request)
+        async with request.form(max_files=1) as form:
+            return await run_in_threadpool(use_data_upload, request, form.get("file"))
 
     @app.post("/data/sample")
     def data_sample(request: Request, name: str = Form(...)) -> Response:
@@ -384,6 +572,8 @@ def create_app(
     def data_noun(request: Request, noun: str = Form("")) -> Response:
         c = ctx(request)
         with c.lock:
+            if (expired := lost(request, c)) is not None:
+                return expired
             handlers.set_noun(c.session, noun)
             page = views.data_page(c.session, settings)
         mark = "Guessed from the file name" if page.noun_guessed else ""
@@ -393,6 +583,8 @@ def create_app(
     def data_role(request: Request, column: str = Form(...), role: str = Form(...)) -> Response:
         c = ctx(request)
         with c.lock:
+            if (expired := lost(request, c)) is not None:
+                return expired
             error = handlers.set_role(c.session, column, role)
             refresh(c)
             page = views.data_page(c.session, settings, error)
@@ -445,25 +637,30 @@ def create_app(
             return _swaps(("#editor", html))
         if page.selected is None:
             return HTMLResponse("")
-        flags = "".join(
-            f'<p class="flag">{templates.env.filters["e"](f)}</p>' for f in page.selected.flags
-        )
+        flags = "".join(f'<p class="flag">{escape(f)}</p>' for f in page.selected.flags)
         number = [item.id for item in page.items].index(page.selected.id) + 1
         # Numbered per question, so an answer that lands after a switch changes nothing.
         return _swaps((f"#flags-{number}", flags))
 
-    @app.post("/questions/{qid}/ask")
-    def question_ask(request: Request, qid: str, ask: str = Form("")) -> Response:
+    # A question's id is its column's name, which may hold a "/", so it travels in the form
+    # (qid), never in the address.
+
+    @app.post("/questions/ask")
+    def question_ask(request: Request, qid: str = Form(...), ask: str = Form("")) -> Response:
         c = ctx(request)
         with c.lock:
+            if (expired := lost(request, c)) is not None:
+                return expired
             handlers.update_question(c.session, qid, instructions=ask)
             refresh(c)
             return editor_swap(request, c, qid, whole=False)
 
-    @app.post("/questions/{qid}/type")
-    def question_type(request: Request, qid: str, kind: str = Form(...)) -> Response:
+    @app.post("/questions/type")
+    def question_type(request: Request, qid: str = Form(...), kind: str = Form(...)) -> Response:
         c = ctx(request)
         with c.lock:
+            if (expired := lost(request, c)) is not None:
+                return expired
             try:
                 handlers.update_question(c.session, qid, type=kind)
             except ValueError:
@@ -471,22 +668,29 @@ def create_app(
             refresh(c)
             return editor_swap(request, c, qid, whole=True)
 
-    @app.post("/questions/{qid}/describe")
+    @app.post("/questions/describe")
     def question_describe(
-        request: Request, qid: str, option: str = Form(...), description: str = Form("")
+        request: Request,
+        qid: str = Form(...),
+        option: str = Form(...),
+        description: str = Form(""),
     ) -> Response:
         c = ctx(request)
         with c.lock:
+            if (expired := lost(request, c)) is not None:
+                return expired
             handlers.describe_option(c.session, qid, option, description)
             refresh(c)
             return editor_swap(request, c, qid, whole=False)
 
-    @app.post("/questions/{qid}/move")
+    @app.post("/questions/move")
     def question_move(
-        request: Request, qid: str, option: str = Form(...), offset: int = Form(...)
+        request: Request, qid: str = Form(...), option: str = Form(...), offset: int = Form(...)
     ) -> Response:
         c = ctx(request)
         with c.lock:
+            if (expired := lost(request, c)) is not None:
+                return expired
             handlers.move_option(c.session, qid, option, offset)
             refresh(c)
             return editor_swap(request, c, qid, whole=True)
@@ -543,19 +747,21 @@ def create_app(
     def settings_name(request: Request, name: str = Form("")) -> Response:
         c = ctx(request)
         with c.lock:
+            if (expired := lost(request, c)) is not None:
+                return expired
             error = handlers.set_run_name(c.session, name)
             if error:
-                return _swaps(("#name-note", templates.env.filters["e"](error)))
+                return _swaps(("#name-note", str(escape(error))))
             page = views.settings_page(c.session, services, c.user)
-        note = (
-            f"Saved to your Hugging Face account as <b>{templates.env.filters['e'](page.repo)}</b>"
-        )
+        note = f"Saved to your Hugging Face account as <b>{escape(page.repo)}</b>"
         return _swaps(("#name-note", note))
 
     @app.post("/settings/model")
     def settings_model(request: Request, model: str = Form(...)) -> Response:
         c = ctx(request)
         with c.lock:
+            if (expired := lost(request, c)) is not None:
+                return expired
             if model in views.MODELS:
                 handlers.set_model(c.session, model)
                 c.session.flavor = None
@@ -566,23 +772,26 @@ def create_app(
     def settings_preset(request: Request, preset: str = Form(...)) -> Response:
         c = ctx(request)
         with c.lock:
+            if (expired := lost(request, c)) is not None:
+                return expired
             if preset in views.PRESETS:
                 handlers.set_preset(c.session, preset)
                 refresh(c)
             return _swaps(("#settings-body", settings_view(request, c)))
 
     @app.post("/settings/field")
-    async def settings_field(request: Request) -> Response:
-        form = await request.form()
-        path = str(form.get("path", ""))
-        values = [str(v) for v in form.getlist("value")]
-        value: Any = values[-1] if values else ""
+    def settings_field(
+        request: Request, path: str = Form(""), value: list[str] = Form([])
+    ) -> Response:
         c = ctx(request)
+        chosen: Any = value[-1] if value else ""  # a checkbox sends "" and then "1" when ticked
         spec = next((s for s in handlers.ADVANCED_FIELDS if s.path == path), None)
         if spec is not None and spec.kind == "bool":
-            value = value == "1"
+            chosen = chosen == "1"
         with c.lock:
-            error = handlers.set_field(c.session, path, value)
+            if (expired := lost(request, c)) is not None:
+                return expired
+            error = handlers.set_field(c.session, path, chosen)
             refresh(c)
             field_error = (path, views.field_error_text(path, error)) if error else None
             return _swaps(("#settings-body", settings_view(request, c, field_error)))
@@ -591,6 +800,8 @@ def create_app(
     def settings_holdout(request: Request, percent: str = Form("")) -> Response:
         c = ctx(request)
         with c.lock:
+            if (expired := lost(request, c)) is not None:
+                return expired
             error = handlers.set_holdout(c.session, percent)
             refresh(c)
             holdout_error = (percent, error) if error else None
@@ -602,6 +813,8 @@ def create_app(
     def settings_flavor(request: Request, flavor: str = Form("")) -> Response:
         c = ctx(request)
         with c.lock:
+            if (expired := lost(request, c)) is not None:
+                return expired
             c.session.flavor = flavor or None
             return _swaps(("#settings-body", settings_view(request, c)))
 
@@ -622,7 +835,11 @@ def create_app(
         draft = session.draft
         model = _model_name(session)
         preset = views.PRESETS.get(draft.preset, ("",))[0] if draft else ""
-        common = {"local_training": settings.local_training, "delete_data": session.delete_data}
+        common = {
+            "local_training": settings.local_training,
+            "delete_data": session.delete_data,
+            "pasted": bool(session.pasted_token),
+        }
         if not c.token:
             page = views.settings_page(session, services, None)
             return fragment(
@@ -655,26 +872,37 @@ def create_app(
             return _swaps(("#review", review_fragment(request, c)), animate=("#review",))
 
     @app.post("/train/delete-data")
-    async def train_delete_data(request: Request) -> Response:
-        form = await request.form()
+    def train_delete_data(request: Request, delete: list[str] = Form([])) -> Response:
         c = ctx(request)
         with c.lock:
-            c.session.delete_data = "1" in form.getlist("delete")
+            c.session.delete_data = "1" in delete
             return _swaps(("#review", review_fragment(request, c)))
 
     @app.post("/train/token")
-    def train_token(request: Request, token: str = Form("")) -> Response:
-        """A token pasted for this browser session, used when sign-in lacks a permission."""
+    def train_token(
+        request: Request, token: str = Form(""), back: str = Form("/train")
+    ) -> Response:
+        """A token pasted for this browser session: on a Space when sign-in lacks a permission,
+        and on this computer when it has no Hugging Face login."""
         c = ctx(request)
         with c.lock:
             c.session.pasted_token = token.strip() or None
-        return go(request, "/train")
+        return go(request, back if back in LOCAL_RETURNS else "/train")
+
+    @app.post("/train/switch")
+    def train_switch(request: Request) -> Response:
+        """Use another account: forget a pasted token, and on a Space the sign-in too."""
+        c = ctx(request)
+        with c.lock:
+            c.session.pasted_token = None
+        target = "/oauth/huggingface/logout?_target_url=/train" if settings.space else "/train"
+        return go(request, target)
 
     @app.post("/train/start")
     def train_start(request: Request) -> Response:
         c = ctx(request)
         if not c.token:
-            return go(request, _login_url("/train"))
+            return go(request, sign_in("/train"))
         with c.lock:
             job_id, error = runs.confirm_launch(c.session, services, token=c.token)
             if error:
@@ -730,11 +958,24 @@ def create_app(
             return f"{state.name} was stopped"
         return f"{state.name} didn't finish" if state.status == "failed" else state.name
 
-    def predictions_csv(c: Ctx, job_id: str) -> Path:
+    def predictions_csv(c: Ctx, job_id: str, status: Any = None) -> Path:
+        """A prediction job's spreadsheet, downloaded once into this session's folder, with the
+        person's own column names put back (the job read the model's)."""
         path = c.session.workdir() / "predictions" / f"{job_id}.csv"
-        if not path.exists():
-            services.download_predictions(job_id, path, token=c.token)
+        if path.exists():
+            return path
+        status = status or services.job_status(job_id, token=c.token)
+        services.download_predictions(job_id, path, token=c.token)
+        if status.output_names:
+            header, rows = read_table(path)
+            write_table([status.output_names.get(name, name) for name in header], rows, path)
         return path
+
+    def forget_predictions(c: Ctx, job_id: str) -> None:
+        """Delete this session's copies of a job's spreadsheet, in every format."""
+        folder = c.session.workdir() / "predictions"
+        for path in folder.glob(f"{job_id}.*"):  # an id is only letters, digits, - and _
+            path.unlink(missing_ok=True)
 
     def prediction_config(c: Ctx, repo: str | None) -> Config:
         draft = c.session.prediction
@@ -750,10 +991,41 @@ def create_app(
             else Config.model_validate({"run_name": "x", "data": {"train": "x"}})
         )
 
-    @app.get("/runs/{job_id}", response_class=HTMLResponse)
+    def finished_page(
+        request: Request, c: Ctx, job_id: str, status: Any, state: runs.RunState
+    ) -> tuple[Response | None, str | None]:
+        """A completed run's results page, or why it can't be read yet (None, notice). The
+        files can lag the job's end (the bucket uploads on close), so the run page waits."""
+        if state.kind == "train":
+            view, problem = runs.job_results(c.session, services, status, token=c.token)
+            if view is None:
+                return None, problem
+            return render(request, c, "results.html", view=view, job_id=job_id), None
+        try:
+            config = prediction_config(c, status.adapter_repo)
+            header, rows = read_table(predictions_csv(c, job_id, status))
+            result = views.prediction_result(
+                summarize(header, rows, config),
+                config,
+                threshold=status.review_below or DEFAULT_REVIEW_BELOW,
+            )
+        except Exception as exc:  # not downloadable yet, or the model was deleted
+            return None, f"The spreadsheet isn't readable yet ({exc}); trying again."
+        page = render(
+            request,
+            c,
+            "prediction_results.html",
+            state=state,
+            result=result,
+            took=w.duration(state.hours or 0),
+            downloads=views.DOWNLOADS,
+        )
+        return page, None
+
+    @jobs.get("/runs/{job_id}", response_class=HTMLResponse)
     def run_page(request: Request, job_id: str) -> Response:
         c = ctx(request)
-        common = {"poll_seconds": runs.POLL_SECONDS, "usual": "10 to 20 minutes", "notice": None}
+        common = {"poll_seconds": runs.POLL_SECONDS, "notice": None, "retry": False}
         if job_id == local.LOCAL_ID:
             with c.lock:
                 state, results = local.local_state(
@@ -773,55 +1045,16 @@ def create_app(
                 **common,
             )
         if not c.token:
-            return render(
-                request,
-                c,
-                "models.html",
-                need_signin=True,
-                rows=[],
-                error=None,
-                local=None,
-                local_label="",
-            )
+            return signin_page(request, c)
         with c.lock:
             status, state, notice = job_view(c, job_id)
             if state is None:
-                return render(
-                    request,
-                    c,
-                    "models.html",
-                    need_signin=False,
-                    rows=[],
-                    error=notice,
-                    local=None,
-                    local_label="",
-                )
-            if status is not None and state.status == "done" and state.kind == "train":
-                view, problem = runs.job_results(c.session, services, status, token=c.token)
-                if view is not None:
-                    return render(request, c, "results.html", view=view, job_id=job_id)
-                notice = problem
-            if status is not None and state.status == "done" and state.kind == "predict":
-                try:
-                    config = prediction_config(c, status.adapter_repo)
-                    header, rows = read_table(predictions_csv(c, job_id))
-                    draft = c.session.prediction
-                    threshold = draft.threshold if draft is not None else 0.7
-                    result = views.prediction_result(
-                        summarize(header, rows, config), config, threshold=threshold
-                    )
-                except Exception as exc:  # not downloadable yet, or the model was deleted
-                    notice = f"The spreadsheet isn't readable yet ({exc}). Try again shortly."
-                else:
-                    return render(
-                        request,
-                        c,
-                        "prediction_results.html",
-                        state=state,
-                        result=result,
-                        took=w.duration(state.hours or 0),
-                        downloads=views.DOWNLOADS,
-                    )
+                return signin_page(request, c, notice)
+            if status is not None and state.status == "done":
+                page, notice = finished_page(request, c, job_id, status, state)
+                if page is not None:
+                    return page
+                common["retry"] = notice is not None
         common["notice"] = notice
         return render(
             request,
@@ -833,9 +1066,10 @@ def create_app(
             **common,
         )
 
-    @app.get("/runs/{job_id}/status", response_class=HTMLResponse)
+    @jobs.get("/runs/{job_id}/status", response_class=HTMLResponse)
     def run_status(request: Request, job_id: str) -> Response:
         c = ctx(request)
+        waiting = False  # finished, but its results can't be read yet: keep polling
         with c.lock:
             if job_id == local.LOCAL_ID:
                 state, _ = local.local_state(
@@ -843,7 +1077,11 @@ def create_app(
                 )
                 notice = None
             elif c.token:
-                _, state, notice = job_view(c, job_id)
+                status, state, notice = job_view(c, job_id)
+                if status is not None and state.status == "done":
+                    page, problem = finished_page(request, c, job_id, status, state)
+                    if page is None and problem is not None:
+                        notice, waiting = problem, True
             else:
                 state, notice = None, "Sign in again to follow this run."
         if state is None:
@@ -854,17 +1092,16 @@ def create_app(
             "_run_status.html",
             state=state,
             notice=notice,
-            usual="10 to 20 minutes",
             loss_points=_loss_points(state.loss),
         )
         response = _swaps(("#run-status", html))
-        if state.status != "running":
+        if state.status != "running" and not waiting:
             response.headers["X-Run-Ended"] = state.status
             response.headers["X-Refresh"] = "1"
             response.headers["X-Stop-Polling"] = "1"
         return response
 
-    @app.post("/runs/{job_id}/stop")
+    @jobs.post("/runs/{job_id}/stop")
     def run_stop(request: Request, job_id: str) -> Response:
         c = ctx(request)
         with c.lock:
@@ -877,31 +1114,20 @@ def create_app(
                     c.session.flash = error
         return go(request, f"/runs/{job_id}")
 
-    @app.get("/runs/{job_id}/resume", response_class=HTMLResponse)
+    @jobs.get("/runs/{job_id}/resume", response_class=HTMLResponse)
     def run_resume_quote(request: Request, job_id: str) -> Response:
         c = ctx(request)
-        if job_id == local.LOCAL_ID:
-            html = (
-                f'<form action="/runs/{job_id}/resume" method="post"><button class="btn" '
-                'type="submit">Try again from where it stopped</button></form>'
-            )
-            return _swaps(("#resume", html))
-        if not c.token:
+        if job_id != local.LOCAL_ID and not c.token:
             return _swaps(("#resume", ""))
-        quote = runs.review_resume(services, job_id, token=c.token)
-        escape = templates.env.filters["e"]
-        if not quote.can_resume:
-            return _swaps(("#resume", f'<p class="fine">{escape(quote.error)}</p>'))
-        cap = f", at most {quote.cap_cost}" if quote.cap_cost else ""
-        html = (
-            f'<form action="/runs/{job_id}/resume" method="post" class="start"><button '
-            'class="btn" type="submit">Try again from where it stopped</button><small>'
-            f"On {escape(quote.hardware)}, for up to {escape(quote.cap_time)}{escape(cap)}."
-            "</small></form>"
+        quote = (
+            None
+            if job_id == local.LOCAL_ID
+            else runs.review_resume(services, job_id, token=c.token)
         )
+        html = fragment(request, c, "_resume.html", job_id=job_id, quote=quote)
         return _swaps(("#resume", html))
 
-    @app.post("/runs/{job_id}/resume")
+    @jobs.post("/runs/{job_id}/resume")
     def run_resume(request: Request, job_id: str) -> Response:
         c = ctx(request)
         with c.lock:
@@ -913,26 +1139,29 @@ def create_app(
                         c.session.flash = str(exc)
                 return go(request, f"/runs/{job_id}")
             if not c.token:
-                return go(request, _login_url(f"/runs/{job_id}"))
+                return go(request, sign_in(f"/runs/{job_id}"))
             new_id, error = runs.resume_run(services, job_id, token=c.token)
         if error:
             return go(request, f"/runs/{job_id}")
         return go(request, f"/runs/{new_id}")
 
-    @app.post("/runs/{job_id}/delete-files")
+    @jobs.post("/runs/{job_id}/delete-files")
     def run_delete_files(request: Request, job_id: str) -> Response:
         c = ctx(request)
         if not c.token:
             return _swaps(("#delete-result", "Sign in first."))
         count, error = runs.delete_files(services, job_id, token=c.token)
+        if error is None:
+            with c.lock:
+                forget_predictions(c, job_id)
         text = error or (
             f"Deleted {count} file{'s' if count != 1 else ''}."
             if count
             else "There were no files left to delete."
         )
-        return _swaps(("#delete-result", templates.env.filters["e"](text)), ("#delete-confirm", ""))
+        return _swaps(("#delete-result", str(escape(text))), ("#delete-confirm", ""))
 
-    @app.get("/runs/{job_id}/download.{fmt}")
+    @jobs.get("/runs/{job_id}/download.{fmt}")
     def run_download(request: Request, job_id: str, fmt: str) -> Response:
         c = ctx(request)
         download = next((d for d in views.DOWNLOADS if d.key == fmt), None)
@@ -967,7 +1196,13 @@ def create_app(
             config = Config.model_validate(files.config)
         except Exception as exc:
             return None, f"Could not read the model's settings ({exc})."
-        draft = views.PredictionDraft(job_id, status.adapter_repo, status.run or job_id, config)
+        draft = views.PredictionDraft(
+            job_id,
+            status.adapter_repo,
+            status.run or job_id,
+            config,
+            calibrated=runs.was_calibrated(files.metrics or {}),
+        )
         c.session.prediction = draft
         return draft, None
 
@@ -983,46 +1218,30 @@ def create_app(
             draft.check, draft.error = None, f"Could not use {draft.file_name}: {exc}"
         draft.plan = None
 
-    @app.get("/predict/{job_id}", response_class=HTMLResponse)
+    @jobs.get("/predict/{job_id}", response_class=HTMLResponse)
     def predict(request: Request, job_id: str) -> Response:
         c = ctx(request)
         if not c.token:
-            return render(
-                request,
-                c,
-                "models.html",
-                need_signin=True,
-                rows=[],
-                error=None,
-                local=None,
-                local_label="",
-            )
+            return signin_page(request, c)
         with c.lock:
             draft, error = prediction_draft(c, job_id)
             if draft is None:
-                return render(
-                    request,
-                    c,
-                    "models.html",
-                    need_signin=False,
-                    rows=[],
-                    error=error,
-                    local=None,
-                    local_label="",
-                )
+                return signin_page(request, c, error)
             page = views.predict_page(draft)
         return render(request, c, "predict.html", page=page, max_mb=settings.max_upload_mb)
 
-    @app.post("/predict/{job_id}/upload")
-    def predict_upload(request: Request, job_id: str, file: UploadFile = File(...)) -> Response:
+    def use_prediction_upload(request: Request, job_id: str, upload: Any) -> Response:
         c = ctx(request)
         if not c.token:
-            return go(request, _login_url(f"/predict/{job_id}"))
+            return go(request, sign_in(f"/predict/{job_id}"))
         with c.lock:
             draft, error = prediction_draft(c, job_id)
             if draft is None:
                 return go(request, f"/predict/{job_id}")
-            path, error = save_upload(c, file, "predict")
+            if not isinstance(upload, FormFile):
+                draft.error = "Choose a file to upload."
+                return go(request, f"/predict/{job_id}")
+            path, error = save_upload(c, upload, "predict")
             if error:
                 draft.error = error
                 return go(request, f"/predict/{job_id}")
@@ -1032,44 +1251,61 @@ def create_app(
                         path, path.parent / "unzipped", settings.max_upload_bytes * 5
                     )
                 except (UploadError, zipfile.BadZipFile) as exc:
-                    draft.error = f"Could not use {file.filename}: {exc}"
+                    draft.error = f"Could not use {_upload_name(upload.filename)}: {exc}"
                     return go(request, f"/predict/{job_id}")
-            draft.file_name, draft.path, draft.rename = (
-                Path(file.filename or path.name).name,
-                path,
-                {},
-            )
+            draft.file_name, draft.path, draft.rename = _upload_name(upload.filename), path, {}
             check(c, draft)
         return go(request, f"/predict/{job_id}")
 
-    @app.post("/predict/{job_id}/rename")
-    async def predict_rename(request: Request, job_id: str) -> Response:
-        form = await request.form()
+    def refuse_prediction_upload(request: Request, job_id: str) -> Response:
+        c = ctx(request)
+        if not c.token:
+            return go(request, sign_in(f"/predict/{job_id}"))
+        with c.lock:
+            draft, _ = prediction_draft(c, job_id)
+            if draft is not None:
+                draft.error = _too_big("that file", settings.max_upload_mb)
+        return go(request, f"/predict/{job_id}")
+
+    @jobs.post("/predict/{job_id}/upload")
+    async def predict_upload(request: Request, job_id: str) -> Response:
+        """Async only so an oversized upload is refused before its body is read; the work
+        runs in the thread pool, off the event loop."""
+        if too_large(request):
+            return await run_in_threadpool(refuse_prediction_upload, request, job_id)
+        async with request.form(max_files=1) as form:
+            upload = form.get("file")
+            return await run_in_threadpool(use_prediction_upload, request, job_id, upload)
+
+    @jobs.post("/predict/{job_id}/rename")
+    def predict_rename(
+        request: Request,
+        job_id: str,
+        sources: list[str] = Form([], alias="from"),
+        targets: list[str] = Form([], alias="to"),
+    ) -> Response:
         c = ctx(request)
         with c.lock:
             draft = c.session.prediction
             if draft is None or draft.job_id != job_id or draft.path is None:
                 return go(request, f"/predict/{job_id}")
-            for source, target in zip(form.getlist("from"), form.getlist("to"), strict=False):
+            for source, target in zip(sources, targets, strict=False):
                 if source:
-                    draft.rename[str(source)] = str(target)
+                    draft.rename[source] = target
             check(c, draft)
             page = views.predict_page(draft)
         return _swaps(("#predict-body", fragment(request, c, "_predict_body.html", page=page)))
 
-    @app.post("/predict/{job_id}/threshold")
+    @jobs.post("/predict/{job_id}/threshold")
     def predict_threshold(request: Request, job_id: str, percent: str = Form("")) -> Response:
         c = ctx(request)
         with c.lock:
             draft = c.session.prediction
             if draft is not None and draft.job_id == job_id:
-                try:
-                    draft.threshold = min(max(float(percent), 1.0), 99.0) / 100
-                except ValueError:
-                    pass
+                handlers.set_threshold(draft, percent)
         return Response(status_code=204)
 
-    @app.get("/predict/{job_id}/estimate", response_class=HTMLResponse)
+    @jobs.get("/predict/{job_id}/estimate", response_class=HTMLResponse)
     def predict_estimate(request: Request, job_id: str) -> Response:
         c = ctx(request)
         if not c.token:
@@ -1101,6 +1337,7 @@ def create_app(
                     token=c.token,
                     keep_input=not c.session.delete_data,
                     prices=services.prices(),
+                    output_names=draft.check.output_names(),
                 )
             except Exception as exc:
                 html = fragment(
@@ -1123,11 +1360,11 @@ def create_app(
             )
         return _swaps(("#predict-estimate", html), animate=("#predict-estimate",))
 
-    @app.post("/predict/{job_id}/start")
+    @jobs.post("/predict/{job_id}/start")
     def predict_start(request: Request, job_id: str) -> Response:
         c = ctx(request)
         if not c.token:
-            return go(request, _login_url(f"/predict/{job_id}"))
+            return go(request, sign_in(f"/predict/{job_id}"))
         with c.lock:
             draft = c.session.prediction
             if draft is None or draft.job_id != job_id or draft.plan is None:
@@ -1141,6 +1378,7 @@ def create_app(
             draft.plan = None
         return go(request, f"/runs/{job.id}")
 
+    app.include_router(jobs)
     return app
 
 
@@ -1151,7 +1389,13 @@ def launch(
     settings: Settings | None = None,
     services: Services | None = None,
 ) -> None:
-    """Serve the web UI until stopped."""
+    """Serve the web UI until stopped. It answers only to this computer's own names and the
+    address it listens on; listening on every address serves the whole network, with a
+    warning, since anyone there can then act with this computer's Hugging Face login."""
     import uvicorn
 
-    uvicorn.run(create_app(settings, services), host=host, port=port or 7860, log_level="info")
+    hosts = bound_hosts(host)
+    if "*" in hosts:
+        print(NETWORK_WARNING, file=sys.stderr)
+    app = create_app(settings, services, allowed_hosts=hosts)
+    uvicorn.run(app, host=host, port=port or 7860, log_level="info")

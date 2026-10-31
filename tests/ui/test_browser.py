@@ -166,3 +166,60 @@ def test_an_open_tip_sits_above_the_sections_after_it(space_url):
         )
         browser.close()
     assert on_top
+
+
+def with_sample(page, base_url):
+    page.goto(f"{base_url}/data")
+    if not page.locator(".filebar").count():
+        page.get_by_role("button", name="support tickets").click()
+        page.wait_for_url("**/data")
+
+
+def test_a_framed_page_offers_to_open_in_its_own_tab(page, base_url):
+    page.goto(f"{base_url}/data")
+    assert page.locator("[data-own-tab]").is_hidden()
+    page.set_content(f'<iframe src="{base_url}/data" width="1000" height="600"></iframe>')
+    link = page.frame_locator("iframe").locator("[data-own-tab]")
+    link.wait_for(state="visible")
+    assert link.get_attribute("target") == "_blank"
+    assert link.get_attribute("href") == f"{base_url}/data"
+
+
+def test_a_refused_post_says_so_on_the_page(page, base_url):
+    page.goto(f"{base_url}/")
+    page.evaluate(
+        """() => {
+            const form = document.createElement("form");
+            form.setAttribute("data-post", "");
+            form.setAttribute("action", "/no-such-place");
+            document.body.append(form);
+            form.requestSubmit();
+        }"""
+    )
+    page.locator("#page-error").wait_for(state="visible")
+    assert page.locator("#page-error").inner_text()
+
+
+def test_menus_and_the_prompt_panel_keep_focus_and_give_it_back(page, base_url):
+    with_sample(page, base_url)
+    in_menu = "!!document.activeElement.closest('.menu:not([hidden])')"
+    on_trigger = "document.activeElement.matches('[data-menu=\"#role-1\"]')"
+    page.locator("[data-menu='#role-1']").click()
+    assert page.evaluate(in_menu)
+    for key in ["Tab"] * 7 + ["Shift+Tab"] * 3:
+        page.keyboard.press(key)
+        assert page.evaluate(in_menu), key
+    page.keyboard.press("Escape")
+    assert page.evaluate(on_trigger)
+    page.locator("[data-menu='#role-1']").click()
+    page.locator("#role-1 button[aria-checked=true]").click()  # a choice, swapped in place
+    page.wait_for_function(on_trigger)
+    page.goto(f"{base_url}/questions")
+    page.get_by_role("button", name="See what the model reads").click()
+    in_panel = "!!document.activeElement.closest('#prompt-panel .panel')"
+    page.wait_for_function(in_panel)
+    for _ in range(4):
+        page.keyboard.press("Tab")
+        assert page.evaluate(in_panel)
+    page.keyboard.press("Escape")
+    assert page.evaluate("document.activeElement.matches('[data-open-panel]')")

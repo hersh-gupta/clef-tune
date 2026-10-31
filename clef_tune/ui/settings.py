@@ -64,7 +64,7 @@ def user_token(
     oauth_token: str | None,
     pasted: str | None,
     *,
-    local_token: Callable[[], str | None] = get_token,
+    local_token: Callable[[], str | None] | None = None,
 ) -> str:
     """The token for a user action: a pasted token first, then the Hugging Face sign-in on a
     Space or the machine's own login elsewhere. On a Space the server's own token (its HF_TOKEN
@@ -75,7 +75,7 @@ def user_token(
         if oauth_token:
             return oauth_token
         raise SignInRequired("Sign in with Hugging Face, or paste a token")
-    token = local_token()
+    token = (local_token or get_token)()
     if token:
         return token
     raise SignInRequired("Run `hf auth login`, or paste a token")

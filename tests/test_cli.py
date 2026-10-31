@@ -283,3 +283,8 @@ def test_the_ui_command_serves_the_web_app(monkeypatch):
     result = runner.invoke(cli.app, ["ui", "--port", "7861", "--host", "0.0.0.0"])
     assert result.exit_code == 0, result.output
     assert served == {"host": "0.0.0.0", "port": 7861}
+
+
+def test_the_ui_help_warns_what_serving_the_network_means():
+    result = runner.invoke(cli.app, ["ui", "--help"], env={"COLUMNS": "200"})
+    assert result.exit_code == 0 and "Hugging Face login" in result.output

@@ -230,3 +230,10 @@ lock, its source read, and the Spaces OAuth docs).
 35. **Plan 4 spec amendments:** no root `app.py` (the Space entry point is `deploy/space/app.py`);
     charts are hand-written SVG; auto-mapping also proposes an id column and ignores empty
     columns; the UI defaults to Clef-Flash; `train` events carry `total_steps`.
+36. **The Gradio facts (29–31) are superseded.** The UI redesign
+    (`docs/superpowers/specs/2026-10-30-clef-tune-ui-redesign-design.md`) replaced Gradio with a
+    FastAPI app, hand-written pages and a small swap script. Sign-in on a Space is
+    `huggingface_hub.attach_huggingface_oauth`; locally the machine's `hf auth login` or a pasted
+    token is used, with no sign-in link. Sessions are in-memory, keyed by a signed cookie, and
+    session folders older than 24 h are still swept at startup. Item 32 (whether the OAuth token
+    can stage a launch in the jobs bucket) is still unverified.

@@ -5,7 +5,8 @@
 <p class="crumb in"><a href="/models">Your models</a> · {{ state.name }}</p>
 <h1 class="title in">{{ title }}</h1>
 <div class="rule in"></div>
-<div id="run-status" class="in" style="--i:1"{% if state.status == "running" %} data-poll="/runs/{{ state.id }}/status" data-every="{{ poll_seconds }}"{% endif %}>
+{#- A finished run whose results can't be read yet (retry) keeps asking until they can. #}
+<div id="run-status" class="in" style="--i:1"{% if state.status == "running" or retry %} data-poll="/runs/{{ state.id }}/status" data-every="{{ poll_seconds }}"{% endif %}>
   {% include "_run_status.html" %}
 </div>
 {% if state.status == "running" %}
@@ -16,7 +17,7 @@
 </div>
 <form id="stop-confirm" class="confirm" action="/runs/{{ state.id }}/stop" method="post" hidden>
   Stop now? You'll pay for the time so far ({{ state.spent }}) and won't get {{ "a model" if state.kind == "train" else "the spreadsheet" }}.<br>
-  <button class="btn danger" type="submit">Stop</button><button class="btn" type="button" data-toggle="#stop-confirm">Keep going</button>
+  <button class="btn danger" type="submit">Stop {{ "training" if state.kind == "train" else "predicting" }}</button><button class="btn" type="button" data-toggle="#stop-confirm">Keep going</button>
 </form>
 {% else %}
 <div class="acts">
