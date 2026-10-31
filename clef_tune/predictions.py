@@ -1,10 +1,11 @@
 """Prediction spreadsheets, without torch: check a file before predicting, build the output
 table (the person's columns, then each question's answer, its confidence and a review mark),
-write it as CSV or Excel, and summarize it for the web UI."""
+write it as CSV, Excel, TSV or JSON, and summarize it for the web UI."""
 
 from __future__ import annotations
 
 import csv
+import json
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -75,23 +76,43 @@ def prediction_table(
     return header, out
 
 
+TABLE_SUFFIXES = (".csv", ".xlsx", ".tsv", ".jsonl", ".json")
+
+
+def _numeric(header: list[str]) -> set[int]:
+    """The columns holding numbers: confidences and per-answer probabilities."""
+    return {k for k, name in enumerate(header) if name.endswith("_confidence") or ".p." in name}
+
+
+def _records(header: list[str], rows: list[list[str]]) -> list[dict[str, Any]]:
+    """Rows as JSON objects: numbers as numbers, and an empty cell as null."""
+    numeric = _numeric(header)
+    return [
+        {
+            name: None if value == "" else float(value) if k in numeric else value
+            for k, (name, value) in enumerate(zip(header, row, strict=True))
+        }
+        for row in rows
+    ]
+
+
 def write_table(header: list[str], rows: list[list[str]], out: Path) -> Path:
-    """Write a table as .csv (UTF-8 with a BOM, so Excel reads it right) or .xlsx."""
+    """Write a table as .csv (UTF-8 with a BOM, so Excel reads it right), .xlsx, .tsv, or as
+    JSON records: .jsonl (one object per line) or .json (one list)."""
     out = Path(out)
     suffix = out.suffix.lower()
     out.parent.mkdir(parents=True, exist_ok=True)
-    if suffix == ".csv":
-        with open(out, "w", encoding="utf-8-sig", newline="") as handle:
-            writer = csv.writer(handle)
+    if suffix in (".csv", ".tsv"):
+        encoding = "utf-8-sig" if suffix == ".csv" else "utf-8"
+        with open(out, "w", encoding=encoding, newline="") as handle:
+            writer = csv.writer(handle, delimiter="," if suffix == ".csv" else "\t")
             writer.writerow(header)
             writer.writerows(rows)
         return out
     if suffix == ".xlsx":
         from openpyxl import Workbook
 
-        numeric = {
-            k for k, name in enumerate(header) if name.endswith("_confidence") or ".p." in name
-        }
+        numeric = _numeric(header)
         book = Workbook()
         sheet = book.active
         sheet.title = "predictions"
@@ -100,7 +121,15 @@ def write_table(header: list[str], rows: list[list[str]], out: Path) -> Path:
             sheet.append([float(v) if k in numeric and v != "" else v for k, v in enumerate(row)])
         book.save(out)
         return out
-    raise ValueError(f"unsupported output type {suffix!r} (use .csv or .xlsx)")
+    if suffix == ".jsonl":
+        with open(out, "w", encoding="utf-8") as handle:
+            for record in _records(header, rows):
+                handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+        return out
+    if suffix == ".json":
+        out.write_text(json.dumps(_records(header, rows), ensure_ascii=False), encoding="utf-8")
+        return out
+    raise ValueError(f"unsupported output type {suffix!r} (use {', '.join(TABLE_SUFFIXES)})")
 
 
 def read_table(path: Path) -> tuple[list[str], list[list[str]]]:

@@ -9,6 +9,7 @@ from clef_tune.ui.session import (
     QuestionDraft,
     Session,
     UploadError,
+    clear_data,
     extract_zip,
     load_example,
     load_sample,
@@ -233,3 +234,13 @@ def test_excel_uploads_and_zipped_excel_work(session, tmp_path):
         z.write(tmp_path / "claims.xlsx", "set/claims.xlsx")
     load_upload(session, archive, LOCAL)
     assert session.table.path.name == "claims.xlsx"
+
+
+def test_removing_the_data_starts_the_first_step_over(session):
+    load_sample(session, "claims_triage")
+    folder = session.table.path.parent
+    clear_data(session)
+    assert session.table is None and session.draft is None and session.report is None
+    assert session.reached == 0 and not folder.exists()
+    load_sample(session, "server_logs")
+    assert session.table.path.name == "server_logs.csv"

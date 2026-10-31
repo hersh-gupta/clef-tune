@@ -1,4 +1,5 @@
 import csv
+import json
 
 import pytest
 
@@ -89,8 +90,21 @@ def test_tables_are_written_as_csv_or_excel(tmp_path):
     sheet = book.active
     assert [c.value for c in sheet[1]] == header
     assert sheet["E2"].value == 0.97 and sheet["A2"].value == "1"
-    with pytest.raises(ValueError, match=".txt"):
+    with pytest.raises(ValueError, match=r"\.txt.*\.jsonl"):
         p.write_table(header, rows, tmp_path / "out.txt")
+
+
+def test_tables_are_written_as_tsv_json_lines_or_json(tmp_path):
+    header, rows = table()
+    with open(p.write_table(header, rows, tmp_path / "out.tsv"), encoding="utf-8") as handle:
+        assert list(csv.reader(handle, delimiter="\t")) == [header, *rows]
+    lines = p.write_table(header, rows, tmp_path / "out.jsonl").read_text("utf-8").splitlines()
+    first = json.loads(lines[0])
+    assert len(lines) == 3 and list(first) == header
+    assert first["department_confidence"] == 0.97 and first["id"] == "1"
+    assert json.loads(lines[1])["department"] is None  # an empty cell is null
+    records = json.loads(p.write_table(header, rows, tmp_path / "out.json").read_text("utf-8"))
+    assert records[0] == first and len(records) == 3
 
 
 def test_the_summary_counts_answers_reviews_and_matches(tmp_path):

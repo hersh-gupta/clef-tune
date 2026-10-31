@@ -27,20 +27,35 @@
   </div>
 </div>
 <p class="meta" id="name-note">Saved to your Hugging Face account as <b>{{ page.repo }}</b></p>
-{% if field_error %}<p class="error-box" role="alert">{{ field_error }}</p>{% endif %}
+{% if field_error and field_error[0] not in (page.advanced | map(attribute="path") | list) %}<p class="error-box" role="alert">{{ field_error[1] }}</p>{% endif %}
 {% if page.estimate %}
 {%- set est = page.estimate %}
 {{ m.estimate(est) }}
 <p class="fine">Runs on Hugging Face's cloud on {{ est.hardware }}, billed to your Hugging Face account.{% if est.cap_cost %} The run stops itself after <b>{{ est.cap_time }}</b>, so it can never cost more than <b>{{ est.cap_cost }}</b>.{% endif %}</p>
-<p class="holdout">We'll set aside {{ est.test_rows }} of your {{ "{:,}".format(est.total_rows) }} {{ plural(page.noun) }} and test the model on them before and after training, so you can see how much it improved.</p>
 {% else %}
 <p class="fine">{{ page.estimate_note }}</p>
+{% endif %}
+{% if page.holdout %}
+{%- set h = page.holdout %}
+<form class="holdout" data-post data-autosubmit="input" data-debounce="800" action="/settings/holdout">
+  <span>We'll set aside
+    <span class="nowrap"><input class="word" id="holdout-in" name="percent" value="{{ holdout_error[0] if holdout_error else h.percent }}" inputmode="decimal" autocomplete="off" spellcheck="false" data-autosize="2" aria-label="Share of your {{ plural(page.noun) }} set aside to test" aria-describedby="holdout-tip">%</span>
+    of your {{ "{:,}".format(h.total_rows) }} {{ plural(page.noun) }}, {{ "{:,}".format(h.test_rows) }} in all, and test the model on them before and after training, so you can see how much it improved.
+    <span class="info-tip">
+      <button type="button" aria-label="About the test {{ plural(page.noun) }}" aria-describedby="holdout-tip">?</button>
+      <span class="tip" role="tooltip" id="holdout-tip">The model never learns from these {{ plural(page.noun) }}, so they show how it will do on new ones. A bigger share gives a more reliable test but leaves fewer to learn from. Choose from {{ holdout_range[0] }}% to {{ holdout_range[1] }}%.</span>
+    </span>
+    {%- if holdout_error %}<span class="err" role="alert">{{ holdout_error[1] }}</span>{% endif %}
+  </span>
+</form>
 {% endif %}
 <details class="adv"{% if field_error or page.flavor %} open{% endif %}>
   <summary>Advanced settings <span>For people who know fine-tuning</span></summary>
   {% if page.flavors %}
   <form class="setting" data-post data-autosubmit="change" action="/settings/flavor">
-    <label class="sl" for="flavor-in">Hardware<code>flavor</code></label>
+    <span class="sl"><label for="flavor-in">Hardware</label>
+      <span class="info-tip"><button type="button" aria-label="About Hardware" aria-describedby="tip-flavor">?</button><span class="tip" role="tooltip" id="tip-flavor">The GPU the run uses on Hugging Face's cloud. Bigger GPUs finish sooner but cost more per hour; ones too small for this model and data can't be chosen.</span></span>
+      <code>flavor</code></span>
     <select id="flavor-in" name="flavor">
       <option value="">Cheapest that fits</option>
       {%- for f in page.flavors %}
@@ -53,15 +68,19 @@
   {%- for row in page.advanced %}
   <form class="setting" data-post data-autosubmit="change" action="/settings/field">
     <input type="hidden" name="path" value="{{ row.path }}">
-    <label class="sl" for="f-{{ loop.index }}">{{ row.label }}<code>{{ row.code }}</code></label>
+    <span class="sl"><label for="f-{{ loop.index }}">{{ row.label }}</label>
+      <span class="info-tip"><button type="button" aria-label="About {{ row.label }}" aria-describedby="tip-{{ loop.index }}">?</button><span class="tip" role="tooltip" id="tip-{{ loop.index }}">{{ row.tip }}</span></span>
+      <code>{{ row.code }}</code></span>
     {%- if row.kind == "choice" %}
     <select id="f-{{ loop.index }}" name="value">{% for c in row.choices %}<option value="{{ c }}"{% if c == row.value %} selected{% endif %}>{{ c }}</option>{% endfor %}</select>
     {%- elif row.kind == "bool" %}
     <span><input type="hidden" name="value" value=""><input id="f-{{ loop.index }}" type="checkbox" name="value" value="1"{% if row.value %} checked{% endif %}></span>
     {%- else %}
-    <input id="f-{{ loop.index }}" name="value" value="{{ '' if row.value is none else row.value }}" inputmode="decimal" autocomplete="off">
+    <input id="f-{{ loop.index }}" name="value" value="{{ '' if row.value is none else row.value }}" inputmode="decimal" autocomplete="off" aria-describedby="range-{{ loop.index }}">
     {%- endif %}
     <span class="sd">{{ row.help }}</span>
+    {%- if row.range %}<span class="range" id="range-{{ loop.index }}">{{ row.range }}</span>{% endif %}
+    {%- if field_error and field_error[0] == row.path %}<span class="err" role="alert">{{ field_error[1] }}</span>{% endif %}
   </form>
   {%- endfor %}
 </details>

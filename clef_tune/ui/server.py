@@ -29,7 +29,6 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-import clef_tune
 from clef_tune.config import Config
 from clef_tune.predictions import check_input, read_table, summarize, write_input_csv, write_table
 from clef_tune.ui import handlers, local, runs, views
@@ -68,6 +67,15 @@ class SessionStore:
                 self.locks[sid] = threading.Lock()
             self.seen[sid] = now
             return self.sessions[sid], self.locks[sid]
+
+    def drop(self, sid: str) -> None:
+        """Close a session and delete its files."""
+        with self.guard:
+            session = self.sessions.pop(sid, None)
+            self.locks.pop(sid, None)
+            self.seen.pop(sid, None)
+        if session is not None:
+            session.close()
 
 
 @dataclass
@@ -157,9 +165,9 @@ def create_app(
         )
     app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
     templates = Jinja2Templates(directory=HERE / "templates")
-    version = clef_tune.__version__ if hasattr(clef_tune, "__version__") else "0"
     templates.env.globals.update(
-        asset=lambda name: f"/static/{name}?v={version}",
+        # Versioned by the file's own time, so browsers pick up a changed file straight away.
+        asset=lambda name: f"/static/{name}?v={int((HERE / 'static' / name).stat().st_mtime)}",
         plural=w.plural,
         login_url=_login_url,
     )
@@ -268,6 +276,16 @@ def create_app(
             samples=samples,
         )
 
+    @app.post("/signout")
+    def signout(request: Request) -> Response:
+        """Sign out, and forget everything set up in this browser: on a shared Space, the
+        next person must not find the last one's data."""
+        sid = request.session.pop(SESSION_KEY, None)
+        if sid:
+            store.drop(sid)
+        target = "/oauth/huggingface/logout?_target_url=/" if settings.space else "/"
+        return RedirectResponse(target, status_code=303)
+
     @app.get("/models", response_class=HTMLResponse)
     def models(request: Request) -> Response:
         c = ctx(request)
@@ -355,6 +373,13 @@ def create_app(
             refresh(c)
         return go(request, "/data")
 
+    @app.post("/data/remove")
+    def data_remove(request: Request) -> Response:
+        c = ctx(request)
+        with c.lock:
+            handlers.remove_data(c.session)
+        return go(request, "/data")
+
     @app.post("/data/noun")
     def data_noun(request: Request, noun: str = Form("")) -> Response:
         c = ctx(request)
@@ -395,6 +420,18 @@ def create_app(
                 return redirect
             page = views.questions_page(c.session, q)
             steps = views.step_bar(c.session, "questions")
+        if request.headers.get("X-Requested-With") == FROM_SCRIPT and page.selected:
+            # Switching question in the page: only the list, switcher and editor change.
+            parts = templates.env.get_template("_qparts.html").module
+            editor = fragment(
+                request, c, "_editor.html", page=page, kinds=views.KINDS, noun=page.noun
+            )
+            return _swaps(
+                ("#qlist", str(parts.qlist(page))),
+                ("#qswitch", str(parts.qswitch(page))),
+                ("#editor", editor),
+                animate=("#editor",),
+            )
         return render(
             request, c, "questions.html", page=page, steps=steps, kinds=views.KINDS, noun=page.noun
         )
@@ -406,11 +443,14 @@ def create_app(
                 request, c, "_editor.html", page=page, kinds=views.KINDS, noun=page.noun
             )
             return _swaps(("#editor", html))
+        if page.selected is None:
+            return HTMLResponse("")
         flags = "".join(
-            f'<p class="flag">{templates.env.filters["e"](f)}</p>'
-            for f in (page.selected.flags if page.selected else [])
+            f'<p class="flag">{templates.env.filters["e"](f)}</p>' for f in page.selected.flags
         )
-        return _swaps(("#editor-flags", flags))
+        number = [item.id for item in page.items].index(page.selected.id) + 1
+        # Numbered per question, so an answer that lands after a switch changes nothing.
+        return _swaps((f"#flags-{number}", flags))
 
     @app.post("/questions/{qid}/ask")
     def question_ask(request: Request, qid: str, ask: str = Form("")) -> Response:
@@ -460,9 +500,23 @@ def create_app(
 
     # ------------------------------------------------------------------------ step 3: settings
 
-    def settings_view(request: Request, c: Ctx, field_error: str | None = None) -> str:
+    def settings_view(
+        request: Request,
+        c: Ctx,
+        field_error: tuple[str, str] | None = None,
+        holdout_error: tuple[str, str] | None = None,
+    ) -> str:
+        """The Settings body; an error is (field path, message) or (typed percent, message)."""
         page = views.settings_page(c.session, services, c.user)
-        return fragment(request, c, "_settings_body.html", page=page, field_error=field_error)
+        return fragment(
+            request,
+            c,
+            "_settings_body.html",
+            page=page,
+            field_error=field_error,
+            holdout_error=holdout_error,
+            holdout_range=handlers.HOLDOUT_PERCENT,
+        )
 
     @app.get("/settings", response_class=HTMLResponse)
     def settings_page(request: Request) -> Response:
@@ -474,7 +528,16 @@ def create_app(
                 refresh(c)
             page = views.settings_page(c.session, services, c.user)
             steps = views.step_bar(c.session, "settings")
-        return render(request, c, "settings.html", page=page, steps=steps, field_error=None)
+        return render(
+            request,
+            c,
+            "settings.html",
+            page=page,
+            steps=steps,
+            field_error=None,
+            holdout_error=None,
+            holdout_range=handlers.HOLDOUT_PERCENT,
+        )
 
     @app.post("/settings/name")
     def settings_name(request: Request, name: str = Form("")) -> Response:
@@ -521,7 +584,19 @@ def create_app(
         with c.lock:
             error = handlers.set_field(c.session, path, value)
             refresh(c)
-            return _swaps(("#settings-body", settings_view(request, c, error)))
+            field_error = (path, views.field_error_text(path, error)) if error else None
+            return _swaps(("#settings-body", settings_view(request, c, field_error)))
+
+    @app.post("/settings/holdout")
+    def settings_holdout(request: Request, percent: str = Form("")) -> Response:
+        c = ctx(request)
+        with c.lock:
+            error = handlers.set_holdout(c.session, percent)
+            refresh(c)
+            holdout_error = (percent, error) if error else None
+            return _swaps(
+                ("#settings-body", settings_view(request, c, holdout_error=holdout_error))
+            )
 
     @app.post("/settings/flavor")
     def settings_flavor(request: Request, flavor: str = Form("")) -> Response:
@@ -745,6 +820,7 @@ def create_app(
                         state=state,
                         result=result,
                         took=w.duration(state.hours or 0),
+                        downloads=views.DOWNLOADS,
                     )
         common["notice"] = notice
         return render(
@@ -859,7 +935,8 @@ def create_app(
     @app.get("/runs/{job_id}/download.{fmt}")
     def run_download(request: Request, job_id: str, fmt: str) -> Response:
         c = ctx(request)
-        if fmt not in ("csv", "xlsx") or not c.token:
+        download = next((d for d in views.DOWNLOADS if d.key == fmt), None)
+        if download is None or not c.token:
             return RedirectResponse(f"/runs/{job_id}", status_code=303)
         with c.lock:
             try:
@@ -868,17 +945,10 @@ def create_app(
                 return RedirectResponse(f"/runs/{job_id}", status_code=303)
             state = c.session.last_states.get(job_id)
             name = f"{state.name if state else job_id}-predictions.{fmt}"
-            path = csv_path
-            if fmt == "xlsx":
-                path = csv_path.with_suffix(".xlsx")
-                if not path.exists():
-                    write_table(*read_table(csv_path), path)
-        media = (
-            "text/csv"
-            if fmt == "csv"
-            else ("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-        )
-        return FileResponse(path, filename=name, media_type=media)
+            path = csv_path.with_suffix(f".{fmt}")  # the other formats are made from the CSV
+            if not path.exists():
+                write_table(*read_table(csv_path), path)
+        return FileResponse(path, filename=name, media_type=download.media_type)
 
     # ------------------------------------------------------------------------ predicting
 

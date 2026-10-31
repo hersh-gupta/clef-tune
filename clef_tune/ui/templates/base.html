@@ -19,6 +19,9 @@
     <span class="right">
       {% if user %}
         <a href="/models">Your models</a><span class="who">{{ user }}</span>
+        {%- if space %}
+        <form action="/signout" method="post"><button class="linkbtn" type="submit" title="Signs you out and clears what you set up in this browser">Sign out</button></form>
+        {%- endif %}
       {% elif space %}
         <a href="{{ login_url(request.url.path) }}" target="_top">Sign in with Hugging Face</a>
       {% else %}

@@ -14,14 +14,12 @@ pytestmark = pytest.mark.browser
 playwright = pytest.importorskip("playwright.sync_api")
 
 
-@pytest.fixture(scope="module")
-def base_url(monkeypatch_module):
+def serve(settings: Settings):
     import socket
 
     import uvicorn
 
-    monkeypatch_module.setenv("HF_TOKEN", "hf_machine")
-    app = create_app(Settings(False, 200, False), fake_services()[0], secret="browser")
+    app = create_app(settings, fake_services()[0], secret="browser")
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", 0))
         port = probe.getsockname()[1]
@@ -31,6 +29,34 @@ def base_url(monkeypatch_module):
         time.sleep(0.05)
     yield f"http://127.0.0.1:{port}"
     server.should_exit = True
+
+
+@pytest.fixture(scope="module")
+def base_url(monkeypatch_module):
+    monkeypatch_module.setenv("HF_TOKEN", "hf_machine")
+    yield from serve(Settings(False, 200, False))
+
+
+@pytest.fixture(scope="module")
+def space_url(monkeypatch_module):
+    """A Space-mode app: a visitor who hasn't signed in sees the first-time welcome. Outside a
+    Space, huggingface_hub mocks sign-in from the machine's login, so stub that to stay offline."""
+    import huggingface_hub._oauth as oauth
+
+    monkeypatch_module.setattr(oauth, "get_token", lambda: "hf_local_dev")
+    monkeypatch_module.setattr(
+        oauth,
+        "whoami",
+        lambda *a, **k: {
+            "type": "user",
+            "name": "dev",
+            "fullname": "Dev",
+            "email": None,
+            "avatarUrl": "",
+            "orgs": [],
+        },
+    )
+    yield from serve(Settings(True, 200, False))
 
 
 @pytest.fixture(scope="module")
@@ -70,6 +96,12 @@ def test_a_sample_goes_from_data_to_results(page, base_url):
     page.wait_for_function(
         "document.querySelector('#ask-1').textContent === 'Which team owns this?'"
     )
+    # Picking another question swaps the editor in place and keeps the address in step.
+    page.evaluate("window.__kept = true")
+    page.locator("#qlist a").nth(1).click()
+    page.wait_for_url("**/questions?q=urgency")
+    page.wait_for_function("document.querySelector('#ask-box').value.startsWith('How quickly')")
+    assert page.evaluate("window.__kept") is True
     page.get_by_role("link", name="Continue").click()
     page.wait_for_url("**/settings")
     assert "never cost more than" in page.locator("#settings-body").inner_text()
@@ -94,3 +126,43 @@ def test_every_page_fits_a_phone(page, base_url, path):
     page.goto(f"{base_url}{path}")
     page.wait_for_load_state("networkidle")
     assert no_sideways_scroll(page)
+
+
+def test_a_tip_opens_on_hover_and_does_not_stick_open_after_a_click(page, base_url):
+    page.goto(f"{base_url}/data")
+    if not page.locator(".filebar").count():
+        page.get_by_role("button", name="support tickets").click()
+        page.wait_for_url("**/data")
+    page.goto(f"{base_url}/questions")
+    shown = "getComputedStyle(document.querySelector('#ask-tip')).opacity"
+    button = page.get_by_role("button", name="How this question is used")
+    button.hover()
+    assert page.evaluate(shown) == "1"
+    button.click()
+    page.mouse.move(5, 5)
+    assert page.evaluate(shown) == "0"
+    button.focus()  # keyboard focus still opens it
+    page.keyboard.press("Shift+Tab")
+    page.keyboard.press("Tab")
+    assert page.evaluate(shown) == "1"
+    page.keyboard.press("Escape")
+    assert page.evaluate(shown) == "0"
+
+
+def test_an_open_tip_sits_above_the_sections_after_it(space_url):
+    with playwright.sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page(viewport={"width": 1280, "height": 760})  # motion on
+        page.goto(f"{space_url}/")
+        page.wait_for_timeout(2000)  # the sections' entrance animations have finished
+        page.locator("button.term").hover()
+        tip = page.locator("#decision-model-tip").bounding_box()
+        button = page.get_by_role("link", name="Start with your data").bounding_box()
+        # A point where the open tip covers the "Start with your data" button.
+        point = [max(tip["x"], button["x"]) + 20, button["y"] + button["height"] / 2]
+        assert tip["y"] < point[1] < tip["y"] + tip["height"]
+        on_top = page.evaluate(
+            "([x, y]) => !!document.elementFromPoint(x, y).closest('#decision-model-tip')", point
+        )
+        browser.close()
+    assert on_top

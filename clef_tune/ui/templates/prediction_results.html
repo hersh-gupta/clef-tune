@@ -10,8 +10,14 @@
 <div class="rule in"></div>
 <p class="lede in">{% if state.hours %}Took {{ took }}{% endif %}{% if state.cost is not none %} and cost {{ state.spent }}{% endif %}.</p>
 <div class="dl in" style="--i:1">
-  <a class="btn primary" href="/runs/{{ state.id }}/download.csv" download>Download spreadsheet ↓</a>
-  <a class="btn" href="/runs/{{ state.id }}/download.xlsx" download>Download as Excel</a>
+  <div class="pop-wrap">
+    <button type="button" class="btn primary" data-menu="#download-menu" aria-haspopup="true" aria-expanded="false">Download ↓</button>
+    <div class="menu left" id="download-menu" role="menu" aria-label="Download as" hidden>
+      {%- for d in downloads %}
+      <a class="opt" role="menuitem" href="/runs/{{ state.id }}/download.{{ d.key }}" download><span class="ot"><b>{{ d.name }}<span class="ext">.{{ d.key }}</span></b><small>{{ d.description }}</small></span></a>
+      {%- endfor %}
+    </div>
+  </div>
 </div>
 {% if result.review %}
 <p class="flagged in" style="--i:2"><span>{{ "{:,}".format(result.review) }} {{ result.noun if result.review == 1 else plural(result.noun) }} {{ "is" if result.review == 1 else "are" }} marked for review<small>The model was less than {{ result.threshold }}% sure of at least one answer. Filter on the "review" column to find them.</small></span></p>

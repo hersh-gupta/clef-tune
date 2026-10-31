@@ -80,7 +80,8 @@ with the expected outputs filled in, say what each column is for, turn each expe
 a plain question, pick how much training, and start. It shows the time and the most a run can
 cost before anything starts, runs on Hugging Face Jobs (so you can close the page and come back
 to "Your models"), and reports the results in plain words. A finished model can then predict a
-new spreadsheet, which you download with its answers, confidence and review marks filled in.
+new spreadsheet, which you download (Excel, CSV, TSV, JSON Lines or JSON) with its answers,
+confidence and review marks filled in.
 
 ```bash
 uv pip install "clef-tune[ui] @ git+https://github.com/hersh-gupta/clef-tune"

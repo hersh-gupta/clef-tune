@@ -18,9 +18,12 @@
 <div class="filebar in" style="--i:1">
   {{ m.file_glyph() }}
   <span><span class="fn">{{ page.file_name }}</span><br><span class="fm">{{ "{:,}".format(page.rows) }} rows · {{ page.columns }} columns</span></span>
-  <form class="replace" action="/data/upload" method="post" enctype="multipart/form-data">
-    <label class="linkbtn">Replace<input class="sr-only" type="file" name="file" accept=".csv,.tsv,.xlsx,.jsonl,.ndjson,.zip" onchange="this.form.submit()"></label>
-  </form>
+  <span class="file-acts">
+    <form action="/data/upload" method="post" enctype="multipart/form-data">
+      <label class="linkbtn">Replace<input class="sr-only" type="file" name="file" accept=".csv,.tsv,.xlsx,.jsonl,.ndjson,.zip" onchange="this.form.submit()"></label>
+    </form>
+    <form action="/data/remove" method="post"><button class="linkbtn" type="submit" aria-label="Remove {{ page.file_name }}">Remove</button></form>
+  </span>
 </div>
 <form class="noun-line editable in" style="--i:2" data-post data-autosubmit="input" data-debounce="500" action="/data/noun">
   <label for="noun">Each row is one</label>

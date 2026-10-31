@@ -1,0 +1,15 @@
+{# The question list and the phone's question switcher. Their links (data-nav) swap just these
+   and the editor in place, so the rest of the page stays still. #}
+{% macro qlist(page) -%}
+{%- for it in page.items %}
+<li><a href="/questions?q={{ it.id | urlencode }}" id="q-link-{{ it.number }}" data-nav class="{{ 'on' if page.selected and it.id == page.selected.id }}"{% if page.selected and it.id == page.selected.id %} aria-current="true"{% endif %}><span class="num">{{ it.number }}</span><span class="nm">{{ it.id }}</span><span class="ask" id="ask-{{ loop.index }}">{{ it.ask }}</span></a></li>
+{%- endfor %}
+{%- endmacro %}
+
+{% macro qswitch(page) -%}
+{%- set ids = page.items | map(attribute="id") | list %}
+{%- set k = ids.index(page.selected.id) %}
+{% if k > 0 %}<a href="/questions?q={{ ids[k - 1] | urlencode }}" id="q-prev" data-nav aria-label="Previous question">‹</a>{% else %}<span></span>{% endif %}
+<span class="cur">Question {{ k + 1 }} of {{ ids | length }}<b>{{ page.selected.id }}</b></span>
+{% if k + 1 < ids | length %}<a href="/questions?q={{ ids[k + 1] | urlencode }}" id="q-next" data-nav aria-label="Next question">›</a>{% else %}<span></span>{% endif %}
+{%- endmacro %}

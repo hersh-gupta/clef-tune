@@ -1,4 +1,5 @@
 import io
+import json
 
 import pytest
 from fastapi.testclient import TestClient
@@ -39,6 +40,17 @@ def test_the_welcome_page_greets_a_newcomer(monkeypatch):
     assert "Bespoke intelligence, <em>owned by you</em>." in page
     assert "Fine-tuned decisions for everyone" in page and "claim triage" in page
     assert "YOUR DECISION" in page and "Your data stays yours" in page
+    assert "how much better it got" not in page and "how accurate it is" in page
+    # "decision model" explains itself, and the footer points to Cloudflare's own page.
+    assert 'aria-describedby="decision-model-tip"' in page and "behind chatbots" in page
+    tip = page.split('id="decision-model-tip">')[1].split("</span>")[0]
+    assert "Clef" not in tip.split("<a ")[0] and ">Learn more</a>" in tip
+    guide = 'href="https://www.datacamp.com/tutorial/what-are-ai-decision-models"'
+    assert f'{guide} target="_blank"' in tip  # a general explainer, not a vendor page
+    assert (
+        page.count('href="https://blog.cloudflare.com/clef-decision-models/" target="_blank"') == 1
+    )  # the footer
+    assert 'action="/signout"' not in page  # on this computer, its own login is used
 
 
 def test_a_returning_person_sees_their_latest_models(client):
@@ -94,6 +106,18 @@ def test_uploads_work_and_oversized_ones_explain_why(client, tmp_path):
     assert "over the 1 MB limit" not in client.get("/data").text
 
 
+def test_the_data_can_be_removed_to_choose_another_sample(client):
+    sample(client)
+    assert 'action="/data/remove"' in client.get("/data").text
+    response = client.post("/data/remove", follow_redirects=False)
+    assert response.status_code == 303 and response.headers["location"] == "/data"
+    page = client.get("/data").text
+    assert "Drop a spreadsheet here" in page and "support_tickets.csv" not in page
+    assert client.get("/questions", follow_redirects=False).headers["location"] == "/data"
+    sample(client, "claims_triage")
+    assert "claims_triage.csv" in client.get("/data").text
+
+
 def test_column_names_are_escaped(client, tmp_path):
     rows = [{"<script>x</script>": "a", "label": "y" if i % 2 else "n"} for i in range(30)]
     with open(write_csv(tmp_path / "evil.csv", rows), "rb") as handle:
@@ -111,8 +135,18 @@ def test_the_question_step_edits_one_question_at_a_time(client):
     swapped = client.post("/questions/urgency/type", data={"kind": "choice"}, headers=SCRIPT)
     assert swapped.text.startswith('<template data-swap="#editor">')
     flags = client.post("/questions/urgency/ask", data={"ask": "How soon?"}, headers=SCRIPT)
-    assert flags.text.startswith('<template data-swap="#editor-flags">')
+    assert flags.text.startswith('<template data-swap="#flags-2">')
     assert "How soon?" in client.get("/questions?q=urgency").text
+
+
+def test_switching_questions_swaps_only_the_list_and_the_editor(client):
+    sample(client)
+    assert "data-nav" in client.get("/questions").text
+    swapped = client.get("/questions?q=urgency", headers=SCRIPT).text
+    assert swapped.startswith('<template data-swap="#qlist">')
+    assert '<template data-swap="#qswitch">' in swapped
+    assert '<template data-swap="#editor" data-animate>' in swapped
+    assert "<h1" not in swapped and "How quickly does this ticket need a response?" in swapped
 
 
 def test_the_prompt_preview_is_escaped_and_marked(client):
@@ -132,7 +166,31 @@ def test_settings_show_the_estimate_and_update_in_place(client):
     bad = client.post(
         "/settings/field", data={"path": "train.max_length", "value": "100"}, headers=SCRIPT
     )
-    assert "max_length" in bad.text and "error-box" in bad.text
+    row = bad.text.split('value="train.max_length"')[1].split("</form>")[0]
+    assert 'class="err"' in row and "Use a whole number: 256 to 16,384." in row
+    typo = client.post(
+        "/settings/field", data={"path": "train.lora_lr", "value": "fast"}, headers=SCRIPT
+    )
+    assert "Use a number: more than 0." in typo.text
+
+
+def test_advanced_settings_explain_themselves(client):
+    sample(client)
+    page = client.get("/settings").text
+    assert "Usually 8–64" in page and 'aria-label="About Adapter size"' in page
+    assert "Allowed: 256 to 16,384." in page
+    assert "data.eval_fraction" not in page
+
+
+def test_the_test_share_is_edited_in_the_holdout_sentence(client):
+    sample(client)
+    page = client.get("/settings").text
+    assert 'name="percent" value="15"' in page and "31 in all" in page
+    swapped = client.post("/settings/holdout", data={"percent": "25"}, headers=SCRIPT).text
+    assert swapped.startswith('<template data-swap="#settings-body">')
+    assert 'name="percent" value="25"' in swapped and "31 in all" not in swapped
+    refused = client.post("/settings/holdout", data={"percent": "70"}, headers=SCRIPT).text
+    assert "Choose a share from 5% to 50%" in refused and 'name="percent" value="70"' in refused
 
 
 def test_training_is_reviewed_then_started(client, services_and_calls):
@@ -176,11 +234,23 @@ def test_a_failed_job_offers_to_try_again(client):
 def test_finished_predictions_can_be_downloaded(client):
     page = client.get("/runs/job-p").text
     assert "3 tickets predicted" in page and "1 ticket is marked for review" in page
-    assert 'href="/runs/job-p/download.csv"' in page and "What it answered" in page
+    assert page.count('class="btn primary"') == 1 and ">Download ↓</button>" in page
+    assert "Download as Excel" not in page and 'data-menu="#download-menu"' in page
+    for fmt in ("xlsx", "csv", "tsv", "jsonl", "json"):
+        assert f'href="/runs/job-p/download.{fmt}"' in page
+    assert "What it answered" in page
     csv = client.get("/runs/job-p/download.csv")
     assert csv.status_code == 200 and "T2041" in csv.text
     xlsx = client.get("/runs/job-p/download.xlsx")
     assert xlsx.status_code == 200 and xlsx.content[:2] == b"PK"
+    jsonl = client.get("/runs/job-p/download.jsonl")
+    assert jsonl.headers["content-type"].startswith("application/x-ndjson")
+    assert 'filename="run-b-predict-predictions.jsonl"' in jsonl.headers["content-disposition"]
+    assert [json.loads(line)["ticket_id"] for line in jsonl.text.splitlines()][0] == "T2041"
+    assert client.get("/runs/job-p/download.json").json()[0]["ticket_id"] == "T2041"
+    assert "\t" in client.get("/runs/job-p/download.tsv").text
+    unknown = client.get("/runs/job-p/download.exe", follow_redirects=False)
+    assert unknown.status_code == 303
 
 
 def test_your_models_lists_everything_with_a_lazy_line(client):
@@ -251,6 +321,21 @@ def test_on_a_space_visitors_sign_in_and_the_server_token_is_never_used(monkeypa
         assert "Sign in to train" in review and "disabled" in review
         assert "Sign in with Hugging Face to see the models" in c.get("/models").text
     assert not [call for call in calls if call[0] in ("plan_launch", "list_jobs", "whoami")]
+
+
+def test_signing_out_on_a_space_forgets_the_visitor(monkeypatch, mocked_oauth):
+    monkeypatch.delenv("HF_TOKEN", raising=False)
+    with TestClient(create_app(SPACE, fake_services()[0]), base_url="https://testserver") as c:
+        newcomer = c.get("/").text
+        assert "When you're ready to train, you can sign in with Hugging Face." in newcomer
+        c.get("/oauth/huggingface/login?_target_url=/")
+        sample(c)
+        signed_in = c.get("/").text
+        assert 'action="/signout"' in signed_in and ">Sign in with Hugging Face<" not in signed_in
+        out = c.post("/signout", follow_redirects=False)
+        assert out.headers["location"] == "/oauth/huggingface/logout?_target_url=/"
+        assert ">Sign in with Hugging Face<" in c.get(out.headers["location"]).text
+        assert "Drop a spreadsheet here" in c.get("/data").text  # the setup went with them
 
 
 def test_a_pasted_token_is_the_fallback_when_sign_in_lacks_a_permission(monkeypatch, mocked_oauth):

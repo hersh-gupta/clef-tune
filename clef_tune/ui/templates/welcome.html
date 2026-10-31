@@ -21,14 +21,16 @@
     <p class="kicker in">Fine-tuned decisions for everyone</p>
     <h1 class="in" style="--i:1">Bespoke intelligence, <em>owned by you</em>.</h1>
     <div class="rule in" style="--i:2"></div>
-    <p class="lede in" style="--i:2">Upload a spreadsheet of examples with the expected outputs filled in. clef-tune fine-tunes a decision model to predict them for new cases, and shows you how much better it got before you use it.</p>
+    <p class="lede in" style="--i:2">Upload a spreadsheet of examples with the expected outputs filled in. clef-tune fine-tunes a
+      <span class="info-tip"><button type="button" class="term" aria-describedby="decision-model-tip">decision model</button><span class="tip" id="decision-model-tip">A decision model is a large language model, the kind of AI behind chatbots, trained to choose instead of chat: it reads a case and picks an answer from your list, with how sure it is. clef-tune tunes one on your examples. <a href="https://www.datacamp.com/tutorial/what-are-ai-decision-models" target="_blank" rel="noopener">Learn more</a></span></span>
+      to predict them for new cases, and shows you how accurate it is before you use it.</p>
     <div class="in" style="--i:3"><a class="btn primary" href="/data">Start with your data</a></div>
     <div class="samples in" style="--i:4">Or try a sample:
       {%- for name, label, hint in samples %}
       <form action="/data/sample" method="post"><input type="hidden" name="name" value="{{ name }}"><button class="linkbtn" type="submit" title="{{ hint }}">{{ label }}</button></form>{% if not loop.last %} ·{% endif %}
       {%- endfor %}
     </div>
-    {% if space %}<p class="note in" style="--i:5">No sign-in needed to look around. You'll sign in with Hugging Face when you're ready to train.</p>{% endif %}
+    {% if space %}<p class="note in" style="--i:5">No sign-in needed to look around. When you're ready to train, you can sign in with Hugging Face.</p>{% endif %}
   </div>
   <div class="ill in" style="--i:3">
     <svg viewBox="0 0 300 200" role="img" aria-label="Your data trains your decision model, which gives answers">
@@ -57,6 +59,6 @@
   <div><span><b>Your data stays yours</b>Training data and the finished model are stored privately in your own Hugging Face account.</span></div>
   <div><span><b>See before you trust</b>Every model is tested on examples it never saw, before and after training.</span></div>
 </div>
-<p class="site-foot in" style="--i:7">Fine-tunes Cloudflare's open Clef decision models · Open source on <a href="https://github.com/hersh-gupta/clef-tune">GitHub</a> · MIT licence</p>
+<p class="site-foot in" style="--i:7">Fine-tunes <a href="https://blog.cloudflare.com/clef-decision-models/" target="_blank" rel="noopener">Cloudflare's open Clef decision models</a> · Open source on <a href="https://github.com/hersh-gupta/clef-tune" target="_blank" rel="noopener">GitHub</a> · MIT licence</p>
 {% endif %}
 {% endblock %}

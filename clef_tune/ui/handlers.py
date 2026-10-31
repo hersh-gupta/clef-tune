@@ -27,6 +27,7 @@ from clef_tune.ui.session import (
     QuestionDraft,
     Session,
     UploadError,
+    clear_data,
     load_sample,
     load_upload,
 )
@@ -166,6 +167,10 @@ def upload(session: Session, path: str | Path, settings: Settings) -> str | None
 
 def sample(session: Session, name: str = "support_tickets") -> None:
     load_sample(session, name)
+
+
+def remove_data(session: Session) -> None:
+    clear_data(session)
 
 
 def set_noun(session: Session, noun: str) -> None:
@@ -521,6 +526,22 @@ def set_field(session: Session, path: str, value: Any) -> str | None:
     except (TypeError, ValueError) as exc:
         return str(exc)
     return _try_override(session, path, value)
+
+
+HOLDOUT_PERCENT = (5, 50)  # the share of rows the Settings step lets people set aside to test
+
+
+def set_holdout(session: Session, percent: str) -> str | None:
+    """Set aside this percent of the rows to test the model; return why not, or None."""
+    low, high = HOLDOUT_PERCENT
+    refusal = f"Choose a share from {low}% to {high}%"
+    try:
+        value = float(percent.strip().rstrip("%"))
+    except ValueError:
+        return refusal
+    if not low <= value <= high:
+        return refusal
+    return _try_override(session, "data.eval_fraction", round(value / 100, 4))
 
 
 def set_question_weights(session: Session, rows: list[list[Any]]) -> str | None:

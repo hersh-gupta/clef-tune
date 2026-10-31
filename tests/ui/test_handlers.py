@@ -156,3 +156,11 @@ def test_the_noun_is_trimmed_and_can_be_cleared(session):
     assert session.draft.row_noun == "case"
     handlers.set_noun(session, "")
     assert session.draft.row_noun is None
+
+
+def test_the_test_share_is_set_as_a_percent(session):
+    assert handlers.set_holdout(session, "25") is None
+    assert session.config().data.eval_fraction == 0.25
+    for refused in ("70", "2", "lots", ""):
+        assert handlers.set_holdout(session, refused) == "Choose a share from 5% to 50%"
+    assert session.config().data.eval_fraction == 0.25

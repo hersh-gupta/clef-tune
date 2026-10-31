@@ -156,3 +156,34 @@ def test_predicting_checks_the_file_and_summarizes_the_result(tmp_path):
     assert (1, "department_confidence") in result.low
     assert result.shares[0].ask == "Which team should handle this ticket?"
     assert result.shares[0].parts == [("account", 50), ("billing", 50)]
+
+
+def test_settings_hold_out_a_share_set_in_the_sentence(session, services):
+    page = views.settings_page(session, services, "me")
+    assert (page.holdout.percent, page.holdout.test_rows, page.holdout.total_rows) == (
+        "15",
+        31,
+        200,
+    )
+    assert "data.eval_fraction" not in [row.path for row in page.advanced]
+
+
+def test_every_advanced_setting_has_a_tip_and_a_range(session, services):
+    page = views.settings_page(session, services, "me")
+    for row in page.advanced:
+        assert row.tip, row.path
+        if row.kind in ("int", "float", "optional_int"):
+            assert row.range, row.path
+    rows = {row.path: row for row in page.advanced}
+    assert rows["train.lora.r"].range == "Usually 8–64"
+    assert "Allowed: 256 to 16,384." in rows["train.max_length"].tip
+    assert "Default: 4,096." in rows["train.max_length"].tip
+    assert rows["eval.eval_every"].range.startswith("This run has about ")
+
+
+def test_allowed_values_are_read_from_the_config():
+    assert views.allowed("train.epochs") == "1 or more"
+    assert views.allowed("train.lora.dropout") == "0 to just under 1"
+    assert views.allowed("train.lora_lr") == "more than 0"
+    assert views.allowed("train.max_length") == "256 to 16,384"
+    assert views.allowed("eval.early_stopping_patience") == "1 or more, or empty"

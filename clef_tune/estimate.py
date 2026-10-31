@@ -131,11 +131,16 @@ class Workload:
     gradient_checkpointing: bool = True
 
 
-def workload_from(config: Config, tokens: TokenStats) -> Workload:
+def optimizer_steps(config: Config, tokens: TokenStats) -> int:
+    """How many optimizer steps a run takes over all its epochs."""
     train = config.train
     tokens_per_step = train.max_tokens_per_batch * train.grad_accum_steps
-    steps_per_epoch = max(1, math.ceil(tokens.train_tokens / tokens_per_step))
-    total_steps = steps_per_epoch * train.epochs
+    return max(1, math.ceil(tokens.train_tokens / tokens_per_step)) * train.epochs
+
+
+def workload_from(config: Config, tokens: TokenStats) -> Workload:
+    train = config.train
+    total_steps = optimizer_steps(config, tokens)
     eval_passes = 2 + total_steps // config.eval.eval_every  # baseline + periodic + final
     return Workload(
         train_tokens_per_epoch=tokens.train_tokens,

@@ -197,14 +197,21 @@ differences noted.
 - **Kicker:** "Fine-tuned decisions for everyone".
 - **Headline:** "Bespoke intelligence, *owned by you*." The emphasised part is in sage.
 - **Lede:** "Upload a spreadsheet of examples with the expected outputs filled in. clef-tune
-  fine-tunes a decision model to predict them for new cases, and shows you how much better it got
+  fine-tunes a decision model to predict them for new cases, and shows you how accurate it is
   before you use it."
+  - "decision model" has a dotted underline and a tip: a large language model, the kind of AI
+    behind chatbots, trained to choose instead of chat. The tip doesn't name Clef; its "Learn
+    more" links to a general explainer (DataCamp's "What are AI Decision Models?"). Tips open on
+    hover or keyboard focus and don't stick open after a click; on a touch screen a tap toggles
+    them. (All changed after the first build, at the user's request.)
 - **Buttons and links:**
   - one filled button, "Start with your data";
   - below it, "Or try a sample: support tickets · claim triage · server logs" as one line of
     links. Hovering a link (its title) says what that sample predicts.
-- **Sign-in note:** "No sign-in needed to look around. You'll sign in with Hugging Face when
-  you're ready to train."
+- **Sign-in note:** "No sign-in needed to look around. When you're ready to train, you can sign
+  in with Hugging Face."
+- **Sign out:** on a Space, a signed-in header shows "Sign out". It also forgets what was set up
+  in that browser, so the next person on a shared computer doesn't find it.
 - **Line drawing:**
   - *your data:* a sheet with check dots;
   - *your decision model:* the diamond, with a breathing halo;
@@ -220,7 +227,8 @@ differences noted.
   - "See before you trust. Every model is tested on examples it never saw, before and after
     training."
 - **Footer:** "Fine-tunes Cloudflare's open Clef decision models · Open source on GitHub · MIT
-  licence".
+  licence". The first part links to Cloudflare's Clef launch post; both links open a new tab,
+  since a Space runs the app in a frame.
 
 **Signed in, coming back:**
 - **Header:** "Your models" and the username.
@@ -508,7 +516,8 @@ You reach it from a ready model, through Results or Your models. It has three st
    note.
 3. **Ready**
    - **Summary:** a check, "{n} {nouns} predicted", "Took 11 minutes and cost $0.33."
-   - **Downloads:** a filled "Download spreadsheet ↓" (CSV) and an outline "Download as Excel".
+   - **Download:** one filled "Download ↓" button with a menu of formats: Excel, CSV, TSV, JSON
+     Lines and JSON (changed after the first build, at the user's request).
    - **Review note:** "**86 {nouns} are marked for review.** The model was less than 70% sure of
      at least one answer. Filter on the 'review' column to find them."
    - **"A first look":**

@@ -8,11 +8,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
+from clef_tune.card import CALIBRATION_CAVEAT, WEIGHTING_NOTE
 from clef_tune.config import Config
 from clef_tune.estimate import (
     EstimateRow,
     estimate_hf_flavors,
     model_spec,
+    optimizer_steps,
     recommend,
     suggest_timeout,
     workload_from,
@@ -52,29 +54,248 @@ KINDS = (
     ("score", "Scale", "answers in order"),
     ("noul", "Yes or no", "true or false"),
 )
-# Plain names for the Advanced settings people are most likely to touch.
-PLAIN_FIELDS = {
-    "train.epochs": ("Passes over your data", "How many times training reads every example."),
-    "train.mode": (
+HOLDOUT_PATH = "data.eval_fraction"  # set in the Settings step's "We'll set aside" sentence
+
+
+@dataclass(frozen=True)
+class Guide:
+    """How Advanced settings explain one field: its name, a line under it, the hover tip, and
+    the usual range shown beside the box (empty: show the allowed values instead)."""
+
+    label: str
+    help: str
+    tip: str
+    usual: str = ""
+
+
+# In the order the Advanced settings show them: the ones people are most likely to touch first.
+FIELD_GUIDE = {
+    "train.epochs": Guide(
+        "Passes over your data",
+        "How many times training reads every example.",
+        "Each pass reads all of your training examples once. More passes can learn more from a "
+        "small dataset, but too many and the model starts memorising examples instead of the "
+        "pattern; the test results show if that happens.",
+        "Usually 1–5",
+    ),
+    "train.mode": Guide(
         "What gets trained",
         "Adapters change how the model reads; the answer layer turns that into predictions.",
+        "lora trains small adapters inside the language model plus the answer layer (the "
+        "decision head). head_only trains just the answer layer: faster and cheaper, but it "
+        "learns less.",
     ),
-    "train.lora.r": ("Adapter size", "Bigger adapters can learn more, and need more data."),
-    "train.max_length": ("Longest example", "Longer examples are cut to fit."),
-    "train.quantization": (
+    "train.lora.r": Guide(
+        "Adapter size",
+        "Bigger adapters can learn more, and need more data.",
+        "The LoRA rank: how much room each adapter has to learn. Larger adapters can pick up "
+        "finer detail but train more slowly and can memorise a small dataset. Change LoRA alpha "
+        "with it.",
+        "Usually 8–64",
+    ),
+    "train.max_length": Guide(
+        "Longest example",
+        "Longer examples are cut to fit.",
+        "The most tokens (word pieces) the model reads for one example, questions included. "
+        "Longer examples have their text cut to fit. Raising it uses more memory and time.",
+        "Usually 1,024–8,192",
+    ),
+    "train.quantization": Guide(
         "Memory saving",
         "Stores the model in 4 bits to fit smaller GPUs, a little slower.",
+        "4bit loads the model in 4-bit precision (QLoRA) so it fits on a smaller, cheaper GPU. "
+        "Training is somewhat slower, and results are usually close to full precision.",
     ),
-    "eval.calibrate": (
+    "eval.calibrate": Guide(
         "Calibrate confidence",
         "Adjusts confidence so 80% sure means right about 80% of the time.",
+        "After training, fits one temperature per question so the model's confidence matches "
+        f"how often it is right. {CALIBRATION_CAVEAT}",
     ),
-    "eval.early_stopping_patience": (
+    "eval.early_stopping_patience": Guide(
         "Stop early",
         "Stops after this many checks without improvement. Empty never stops early.",
+        "The model is checked on the test examples every few steps (Evaluate every). If its "
+        "score doesn't improve for this many checks in a row, training stops and keeps the "
+        "best checkpoint, which saves time once more training stops helping.",
+        "Usually 2–5, or empty",
     ),
-    "data.eval_fraction": ("Share set aside to test", "Held out to measure the model."),
+    "train.lora.alpha": Guide(
+        "LoRA alpha",
+        "How strongly the adapters' changes count.",
+        "Alpha divided by the adapter size scales every adapter update. The usual rule is "
+        "alpha = 2 × adapter size; change the two together.",
+        "Usually 2 × adapter size",
+    ),
+    "train.lora.dropout": Guide(
+        "LoRA dropout",
+        "Randomly drops some adapter inputs while training, against memorising.",
+        "The share of adapter inputs ignored at random on each step. A little dropout helps a "
+        "small dataset generalise; 0 turns it off.",
+        "Usually 0–0.1",
+    ),
+    "train.lora_lr": Guide(
+        "LoRA learning rate",
+        "How big a step the adapters take on each update.",
+        "Too high and training becomes unstable (the loss jumps around or rises); too low and "
+        "it learns slowly. Change it by factors of 2 or 3, not small amounts.",
+        "Usually 5e-5 to 3e-4",
+    ),
+    "train.head_lr": Guide(
+        "Head learning rate",
+        "How big a step the answer layer takes on each update.",
+        "The step size for the answer layer (the decision head), which turns what the model "
+        "reads into answer probabilities. Too high makes training unstable; too low learns "
+        "slowly.",
+        "Usually 1e-5 to 1e-4",
+    ),
+    "train.max_tokens_per_batch": Guide(
+        "Tokens per batch",
+        "Examples are packed into batches up to this size; lower it if a run runs out of memory.",
+        "How many tokens go through the GPU at once. Bigger batches train faster but use more "
+        "memory. If a run stops with an out-of-memory error, halve it.",
+        "Usually 4,096–32,768",
+    ),
+    "train.grad_accum_steps": Guide(
+        "Gradient accumulation",
+        "Batches added up before each update.",
+        "Adds up this many batches before the model takes a step, which acts like a bigger "
+        "batch without using more memory. Higher values mean fewer, smoother updates.",
+        "Usually 1–8",
+    ),
+    "train.warmup_ratio": Guide(
+        "Warmup share",
+        "Share of training spent slowly raising the learning rate.",
+        "Starts with a small learning rate and raises it over this share of the steps, so the "
+        "first updates are gentle. 0.03 means the first 3% of steps.",
+        "Usually 0–0.1",
+    ),
+    "train.weight_decay": Guide(
+        "Weight decay",
+        "Gently pulls the adapters' weights toward zero.",
+        "AdamW weight decay: a mild brake against memorising. 0 turns it off.",
+        "Usually 0–0.1",
+    ),
+    "train.label_smoothing": Guide(
+        "Label smoothing",
+        "Softens the expected outputs so the model is less overconfident.",
+        "Trains toward “mostly this answer” rather than “certainly this answer”. Can help when "
+        "some expected outputs are wrong or borderline. 0 turns it off.",
+        "Usually 0–0.1",
+    ),
+    "train.class_weighting": Guide(
+        "Class weighting",
+        "Gives rare answers more weight while training.",
+        "balanced makes every answer count equally, so rare answers aren't drowned out by "
+        f"common ones; none counts every example the same. {WEIGHTING_NOTE}",
+    ),
+    "train.gradient_checkpointing": Guide(
+        "Gradient checkpointing",
+        "Saves memory by redoing some work. Turn it off only on large GPUs.",
+        "Recomputes parts of the model during training instead of storing them, which uses "
+        "much less memory and makes each step a little slower.",
+    ),
+    "train.seed": Guide(
+        "Seed",
+        "Makes the test split and the training repeatable.",
+        "The same seed with the same data and settings picks the same test examples and gives "
+        "very similar results. Change it to see how much results vary from run to run.",
+        "Any whole number",
+    ),
+    "eval.eval_every": Guide(
+        "Evaluate every",
+        "Training steps between checks on the test examples.",
+        "Each check scores the model on the test examples, which takes a little time. The "
+        "checks drive Stop early and pick the best checkpoint; there is always one at the end.",
+    ),
+    "eval.select_metric": Guide(
+        "Keep the checkpoint with the best",
+        "Which test score picks the checkpoint that becomes your model.",
+        "mean_macro_f1 balances precision and recall, with rare answers counting as much as "
+        "common ones. exact_match is the share of examples with every question right. "
+        "mean_log_loss rewards confident right answers and punishes confident wrong ones.",
+    ),
+    "output.save_every": Guide(
+        "Checkpoint every",
+        "Training steps between saved checkpoints. A stopped run resumes from the last one.",
+        "Saving more often means a stopped run loses less work when resumed, at the cost of a "
+        "little time and storage.",
+    ),
 }
+STEP_FIELDS = ("eval.eval_every", "output.save_every")  # ranged against this run's step count
+
+
+def _number(value: float) -> str:
+    return f"{int(value):,}" if float(value).is_integer() else f"{value:g}"
+
+
+def _field_info(path: str) -> Any:
+    model: Any = Config
+    parts = path.split(".")
+    for part in parts[:-1]:
+        model = model.model_fields[part].annotation
+    return model.model_fields[parts[-1]]
+
+
+def allowed(path: str) -> str:
+    """The values the config accepts for a field, in words ("256 to 16,384")."""
+    info = _field_info(path)
+    low = high = None
+    low_open = high_open = False
+    for rule in info.metadata:
+        if getattr(rule, "ge", None) is not None:
+            low = rule.ge
+        if getattr(rule, "gt", None) is not None:
+            low, low_open = rule.gt, True
+        if getattr(rule, "le", None) is not None:
+            high = rule.le
+        if getattr(rule, "lt", None) is not None:
+            high, high_open = rule.lt, True
+    if low is not None and high is not None:
+        if low_open and high_open:
+            text = f"between {_number(low)} and {_number(high)}"
+        elif high_open:
+            text = f"{_number(low)} to just under {_number(high)}"
+        else:
+            text = f"{_number(low)} to {_number(high)}"
+    elif low is not None:
+        text = f"more than {_number(low)}" if low_open else f"{_number(low)} or more"
+    elif high is not None:
+        text = f"up to {_number(high)}"
+    else:
+        text = "any number"
+    if info.default is None and not info.is_required():
+        text += ", or empty"
+    return text
+
+
+_RANGE_ERRORS = ("greater than", "less than", "convert", "whole number", "needs a value")
+
+
+def field_error_text(path: str, message: str) -> str:
+    """A refused Advanced setting in plain words: for a number out of range or mistyped, the
+    values it accepts; any other reason as it is."""
+    spec = next((f for f in handlers.ADVANCED_FIELDS if f.path == path), None)
+    if spec is None or spec.kind not in ("int", "float", "optional_int"):
+        return message
+    if not any(phrase in message for phrase in _RANGE_ERRORS):
+        return message
+    kind = "a number" if spec.kind == "float" else "a whole number"
+    return f"Use {kind}: {allowed(path)}."
+
+
+def _shown(value: Any) -> str:
+    if value is None:
+        return "empty"
+    if isinstance(value, bool):
+        return "on" if value else "off"
+    if isinstance(value, (int, float)):
+        return _number(value)
+    return str(value)
+
+
+def _defaults() -> Config:
+    return Config.model_validate({"run_name": "x", "data": {"train": "x"}})
 
 
 # ---------------------------------------------------------------------------- the step bar
@@ -468,6 +689,15 @@ class AdvancedRow:
     kind: str
     value: Any
     choices: tuple[str, ...]
+    tip: str = ""
+    range: str = ""  # shown beside the box: the usual values, or the allowed ones
+
+
+@dataclass
+class HoldoutView:
+    percent: str  # the share set aside to test, as a percent
+    test_rows: int
+    total_rows: int
 
 
 @dataclass
@@ -496,6 +726,7 @@ class SettingsPage:
     flavor: str | None
     noun: str
     error: str | None
+    holdout: HoldoutView | None = None
 
 
 def _row_for(session: Session, rows: list[EstimateRow]) -> EstimateRow | None:
@@ -571,23 +802,46 @@ def settings_page(session: Session, services: Services, namespace: str | None) -
         note = "Fix the problems on the first two steps to see the time and cost."
     else:
         note = "The time and cost appear once the rows have been counted."
+    steps = optimizer_steps(config, tokens) if config is not None and tokens else None
+    defaults = _defaults()
     advanced = []
     for spec_field in handlers.ADVANCED_FIELDS:
-        label, help_text = PLAIN_FIELDS.get(spec_field.path, (spec_field.label, spec_field.help))
+        if spec_field.path == HOLDOUT_PATH:
+            continue
+        guide = FIELD_GUIDE.get(spec_field.path, Guide(spec_field.label, spec_field.help, ""))
         value = handlers._get(config, spec_field.path) if config is not None else None
+        tip, shown_range = guide.tip, ""
+        if spec_field.kind in ("int", "float", "optional_int"):
+            limits = allowed(spec_field.path)
+            tip = f"{tip} Allowed: {limits}.".strip()
+            if spec_field.path in STEP_FIELDS and steps:
+                shown_range = f"This run has about {steps:,} steps"
+            else:
+                shown_range = guide.usual or limits[:1].upper() + limits[1:]
+        default = _shown(handlers._get(defaults, spec_field.path))
+        tip = f"{tip} Default: {default}.".strip()
         advanced.append(
             AdvancedRow(
                 spec_field.path,
-                label,
+                guide.label,
                 spec_field.path,
-                help_text,
+                guide.help,
                 spec_field.kind,
                 value,
                 spec_field.choices,
+                tip,
+                shown_range,
             )
         )
-    order = list(PLAIN_FIELDS)
+    order = list(FIELD_GUIDE)
     advanced.sort(key=lambda row: order.index(row.path) if row.path in order else len(order))
+    holdout = None
+    if config is not None and report is not None and (report.eval or report.train):
+        holdout = HoldoutView(
+            _number(round(config.data.eval_fraction * 100, 1)),
+            len(report.eval),
+            len(report.eval) + len(report.train),
+        )
     name = draft.run_name if draft else ""
     return SettingsPage(
         name=name,
@@ -603,10 +857,41 @@ def settings_page(session: Session, services: Services, namespace: str | None) -
         flavor=session.flavor,
         noun=noun,
         error=error,
+        holdout=holdout,
     )
 
 
 # ---------------------------------------------------------------------------- predicting
+
+
+@dataclass(frozen=True)
+class Download:
+    key: str  # the file suffix, without its dot
+    name: str
+    description: str
+    media_type: str
+
+
+# The formats finished predictions download as, in the order the Download menu lists them.
+DOWNLOADS = (
+    Download(
+        "xlsx",
+        "Excel",
+        "A workbook, with confidence as numbers",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ),
+    Download("csv", "CSV", "Opens in Excel, Google Sheets or Numbers", "text/csv"),
+    Download(
+        "tsv", "TSV", "Tab-separated text, for tools that prefer tabs", "text/tab-separated-values"
+    ),
+    Download(
+        "jsonl",
+        "JSON Lines",
+        "One record per line, for code and data tools",
+        "application/x-ndjson",
+    ),
+    Download("json", "JSON", "All the records in one list", "application/json"),
+)
 
 
 @dataclass

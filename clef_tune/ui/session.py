@@ -295,6 +295,14 @@ def _start(session: Session, table: Table, draft: Draft) -> None:
     session.reached = 1
 
 
+def clear_data(session: Session) -> None:
+    """Forget the data file and everything set up from it, back to an empty first step."""
+    if session.root is not None:
+        shutil.rmtree(session.root / "data", ignore_errors=True)
+    session.table = session.draft = session.report = session.pending = None
+    session.estimates, session.flavor, session.reached = [], None, 0
+
+
 def draft_from_proposal(proposal: Proposal, name: str, filename: str | None = None) -> Draft:
     questions = [
         QuestionDraft(q.id, q.column, q.type, options=[OptionDraft(o) for o in q.options])

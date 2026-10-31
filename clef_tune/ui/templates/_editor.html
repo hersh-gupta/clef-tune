@@ -40,5 +40,5 @@
   {%- endfor %}
 </div>
 {% if e.hint %}<p class="hint">{{ e.hint }}</p>{% endif %}
-<div id="editor-flags" aria-live="polite">{% for f in e.flags %}<p class="flag">{{ f }}</p>{% endfor %}</div>
+<div id="flags-{{ ask_index }}" aria-live="polite">{% for f in e.flags %}<p class="flag">{{ f }}</p>{% endfor %}</div>
 {%- endif %}

@@ -210,7 +210,7 @@
       }
       return;
     }
-    if (!event.target.closest(".menu")) closeMenus();
+    if (!event.target.closest(".menu") || event.target.closest(".menu a")) closeMenus();
     const toggle = event.target.closest("[data-toggle]");
     if (toggle) {
       const target = document.querySelector(toggle.dataset.toggle);
@@ -233,11 +233,33 @@
     if (event.key !== "Escape") return;
     closeMenus();
     document.querySelectorAll(".panel-wrap.show").forEach((p) => p.classList.remove("show"));
+    closeTips();
+    if (document.activeElement && document.activeElement.closest(".info-tip")) {
+      document.activeElement.blur();
+    }
+  });
+
+  // ---------------------------------------------------------------- tips
+  // CSS opens a tip on hover and keyboard focus. A touch screen has no hover, so there a tap
+  // on its button toggles it, and a tap anywhere else closes it.
+  const touch = window.matchMedia("(hover: none)");
+  function closeTips(except) {
+    document.querySelectorAll(".info-tip.open").forEach((tip) => {
+      if (tip !== except) tip.classList.remove("open");
+    });
+  }
+  document.addEventListener("click", (event) => {
+    const trigger = event.target.closest(".info-tip > button");
+    const tip = trigger ? trigger.parentElement : null;
+    closeTips(tip);
+    if (tip && touch.matches) tip.classList.toggle("open");
   });
 
   // ---------------------------------------------------------------- words that size themselves
+  // data-autosize may give the fewest characters to leave room for (3 by default).
   function autosize(input) {
-    input.style.width = `${Math.max(input.value.length, 3) + 1}ch`;
+    const fewest = Number(input.dataset.autosize) || 3;
+    input.style.width = `${Math.max(input.value.length, fewest) + 1}ch`;
   }
   document.addEventListener("input", (event) => {
     if (event.target.matches("[data-autosize]")) autosize(event.target);
@@ -274,6 +296,27 @@
     if (event.target.matches(".drop input[type=file]") && event.target.files.length) {
       event.target.closest("form").requestSubmit();
     }
+  });
+
+  // ---------------------------------------------------------------- links that swap in place
+  // A data-nav link asks for its page in the background; the answer swaps just the parts that
+  // change, and the address bar follows so Back and reload still work.
+  async function navigate(url, push) {
+    try {
+      await send(url, { method: "GET" });
+      if (push) history.pushState({ nav: true }, "", url);
+    } catch (error) {
+      window.location.assign(url);
+    }
+  }
+  document.addEventListener("click", (event) => {
+    const link = event.target.closest("a[data-nav]");
+    if (!link || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey) return;
+    event.preventDefault();
+    navigate(link.href, true);
+  });
+  window.addEventListener("popstate", () => {
+    if (document.querySelector("a[data-nav]")) navigate(window.location.href, false);
   });
 
   // ---------------------------------------------------------------- the phone's row pager

@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% import "macros.html" as m %}
+{% import "_qparts.html" as q %}
 {% block title %}What to predict · clef-tune{% endblock %}
 {% block steps %}{{ m.step_bar(steps) }}{% endblock %}
 {% block main %}
@@ -15,19 +16,9 @@
 {% if page.error %}<p class="error-box" role="alert">{{ page.error }}</p>{% endif %}
 {% if page.items %}
 <div class="split2 in" style="--i:2">
-  <ul class="qlist" aria-label="Questions">
-    {%- for it in page.items %}
-    <li><a href="/questions?q={{ it.id | urlencode }}" class="{{ 'on' if page.selected and it.id == page.selected.id }}"{% if page.selected and it.id == page.selected.id %} aria-current="true"{% endif %}><span class="num">{{ it.number }}</span><span class="nm">{{ it.id }}</span><span class="ask" id="ask-{{ loop.index }}">{{ it.ask }}</span></a></li>
-    {%- endfor %}
-  </ul>
+  <ul class="qlist" id="qlist" aria-label="Questions">{{ q.qlist(page) }}</ul>
   <div>
-    {%- set ids = page.items | map(attribute="id") | list %}
-    {%- set k = ids.index(page.selected.id) %}
-    <nav class="qswitch" aria-label="Switch question">
-      {% if k > 0 %}<a href="/questions?q={{ ids[k - 1] | urlencode }}" aria-label="Previous question">‹</a>{% else %}<span></span>{% endif %}
-      <span class="cur">Question {{ k + 1 }} of {{ ids | length }}<b>{{ page.selected.id }}</b></span>
-      {% if k + 1 < ids | length %}<a href="/questions?q={{ ids[k + 1] | urlencode }}" aria-label="Next question">›</a>{% else %}<span></span>{% endif %}
-    </nav>
+    <nav class="qswitch" id="qswitch" aria-label="Switch question">{{ q.qswitch(page) }}</nav>
     <div id="editor">{% include "_editor.html" %}</div>
   </div>
 </div>
