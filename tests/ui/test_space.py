@@ -18,6 +18,7 @@ def test_the_space_is_a_docker_app_with_hugging_face_sign_in():
     assert meta["sdk"] == "docker" and meta["app_port"] == 7860
     assert meta["hf_oauth"] is True
     assert {"read-repos", "write-repos", "manage-repos", "jobs"} <= set(meta["hf_oauth_scopes"])
+    assert len(meta["short_description"]) <= 60  # the Hub refuses longer ones
     dockerfile = (SPACE / "Dockerfile").read_text(encoding="utf-8")
     assert "requirements.txt" in dockerfile and "uvicorn app:app" in dockerfile
     assert "--port 7860" in dockerfile and "--proxy-headers" in dockerfile

@@ -13,7 +13,7 @@ hf_oauth_scopes:
   - manage-repos
   - jobs
 pinned: false
-short_description: Bespoke intelligence, owned by you. Fine-tune decision models.
+short_description: Bespoke intelligence, owned by you. Tune decision models.
 ---
 
 # clef-tune
