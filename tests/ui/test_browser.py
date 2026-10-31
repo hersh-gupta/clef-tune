@@ -196,8 +196,8 @@ SPACE_SANDBOX = (
 
 def framed_like_a_space(page, url: str, *, cookies: bool = True):
     """Show `url` in a frame with the sandbox huggingface.co puts on a Space. cookies=False
-    shows the frame's script no cookies, as Safari and every iPhone browser keep none there.
-    (Real blocking needs the frame on another site, which a local test can't arrange.)"""
+    shows the frame's script no cookies, which is how the page tells that the browser keeps
+    none there (Safari and every iPhone browser); the browser itself still sends them."""
     if not cookies:
         page.add_init_script(
             "if (window.top !== window.self) Object.defineProperty(Document.prototype,"
