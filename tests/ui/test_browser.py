@@ -194,15 +194,46 @@ SPACE_SANDBOX = (
 )
 
 
-def test_sign_in_from_hugging_face_s_frame_opens_its_own_tab(page, space_url):
+def framed_like_a_space(page, url: str, *, cookies: bool = True):
+    """Show `url` in a frame with the sandbox huggingface.co puts on a Space. cookies=False
+    shows the frame's script no cookies, as Safari and every iPhone browser keep none there.
+    (Real blocking needs the frame on another site, which a local test can't arrange.)"""
+    if not cookies:
+        page.add_init_script(
+            "if (window.top !== window.self) Object.defineProperty(Document.prototype,"
+            " 'cookie', {get: () => '', set: () => {}})"
+        )
     page.set_content(
-        f'<iframe src="{space_url}/data" sandbox="{SPACE_SANDBOX}" width="1000" height="600">'
-        "</iframe>"
+        f'<iframe src="{url}" sandbox="{SPACE_SANDBOX}" width="1000" height="600"></iframe>'
     )
-    link = page.frame_locator("iframe").get_by_role("link", name="Sign in with Hugging Face")
+    return page.frame_locator("iframe")
+
+
+def test_sign_in_from_hugging_face_s_frame_opens_its_own_tab(page, space_url):
+    link = framed_like_a_space(page, f"{space_url}/data").get_by_role(
+        "link", name="Sign in with Hugging Face"
+    )
     with page.expect_popup() as popup:
         link.click()
     assert popup.value.url.startswith(space_url)
+
+
+def test_where_the_frame_keeps_cookies_a_sample_loads_in_place(page, space_url):
+    frame = framed_like_a_space(page, f"{space_url}/")
+    frame.get_by_role("button", name="support tickets").click()
+    frame.locator(".filebar").wait_for()
+    assert len(page.context.pages) == 1
+
+
+def test_where_the_frame_keeps_no_cookies_a_sample_opens_in_its_own_tab(page, space_url):
+    """Nothing set up in such a frame would stick, so the click takes its action to the app's
+    own tab instead."""
+    frame = framed_like_a_space(page, f"{space_url}/", cookies=False)
+    with page.expect_popup() as popup:
+        frame.get_by_role("button", name="support tickets").click()
+    tab = popup.value
+    tab.wait_for_url("**/data")
+    assert tab.locator(".filebar").count() == 1
 
 
 def test_a_refused_post_says_so_on_the_page(page, base_url):

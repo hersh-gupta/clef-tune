@@ -323,6 +323,30 @@
   function framed() {
     try { return window.top !== window.self; } catch (e) { return true; }
   }
+  // Whether this browser keeps cookies where the page is shown: Safari and every iPhone
+  // browser keep none inside Hugging Face's frame.
+  function cookiesKept() {
+    try {
+      document.cookie = "clef_tune_probe=1; Path=/; SameSite=None; Secure";
+      const kept = document.cookie.includes("clef_tune_probe=1");
+      document.cookie = "clef_tune_probe=; Path=/; Max-Age=0; SameSite=None; Secure";
+      return kept;
+    } catch (e) { return false; }
+  }
+  // Where it keeps none, a click takes its action to the app's own tab, where it does.
+  const elsewhere = framed() && !cookiesKept();
+  document.addEventListener("click", (event) => {
+    const link = event.target.closest("a[href]");
+    if (!elsewhere || !link || link.target === "_blank" || link.origin !== window.location.origin) return;
+    link.target = "_blank";
+    link.rel = "noopener";
+    event.stopPropagation(); // not swapped in place (data-nav), which would stick no better
+  }, true);
+  document.addEventListener("submit", (event) => {
+    if (!elsewhere) return;
+    event.target.target = "_blank";
+    event.stopPropagation(); // sent by the browser, not in the background (data-post)
+  }, true);
   document.addEventListener("click", (event) => {
     const own = event.target.closest("[data-own-tab]");
     if (own) own.href = window.location.href; // the address may have moved (data-nav)
