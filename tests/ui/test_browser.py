@@ -203,15 +203,18 @@ SPACE_SANDBOX = (
 )
 
 
-def framed_like_a_space(page, url: str, *, cookies: bool = True):
+def framed_like_a_space(page, url: str, *, cookies: bool = True, tabs: bool = True):
     """Show `url` in a frame with the sandbox huggingface.co puts on a Space. cookies=False
     shows the frame's script no cookies, which is how the page tells that the browser keeps
-    none there (Safari and every iPhone browser); the browser itself still sends them."""
+    none there (Safari and every iPhone browser); the browser itself still sends them.
+    tabs=False refuses new tabs from the frame, as in-app browsers (LinkedIn's) do."""
     if not cookies:
         page.add_init_script(
             "if (window.top !== window.self) Object.defineProperty(Document.prototype,"
             " 'cookie', {get: () => '', set: () => {}})"
         )
+    if not tabs:
+        page.add_init_script("if (window.top !== window.self) window.open = () => null")
     page.set_content(
         f'<iframe src="{url}" sandbox="{SPACE_SANDBOX}" width="1000" height="600"></iframe>'
     )
@@ -243,6 +246,40 @@ def test_where_the_frame_keeps_no_cookies_a_sample_opens_in_its_own_tab(page, sp
     tab = popup.value
     tab.wait_for_url("**/data")
     assert tab.locator(".filebar").count() == 1
+
+
+@pytest.mark.parametrize("cookies", [True, False])
+def test_where_no_new_tab_opens_the_page_says_where_to_go_instead(page, space_url, cookies):
+    """An in-app browser refuses new tabs, so a click that needs one says so, with the app's
+    own address, instead of doing nothing."""
+    frame = framed_like_a_space(page, f"{space_url}/", cookies=cookies, tabs=False)
+    host = space_url.split("//")[1]
+    clicks = [frame.get_by_role("link", name="Sign in with Hugging Face")]
+    if not cookies:
+        clicks.append(frame.get_by_role("button", name="support tickets"))
+    for click in clicks:
+        click.click()
+        notice = frame.locator("#page-error")
+        notice.wait_for(state="visible")
+        assert "Open in browser" in notice.inner_text() and host in notice.inner_text()
+    assert len(page.context.pages) == 1
+
+
+def test_linkedins_in_app_browser_is_told_up_front_to_open_the_page_in_a_browser(space_url):
+    """LinkedIn's in-app browser keeps no cookies for the frame and opens no tabs, so nothing on
+    the page can work there: say so before anyone taps."""
+    linkedin = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Mobile/15E148 [LinkedInApp]"
+    with playwright.sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page(user_agent=linkedin, reduced_motion="reduce")
+        notice = framed_like_a_space(page, f"{space_url}/", cookies=False).locator("#page-error")
+        notice.wait_for(state="visible")
+        shown = notice.inner_text()
+        plain = browser.new_page(reduced_motion="reduce")
+        framed_like_a_space(plain, f"{space_url}/", cookies=False).locator("h1").wait_for()
+        quiet = plain.frame_locator("iframe").locator("#page-error").is_hidden()
+        browser.close()
+    assert "Open in browser" in shown and quiet
 
 
 def test_a_refused_post_says_so_on_the_page(page, base_url):

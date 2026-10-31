@@ -319,7 +319,8 @@
   // A Space runs inside huggingface.co's frame, where some browsers keep no cookies for it (so
   // nothing set up would stick). Inside a frame, the header offers the page in its own tab.
   // The frame's sandbox also keeps it from taking over the whole tab, so a link meant to
-  // (sign-in) opens in its own tab there instead.
+  // (sign-in) opens in its own tab there instead. In-app browsers (LinkedIn's) open no tabs
+  // from a frame at all, so there the page says where to go rather than doing nothing.
   function framed() {
     try { return window.top !== window.self; } catch (e) { return true; }
   }
@@ -335,27 +336,37 @@
   }
   // Where it keeps none, a click takes its action to the app's own tab, where it does.
   const elsewhere = framed() && !cookiesKept();
+  const IN_APP = /LinkedInApp|FBAN|FBAV|FB_IAB|Instagram/; // in-app browsers that open no tabs
+  function stuck(address) {
+    showError(`clef-tune can't work inside this in-app browser. Choose “Open in browser” from its menu, or go to ${address}.`);
+    const box = document.querySelector("#page-error");
+    if (box) box.scrollIntoView({ block: "nearest" });
+  }
+  // Tabs are opened here rather than by the link itself, so a refused one is noticed.
   document.addEventListener("click", (event) => {
     const link = event.target.closest("a[href]");
-    if (!elsewhere || !link || link.target === "_blank" || link.origin !== window.location.origin) return;
-    link.target = "_blank";
-    link.rel = "noopener";
+    if (!link || !framed() || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey) return;
+    const own = link.origin === window.location.origin;
+    if (link.target !== "_blank" && link.target !== "_top" && !(own && elsewhere)) return;
+    event.preventDefault();
     event.stopPropagation(); // not swapped in place (data-nav), which would stick no better
+    // The own-tab link follows the address, which may have moved (data-nav).
+    const url = link.matches("[data-own-tab]") ? window.location.href : link.href;
+    const tab = window.open(url, "_blank");
+    if (!tab) stuck(own ? window.location.host : url);
+    else if (!own) tab.opener = null;
   }, true);
   document.addEventListener("submit", (event) => {
     if (!elsewhere) return;
-    event.target.target = "_blank";
     event.stopPropagation(); // sent by the browser, not in the background (data-post)
-  }, true);
-  document.addEventListener("click", (event) => {
-    const own = event.target.closest("[data-own-tab]");
-    if (own) own.href = window.location.href; // the address may have moved (data-nav)
-    const whole = event.target.closest('a[target="_top"]');
-    if (whole && framed()) {
-      whole.target = "_blank";
-      whole.rel = "noopener";
+    const name = `clef-tune-${Date.now()}`;
+    if (window.open("", name)) {
+      event.target.target = name;
+    } else {
+      event.preventDefault();
+      stuck(window.location.host);
     }
-  });
+  }, true);
 
   // ---------------------------------------------------------------- tips
   // CSS opens a tip on hover and keyboard focus. A touch screen has no hover, so there a tap
@@ -462,5 +473,6 @@
       own.href = window.location.href;
       own.hidden = false;
     }
+    if (elsewhere && IN_APP.test(navigator.userAgent)) stuck(window.location.host);
   });
 })();
