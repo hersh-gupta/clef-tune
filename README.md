@@ -1,302 +1,119 @@
 # clef-tune
 
-Fine-tune Cloudflare's [Clef](https://huggingface.co/Cloudflare/clef) decision models
-(Clef 27B and Clef-Flash 9.4B) on your own labeled CSV or JSONL data.
-
-> Status: data validation, estimates, training, evaluation, prediction, merged export,
-> Hugging Face Jobs launching and the web UI are done (see `docs/superpowers/`).
+Fine-tune Cloudflare's [Clef](https://huggingface.co/Cloudflare/clef) decision models (Clef 27B
+and Clef-Flash 9.4B) on your own labeled spreadsheet. Use the web UI, or the CLI on your own GPU
+or on [Hugging Face Jobs](https://huggingface.co/docs/huggingface_hub/guides/jobs).
 
 ## Install
 
 ```bash
-uv pip install "clef-tune @ git+https://github.com/hersh-gupta/clef-tune"
+uv pip install "clef-tune[ui] @ git+https://github.com/hersh-gupta/clef-tune"
 ```
 
-## Hugging Face token
+To train on this machine's GPU, also install the `train` extra (see
+[Train on your own GPU](#train-on-your-own-gpu)).
 
-clef-tune reads your Hugging Face token the same way `huggingface_hub` does: from the
-`HF_TOKEN` environment variable, or else from the token saved by `hf auth login`. You need it
-to:
-
-- push adapters with `train --push-to-hub REPO`. The token must have **write** access to that
-  repo's namespace, and clef-tune checks this before training starts.
-- load adapters from private Hub repos (adapter repos are created private) with `predict`,
-  `eval`, `export` or `Predictor.load`.
-- download the public Clef models with higher rate limits (optional).
-
-Create a token at <https://huggingface.co/settings/tokens>: either a "Write" token, or a
-fine-grained token with write access to the user or organization you push to. Then use one of
-these:
-
-**Log in once** (the token is stored in your Hugging Face cache):
-
-```bash
-hf auth login
-```
-
-**Set `HF_TOKEN` for the current shell** (it takes precedence over a stored login):
-
-```bash
-export HF_TOKEN=hf_xxx            # bash/zsh
-```
-
-```powershell
-$env:HF_TOKEN = "hf_xxx"          # PowerShell
-```
-
-**Keep it in a `.env` file.** Put this line in a file named `.env` next to your config:
-
-```
-HF_TOKEN=hf_xxx
-```
-
-`.env` is listed in this repository's `.gitignore`, so git ignores it. Never commit the token
-or put it in `config.yaml`. `uv` loads the file when you run a command through it:
-
-```bash
-uv run --env-file .env clef-tune train cfg.yaml --push-to-hub you/clef-support
-uv run --env-file .env accelerate launch -m clef_tune train cfg.yaml --push-to-hub you/clef-support
-```
-
-To have every `uv run` in a shell load it, set `UV_ENV_FILE` once (`export UV_ENV_FILE=.env`
-in bash, `$env:UV_ENV_FILE = ".env"` in PowerShell). If you run `clef-tune` directly rather
-than through `uv run`, load the file into your shell first:
-
-```bash
-set -a; source .env; set +a       # bash/zsh
-```
-
-```powershell
-Get-Content .env | Where-Object { $_ -match '^\s*([^#=]+?)\s*=\s*(.*)$' } | ForEach-Object { Set-Item "env:$($Matches[1])" $Matches[2] }
-```
-
-From Python, set `HF_TOKEN` before starting the interpreter, or pass it directly with
-`Predictor.load("you/clef-support", token="hf_xxx")`.
+clef-tune finds your Hugging Face token the way `huggingface_hub` does: from `HF_TOKEN`, or from
+the login saved by `hf auth login`. Pushing a model needs `repo.write`; Jobs also need
+`job.write`. Keep the token out of `config.yaml`; a `.env` file (git-ignored here) works with
+`uv run --env-file .env ...`.
 
 ## Web UI
 
-The web UI is for people who have never fine-tuned a model: upload a spreadsheet of examples
-with the expected outputs filled in, say what each column is for, turn each expected output into
-a plain question, pick how much training, and start. It shows the time and the most a run can
-cost before anything starts, runs on Hugging Face Jobs (so you can close the page and come back
-to "Your models"), and reports the results in plain words. A finished model can then predict a
-new spreadsheet, which you download (Excel, CSV, TSV, JSON Lines or JSON) with its answers,
-confidence and review marks filled in.
-
 ```bash
-uv pip install "clef-tune[ui] @ git+https://github.com/hersh-gupta/clef-tune"
-clef-tune ui
+clef-tune ui        # http://localhost:7860
 ```
 
-It opens on <http://localhost:7860> (`--port` and `--host` to change that). Three samples (support
-tickets, claim triage, server logs) let you look around without your own data. Locally, the UI
-uses this machine's Hugging Face login (`hf auth login`), or a token pasted on the Train step when
-there is none; "Train on this computer's GPU" appears when the machine has a CUDA GPU. Files can be
-CSV, TSV, Excel (.xlsx), JSONL, or a zip with images.
+Upload a spreadsheet of examples with the expected outputs filled in (CSV, TSV, Excel, JSONL, or
+a zip with images). Say what each column is for, turn each expected output into a question, and
+start. The UI shows the time and the most a run can cost before it starts. It trains on Hugging
+Face Jobs, so you can close the page and come back. Results are reported in plain words. A
+finished model can then fill in the answers for a new spreadsheet. Three samples let you try it
+without your own data.
 
-The UI answers only to this computer's own names (`localhost`, `127.0.0.1`) and the address it
-listens on. `--host 0.0.0.0` serves your whole network instead, and anyone on it can then train,
-predict and spend with this computer's Hugging Face login, so use it only on a network you trust.
-`CLEF_TUNE_SECRET` sets the key that signs the browser's session cookie on this computer (a Space
-signs it with its Hugging Face sign-in secret instead); without it, each start picks a random
-key. Sessions themselves live in memory, so a restart starts every open page over either way.
+The UI answers only to `localhost`. `--host 0.0.0.0` opens it, and this computer's Hugging Face
+login, to your whole network.
 
-### Deploy the web UI as a Hugging Face Space
+### As a Hugging Face Space
 
-The Space (a Docker Space) runs the same UI for many visitors. Each visitor signs in with Hugging
-Face and runs jobs on their own account and credits; the Space never uses its own token for them.
-
-1. Push your commits: the Space installs clef-tune from GitHub at an exact commit.
-2. Write the Space files (`README.md`, `Dockerfile`, `app.py`), with `requirements.txt` pinned to
-   that commit:
-
-   ```bash
-   python scripts/prepare_space.py build/space
-   ```
-
-3. Upload them to a Space (`hf` creates it if needed):
-
-   ```bash
-   hf upload you/clef-tune build/space . --repo-type space
-   ```
-
-Sign-in asks visitors for repo and Jobs access. If a launch fails with a permission error (sign-in
-may not reach the storage bucket a launch uploads to), the Train step offers to use a pasted token
-with `job.write` and `repo.write` for that browser session only. Uploads are capped at
-`CLEF_TUNE_MAX_UPLOAD_MB` (default 200), and training on the machine's own GPU is never offered
-on a Space.
-
-**Not yet checked on a live Space:** the app runs inside huggingface.co's frame, so a visitor's
-session lives in a third-party cookie. Whether sign-in and an uploaded file survive in Safari
-(macOS and iOS, which block third-party cookies by default) and Firefox (which partitions them)
-still needs checking on the live Space, as does whether the sign-in token can stage a launch in
-the jobs bucket. Inside the frame, the header offers "Open in its own tab", which avoids the
-frame's cookie rules.
-
-## Quickstart (CLI)
-
-1. Describe your data and questions in a config. See `examples/support_tickets.yaml`:
-   each CSV row supplies the state (`state_columns`) and one label column per question.
-2. Validate. This catches bad labels, duplicate IDs, single-class questions and over-long
-   rows before you spend money:
-
-   ```bash
-   clef-tune validate examples/support_tickets.yaml
-   ```
-
-3. Estimate time and cost on Hugging Face Jobs hardware, or on your own GPU:
-
-   ```bash
-   clef-tune estimate examples/support_tickets.yaml
-   clef-tune estimate examples/support_tickets.yaml --gpu H100 --price 2.49
-   ```
-
-4. Write a portable bundle (normalized data plus a self-contained config) to train anywhere:
-
-   ```bash
-   clef-tune validate examples/support_tickets.yaml --bundle out/bundle
-   ```
-
-## Train on a GPU box
+On a Space, each visitor signs in with Hugging Face and runs jobs on their own account and
+credits. The Space installs clef-tune from GitHub at an exact commit, so push first:
 
 ```bash
-uv sync --extra train        # on Windows this installs CUDA 13.0 torch
+git push
+python scripts/prepare_space.py build/space
+hf upload <you>/clef-tune build/space . --repo-type space
 ```
 
-If you install from git with `uv pip`, add `--torch-backend cu130` (or the backend for your
-CUDA version):
+## CLI
+
+A config describes your data and questions; see
+[`examples/support_tickets.yaml`](examples/support_tickets.yaml).
 
 ```bash
-uv pip install "clef-tune[train] @ git+https://github.com/hersh-gupta/clef-tune" --torch-backend cu130
+clef-tune validate cfg.yaml                      # bad labels, duplicate IDs, over-long rows
+clef-tune estimate cfg.yaml                      # time and cost on each GPU
+clef-tune validate cfg.yaml --bundle out/bundle  # portable data + config, to train anywhere
 ```
 
-On Linux, the fast linear-attention kernels are optional but much faster: without them Clef's
-linear-attention layers fall back to a slow PyTorch path. Build `causal-conv1d` against the
-torch you already have; an isolated build compiles against a different torch and makes model
-loading crash.
+### Train on your own GPU
+
+```bash
+uv sync --extra train                            # CUDA torch; from git, add --torch-backend cu130
+clef-tune train cfg.yaml                         # resumes from checkpoints; --push-to-hub REPO
+accelerate launch -m clef_tune train cfg.yaml    # several GPUs
+clef-tune predict out/<run>/final new.csv -o preds.csv
+clef-tune eval out/<run>/final labeled.csv
+clef-tune export out/<run>/final --merge -o merged
+```
+
+On Linux, the linear-attention kernels make training much faster. Build them against the torch
+you already have, because an isolated build makes model loading crash:
 
 ```bash
 pip install --no-build-isolation causal-conv1d==1.7.0 flash-linear-attention==0.6.0
-python -c "import causal_conv1d"   # if this fails: pip uninstall -y causal-conv1d flash-linear-attention fla-core
 ```
 
-```bash
-clef-tune validate cfg.yaml --bundle out/bundle      # normalized data + self-contained config
-clef-tune train out/bundle/config.yaml               # resumes automatically from checkpoints
-accelerate launch -m clef_tune train cfg.yaml        # multi-GPU DDP
-clef-tune predict out/<run_name>/final new.csv -o preds.csv  # .xlsx/.jsonl; --review-below 0.7
-clef-tune eval out/<run_name>/final labeled.csv --output metrics.json
-clef-tune export out/<run_name>/final --merge -o merged          # Cloudflare's release layout
-```
+There is also a Dockerfile:
+`docker build -t clef-tune .`, then `docker run --gpus all -v "$PWD:/work" -w /work clef-tune train cfg.yaml`.
 
-`train` accepts `--restart` (ignore checkpoints), `--push-to-hub REPO` and
-`--delete-bundle-on-success`. The adapter is written to `<output.dir>/final`; `output.dir`
-defaults to `out/<run_name>` next to the config, so a bundle's run lands in
-`out/bundle/out/<run_name>/final`. `predict` keeps the file's own columns and adds, for each
-question, the answer and its confidence (0–1), then a `review` column marking rows where any
-answer is less sure than `--review-below`; `--probabilities` adds every answer's probability,
-and `.jsonl` output keeps Clef's SystemOne answers. `eval` prints per-question metrics, exact
-match, confusion matrices and ECE before and after calibration.
-Exit codes: 0 ok, 1 training/data/Hub failure, 2 invalid config or arguments.
+### Train on Hugging Face Jobs
 
-### Docker
+You need a token with `repo.write` and `job.write`, prepaid
+[Jobs credits](https://huggingface.co/settings/billing), and a clean checkout whose commit is on
+GitHub (the job installs that exact commit).
 
 ```bash
-docker build -t clef-tune .
-docker run --gpus all -v "$PWD:/work" -w /work clef-tune train cfg.yaml
-```
-
-## Train on Hugging Face Jobs
-
-`clef-tune jobs launch` validates a config on your machine, shows the estimate, and after you
-confirm, trains it on [Hugging Face Jobs](https://huggingface.co/docs/huggingface_hub/guides/jobs).
-
-**Before the first launch:**
-
-- **A token with `repo.write` and `job.write`.** A "Write" token works, and so does a
-  fine-grained one with both permissions (see [Hugging Face token](#hugging-face-token)).
-- **Pre-paid Jobs credits.** Jobs bill against them; without them the launch is refused with a
-  link to <https://huggingface.co/settings/billing>.
-- **A clean checkout whose commit is on GitHub.** A job installs the exact clef-tune commit you
-  are running, from `https://github.com/hersh-gupta/clef-tune`, so commit and push first.
-  Uncommitted changes are refused. Set `CLEF_TUNE_SOURCE` to install from your fork, or pass
-  `--source-ref` to pick a commit, tag or branch.
-
-```bash
-clef-tune jobs launch cfg.yaml                 # shows hardware, time and cost, then asks
-clef-tune jobs launch cfg.yaml --flavor h200x2 --timeout 6h --yes
+clef-tune jobs launch cfg.yaml    # shows hardware, time and the most it can cost, then asks
 clef-tune jobs list
-clef-tune jobs status <job-id>                 # stage, time, cost so far, latest step and eval
+clef-tune jobs status <job-id>
 clef-tune jobs logs <job-id> -f
-clef-tune jobs cancel <job-id>
-clef-tune jobs resume <job-id> --timeout 3h    # continue a failed or canceled job; asks first
-clef-tune jobs clean <job-id>                  # remove files a completed job left in the bucket
+clef-tune jobs cancel <job-id>    # can take a minute to stop
+clef-tune jobs resume <job-id>    # continue from the newest checkpoint
+clef-tune jobs clean <job-id>     # remove files a finished job left behind
 ```
 
-`launch` also accepts `--keep-data`, `--push-to-hub REPO` (default
-`<you>/clef-tune-<run_name>`), `--source-ref REF` and `--no-kernels`. `resume` shows the hardware,
-the time limit and the most the resumed job can cost, then asks before starting it (`--yes`
-skips the question).
+The data goes to your private `<you>/jobs-artifacts` bucket, and the model to a private repo
+(`<you>/clef-tune-<run_name>` by default). The timeout caps the cost.
 
-**What a job does:**
-
-- Your bundle is uploaded to a new folder in your private `<you>/jobs-artifacts` bucket and
-  mounted at `/work`; the model is mounted at `/model`, so it is not downloaded.
-- The first job compiles `causal-conv1d` (about 12 minutes) and caches the wheel in that bucket,
-  so later jobs skip the build. If the kernels fail, training continues on the slow path.
-- Flavors with several GPUs train with DDP, one process per GPU.
-- The adapter is pushed to a private repo. The bundle and checkpoints are deleted after success
-  (the bundle stays with `--keep-data`). The bucket mount can still finish uploading a checkpoint
-  file the job had already deleted; `jobs status` then says so, and `jobs clean` removes it.
-- A failed, timed-out or canceled job keeps its checkpoints in `/work`, and `jobs resume`
-  restarts it in the same folder from the newest complete one. A canceled job shows CANCELED
-  at once but can take up to a minute to stop, so wait that long before resuming it.
-
-**Costs:** `launch` shows the estimated cost and the most the job can cost, which is the
-flavor's price for the whole timeout, and asks before submitting (`--yes` skips the question).
-The timeout caps the cost: a job that reaches it is stopped.
-
-## Using an adapter from Python
+## Python
 
 ```python
 from clef_tune import Predictor
 
-p = Predictor.load("out/<run_name>/final")  # local dir or Hub repo
-p.predict([{"state": {"subject": "Site down", "body": "..."}}])  # SystemOne-shaped answers
-p.systemone(request)  # same contract as Clef's systemone(), calibrated
-p.model, p.processor  # raw ClefModel + processor (uncalibrated logits)
+p = Predictor.load("out/<run>/final")  # local folder or Hub repo
+p.predict([{"state": {"subject": "Site down", "body": "..."}}])
 ```
 
-Questions default to the adapter's schema; calibration is applied unless `calibrated=False`.
-`Predictor.load` also takes `device`, `quantization` and `base_model_path`; without
-`base_model_path` it uses the base model directory recorded at training time, or downloads
-the pinned base model when that directory does not exist on this machine.
+Answers are calibrated with one temperature per question, stored in the model's
+`calibration.json`. A merged export served with SGLang returns uncalibrated probabilities.
 
-## Calibration
+## Data
 
-Training fits one temperature per question on the eval set and stores them in the adapter's
-`calibration.json` (`{question_id: T}`; a question not listed uses T = 1). `Predictor` and
-`predict` apply `softmax(logits / T)` by default. SGLang serving of a merged export returns
-**uncalibrated** probabilities; a client calibrates the served probabilities of each question's
-options with
-
-    p_i^(1/T) / sum_j p_j^(1/T)
-
-Temperatures are fit on the same eval set used for checkpoint selection, so post-calibration
-ECE is slightly optimistic.
-
-## Data format
-
-- **CSV/TSV**: one row per example. State comes from `data.state_columns` (several columns
-  become a JSON object; one column is passed as plain text). Labels come from one column per
-  question (`data.label_columns` maps question IDs to column names, defaulting to the same
-  name). `choice` labels are option IDs, `score` labels are 0-based levels or the level text,
-  and `noul` labels are true/false, yes/no, 1/0 or t/f. Empty cells mean "not labeled".
-- **JSONL**: flat rows work like CSV. Rows with a `labels` object use Clef's native format,
-  `{"id", "state", "questions"?, "labels", "images"?}`, and may carry their own questions.
-  Labels may be soft: `{"billing": 0.7, "technical": 0.3}`.
-
-Messages refer to spreadsheet rows for CSV (the header is row 1) and to line numbers for JSONL.
+- **CSV, TSV, Excel:** one row per example. `data.state_columns` are the input, and each
+  question has a column with the expected output. An empty cell means unlabeled.
+- **JSONL:** flat rows work the same way. Rows in Clef's own format
+  (`{"id", "state", "labels", ...}`) are read as-is, soft labels included.
 
 ## Development
 
@@ -304,3 +121,6 @@ Messages refer to spreadsheet rows for CSV (the header is row 1) and to line num
 uv sync --extra dev
 uv run pytest
 ```
+
+For a plain-language explainer of what fine-tuning changes, see
+[How fine-tuning works](docs/how-fine-tuning-works.md).
