@@ -1,0 +1,150 @@
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500&display=swap" rel="stylesheet">
+
+<style>
+  .cards { grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 1.25rem; }
+  .card .card-image { aspect-ratio: auto; display: block; padding: 0; background: none; }
+  .replay { margin-top: .6rem; font: inherit; font-size: .8rem; background: none; border: 1px solid var(--border); border-radius: 999px; padding: .25rem .8rem; cursor: pointer; color: var(--text-secondary); }
+  .replay:hover { color: var(--text-primary); }
+
+  /* Palette from B, mapped onto C's elements. */
+  .app {
+    --page: #F7F2EA; --line: #DDD0BC; --line-soft: #E8DFD1; --ink: #33302A; --muted: #665E52;
+    --sage: #5C7A64; --sage-ink: #48644F; --oak: #A88B66; --oak-ink: #5E4E38; --skip: #A39A8C;
+    --btn-ink: #F7F2EA;
+  }
+  .app.sand { --page: #EAE1D3; --line: #D3C5AE; --line-soft: #DED2BF; }
+  .app.dark {
+    --page: #23211D; --line: #3A362F; --line-soft: #312E28; --ink: #ECE5D8; --muted: #A79E8F;
+    --sage: #9DB89F; --sage-ink: #A9C4AB; --oak: #C9A982; --oak-ink: #D7BD99; --skip: #7C7569;
+    --btn-ink: #23211D;
+  }
+
+  .app { background: var(--page); color: var(--ink); font-family: "Noto Sans JP", system-ui, sans-serif; font-weight: 400;
+         padding: 22px 24px 20px; min-height: 480px; display: flex; flex-direction: column; text-align: left; }
+  .app .top { display: flex; align-items: center; gap: 10px; }
+  .app .mark { width: 13px; height: 13px; border: 1.5px solid var(--sage); transform: rotate(45deg); }
+  .app .top b { font-weight: 500; letter-spacing: .14em; text-transform: uppercase; font-size: 11.5px; }
+
+  .app .steps { display: flex; margin: 20px 0 0; padding: 0; list-style: none; font-size: 11px; letter-spacing: .06em; color: var(--muted); }
+  .app .steps li { flex: 1; padding-bottom: 8px; border-bottom: 1px solid var(--line); position: relative; }
+  .app .steps li span { display: block; font-size: 10px; margin-bottom: 1px; }
+  .app .steps .done span::after { content: " ✓"; color: var(--sage-ink); }
+  .app .steps .now { color: var(--ink); border-bottom: 2px solid var(--sage); }
+  .app .steps .now span { position: relative; padding-left: 11px; }
+  .app .steps .now span::before, .app .steps .now span::after {
+    content: ""; position: absolute; left: 0; top: 50%; width: 6px; height: 6px; margin-top: -3px; border-radius: 50%; background: var(--sage); }
+  .app .steps .now span::after { animation: breathe 3.2s ease-in-out infinite; }
+
+  .app h4 { font-size: 21px; font-weight: 300; letter-spacing: .02em; margin: 24px 0 8px; }
+  .app .rule { height: 1px; width: 48px; background: var(--oak); margin: 0 0 12px; }
+  .app .lede { margin: 0 0 12px; font-size: 13px; line-height: 1.6; color: var(--muted); }
+
+  .app .rows { list-style: none; margin: 0; padding: 0; flex: 1; }
+  .app .rows li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 0; border-bottom: 1px solid var(--line-soft); }
+  .app .col { display: block; font-size: 13.5px; font-weight: 500; }
+  .app .eg { display: block; font-size: 12px; margin-top: 2px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 170px; }
+
+  .app .tag { font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; background: none; border: 0; padding: 4px 0 4px 15px; position: relative; letter-spacing: .02em;
+              transition: color .45s ease; }
+  .app .tag::before { content: ""; position: absolute; left: 0; top: 50%; width: 7px; height: 7px; margin-top: -4.5px; border-radius: 50%;
+                      transition: background-color .45s ease, border-color .45s ease; }
+  .app .tag.read  { color: var(--oak-ink); }
+  .app .tag.read::before  { border: 1.5px solid var(--oak); }
+  .app .tag.learn { color: var(--sage-ink); font-weight: 500; }
+  .app .tag.learn::before { background: var(--sage); border: 1.5px solid var(--sage); }
+  .app .tag.skip  { color: var(--muted); }
+  .app .tag.skip::before  { border: 1.5px dashed var(--skip); }
+  .app .tag.pop { animation: pop .4s ease; }
+
+  .app .foot { display: flex; align-items: center; justify-content: space-between; margin-top: 16px; font-size: 12.5px; color: var(--muted); }
+  .app .go { font: inherit; font-size: 13.5px; cursor: pointer; background: none; color: var(--sage-ink); border: 1px solid var(--sage); border-radius: 2px;
+             padding: 9px 20px; letter-spacing: .06em; transition: background-color .3s ease, color .3s ease, transform .3s ease; }
+  .app .go:hover { background: var(--sage); color: var(--btn-ink); transform: translateY(-1px); }
+
+  /* Motion from A. */
+  @keyframes rise    { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  @keyframes breathe { 0%, 100% { transform: scale(1); opacity: .45; } 50% { transform: scale(1.9); opacity: 0; } }
+  @keyframes pop     { 0% { transform: scale(1); } 40% { transform: scale(.93); } 100% { transform: scale(1); } }
+  .app.play h4, .app.play .rule, .app.play .lede { animation: rise .7s cubic-bezier(.2, .7, .2, 1) both; }
+  .app.play .rows li { animation: rise .7s cubic-bezier(.2, .7, .2, 1) both; animation-delay: calc(var(--i) * 90ms + 200ms); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .app *, .app *::before, .app *::after { animation: none !important; transition: none !important; }
+  }
+</style>
+
+<h2>Motion from A, colors from B, style from C</h2>
+<p class="subtitle">C's hairlines, numbered steps, dot tags and outline button, in B's sand, oak and sage, with A's gentle rise and the breathing current step. Two page tones and a dark version. Click a tag to see it change, and click a card to pick it.</p>
+
+<div class="cards">
+  <div class="card" data-choice="cream" onclick="toggleSelect(this)">
+    <div class="card-image"><div class="app play" data-mock></div></div>
+    <div class="card-body">
+      <h3>Light · cream page</h3>
+      <p>B's cream row color becomes the page, with sand-toned hairlines. The lightest and airiest version.</p>
+      <button class="replay" onclick="replay(this, event)">Replay motion</button>
+    </div>
+  </div>
+  <div class="card" data-choice="sand" onclick="toggleSelect(this)">
+    <div class="card-image"><div class="app sand play" data-mock></div></div>
+    <div class="card-body">
+      <h3>Light · sand page</h3>
+      <p>B's sand background as the page. Warmer and closer to B, with a bit less contrast.</p>
+      <button class="replay" onclick="replay(this, event)">Replay motion</button>
+    </div>
+  </div>
+  <div class="card" data-choice="dark" onclick="toggleSelect(this)">
+    <div class="card-image"><div class="app dark play" data-mock></div></div>
+    <div class="card-body">
+      <h3>Dark</h3>
+      <p>The same palette at night: warm charcoal, pale sage and oak. It follows the computer's setting, and a toggle overrides it.</p>
+      <button class="replay" onclick="replay(this, event)">Replay motion</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const MOCK = `
+    <div class="top"><span class="mark"></span><b>clef-tune</b></div>
+    <ol class="steps">
+      <li class="done"><span>01</span>Your data</li>
+      <li class="now"><span>02</span>What to learn</li>
+      <li><span>03</span>Settings</li>
+      <li><span>04</span>Train</li>
+    </ol>
+    <h4>What should the model learn?</h4>
+    <div class="rule"></div>
+    <p class="lede">Tell us what each column is for. We've made a first guess from your file.</p>
+    <ul class="rows">
+      <li style="--i:0"><div><span class="col">subject</span><span class="eg">Invoice 793 looks wrong</span></div><button class="tag read" onclick="cycleTag(this, event)">Reads it</button></li>
+      <li style="--i:1"><div><span class="col">body</span><span class="eg">The total on invoice 793 doesn't match…</span></div><button class="tag read" onclick="cycleTag(this, event)">Reads it</button></li>
+      <li style="--i:2"><div><span class="col">department</span><span class="eg">billing · technical · account</span></div><button class="tag learn" onclick="cycleTag(this, event)">Learns to answer</button></li>
+      <li style="--i:3"><div><span class="col">urgency</span><span class="eg">0 · 1 · 2</span></div><button class="tag learn" onclick="cycleTag(this, event)">Learns to answer</button></li>
+      <li style="--i:4"><div><span class="col">ticket_id</span><span class="eg">T0001 · T0002 · T0003</span></div><button class="tag skip" onclick="cycleTag(this, event)">Ignored</button></li>
+    </ul>
+    <div class="foot"><span><span class="count">2 questions</span> · 200 examples</span><button class="go" onclick="event.stopPropagation()">Continue</button></div>`;
+  document.querySelectorAll("[data-mock]").forEach((el) => { el.innerHTML = MOCK; });
+
+  function cycleTag(btn, ev) {
+    ev.stopPropagation();
+    const order = ["read", "learn", "skip"];
+    const text = { read: "Reads it", learn: "Learns to answer", skip: "Ignored" };
+    const cur = order.find((c) => btn.classList.contains(c));
+    const next = order[(order.indexOf(cur) + 1) % order.length];
+    btn.classList.remove(cur, "pop");
+    void btn.offsetWidth;
+    btn.classList.add(next, "pop");
+    btn.textContent = text[next];
+    const app = btn.closest(".app");
+    const n = app.querySelectorAll(".tag.learn").length;
+    app.querySelector(".count").textContent = n + (n === 1 ? " question" : " questions");
+  }
+  function replay(btn, ev) {
+    ev.stopPropagation();
+    const app = btn.closest(".card").querySelector(".app");
+    app.classList.remove("play");
+    void app.offsetWidth;
+    app.classList.add("play");
+  }
+</script>

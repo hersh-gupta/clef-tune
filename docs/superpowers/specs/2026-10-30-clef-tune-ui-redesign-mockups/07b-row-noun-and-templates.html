@@ -1,0 +1,210 @@
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500&display=swap" rel="stylesheet">
+
+<style>
+  .ctl { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin: 0 0 1.2rem; }
+  .ctl .lbl { color: var(--text-secondary); font-size: .85rem; margin-right: .3rem; }
+  .ctl button { font: inherit; font-size: .85rem; background: none; border: 1px solid var(--border); border-radius: 999px; padding: .3rem .9rem; cursor: pointer; color: var(--text-secondary); }
+  .ctl button.on { border-color: var(--selected-border); color: var(--text-primary); }
+  .ctl .sp { flex: 1; }
+  .frame { border-radius: 12px; overflow: hidden; border: 1px solid var(--border); margin-bottom: .5rem; }
+  .cap { color: var(--text-secondary); font-size: .85rem; margin: 0 0 1.6rem; }
+
+  .tv {
+    --page: #F7F2EA; --line: #DDD0BC; --line-soft: #E8DFD1; --ink: #33302A; --muted: #665E52; --field: #FBF8F3;
+    --sage: #5C7A64; --sage-ink: #48644F; --sage-wash: #E9EDE3; --oak: #A88B66; --oak-ink: #5E4E38; --oak-wash: #F0E6D6; --btn-ink: #F7F2EA;
+    font-family: "Noto Sans JP", system-ui, sans-serif; color: var(--ink);
+  }
+  .tv.dark {
+    --page: #23211D; --line: #3A362F; --line-soft: #312E28; --ink: #ECE5D8; --muted: #A79E8F; --field: #2A2723;
+    --sage: #9DB89F; --sage-ink: #A9C4AB; --sage-wash: #2B302A; --oak: #C9A982; --oak-ink: #D7BD99; --oak-wash: #332D24; --btn-ink: #23211D;
+  }
+  .app { background: var(--page); text-align: left; padding: 24px 32px 26px; transition: background-color .5s ease, color .5s ease; }
+  .app .top { display: flex; align-items: center; gap: 10px; }
+  .app .mark { width: 13px; height: 13px; border: 1.5px solid var(--sage); transform: rotate(45deg); }
+  .app .top b { font-weight: 500; letter-spacing: .14em; text-transform: uppercase; font-size: 11.5px; }
+  .app .steps { display: flex; margin: 20px 0 0; padding: 0; list-style: none; font-size: 11px; letter-spacing: .06em; color: var(--muted); }
+  .app .steps li { flex: 1; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+  .app .steps li span { display: block; font-size: 10px; margin-bottom: 1px; }
+  .app .steps .done span::after { content: " ✓"; color: var(--sage-ink); }
+  .app .steps .now { color: var(--ink); border-bottom: 2px solid var(--sage); }
+  .app h4 { font-size: 23px; font-weight: 300; letter-spacing: .02em; margin: 26px 0 8px; }
+  .app .rule { height: 1px; width: 48px; background: var(--oak); margin: 0 0 12px; }
+  .app .lede { margin: 0 0 18px; font-size: 13px; line-height: 1.6; color: var(--muted); max-width: 600px; }
+  .app .label { display: block; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; }
+
+  /* data step strip */
+  .app .file { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line-soft); }
+  .app .file .ic { width: 22px; height: 26px; border: 1.3px solid var(--oak); border-radius: 2px; position: relative; flex: none; }
+  .app .file .ic::after { content: ""; position: absolute; left: 4px; right: 4px; top: 8px; height: 9px; border-top: 1.3px solid var(--oak); border-bottom: 1.3px solid var(--oak); }
+  .app .file .fn { font-size: 14px; font-weight: 500; }
+  .app .file .fm { font-size: 12px; color: var(--muted); }
+  .app .file .rep { margin-left: auto; font-size: 12px; color: var(--sage-ink); border-bottom: 1px solid var(--line); }
+  .app .noun { display: flex; align-items: baseline; flex-wrap: wrap; gap: 10px; padding: 16px 0 6px; font-size: 18px; font-weight: 300; }
+  .app .noun input { font: inherit; font-size: 18px; font-weight: 400; color: var(--sage-ink); width: 9ch; background: var(--field); border: 1px solid var(--line); border-radius: 3px; padding: 4px 10px; outline: none; transition: border-color .3s ease, box-shadow .3s ease; }
+  .app .noun input:focus { border-color: var(--sage); box-shadow: 0 0 0 3px var(--sage-wash); }
+  .app .nhelp { font-size: 12px; color: var(--muted); margin: 2px 0 0; line-height: 1.6; }
+  .app .nhelp q { color: var(--ink); quotes: "“" "”"; }
+  .app .guess { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--oak-ink); letter-spacing: .04em; }
+  .app .guess::before { content: ""; width: 6px; height: 6px; border-radius: 50%; border: 1.3px solid var(--oak); }
+
+  /* results */
+  .app .hero { display: flex; align-items: center; gap: 14px; margin: 26px 0 8px; }
+  .app .hero h4 { margin: 0; }
+  .app .tick { flex: none; width: 30px; height: 30px; }
+  .app .tick circle, .app .tick path { fill: none; stroke: var(--sage); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+  .app .big { font-size: 21px; font-weight: 300; line-height: 1.45; margin: 0 0 14px; max-width: 620px; }
+  .app .big b { font-weight: 500; color: var(--sage-ink); }
+  .app .dots { display: grid; grid-template-columns: 60px 1fr; gap: 8px 12px; align-items: center; padding-bottom: 20px; border-bottom: 1px solid var(--line-soft); }
+  .app .dots .dl { font-size: 11px; color: var(--muted); }
+  .app .dots .dg { display: flex; flex-wrap: wrap; gap: 5px; }
+  .app .dots i { width: 11px; height: 11px; border-radius: 50%; border: 1.3px solid var(--line); box-sizing: border-box; }
+  .app .dots .before i.y { border-color: var(--oak); background: var(--oak); }
+  .app .dots .after i.y { border-color: var(--sage); background: var(--sage); }
+  .app .dots .dn { grid-column: 2; font-size: 11.5px; color: var(--muted); }
+  .app .qres { padding: 16px 0 14px; border-bottom: 1px solid var(--line-soft); }
+  .app .qq { font-size: 15.5px; margin: 0 0 2px; }
+  .app .qid { font-size: 11px; color: var(--muted); }
+  .app .score { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--muted); margin-top: 8px; }
+  .app .score b { font-weight: 500; color: var(--ink); }
+  .app .insight { display: flex; gap: 10px; font-size: 13.5px; line-height: 1.55; margin: 10px 0 0; }
+  .app .insight::before { content: ""; flex: none; width: 7px; height: 7px; margin-top: 7px; border-radius: 50%; border: 1.5px solid var(--oak); }
+  .app .insight b { font-weight: 500; }
+  .app .from { font-size: 11px; color: var(--muted); margin: 4px 0 0 17px; }
+  .app .from code { font-family: ui-monospace, monospace; font-size: 10.5px; font-variant-ligatures: none; }
+  .app .nextrow { display: flex; align-items: center; gap: 14px; min-height: 52px; padding: 8px 0; border-bottom: 1px solid var(--line-soft); margin-top: 8px; }
+  .app .nextrow .nt { flex: 1; font-size: 14.5px; }
+  .app .nextrow .nt small { display: block; font-size: 12px; color: var(--muted); margin-top: 1px; }
+  .app .nextrow .ch { color: var(--sage-ink); font-size: 18px; }
+  .app mark { background: var(--sage-wash); color: inherit; border-radius: 2px; padding: 0 2px; transition: background-color .4s ease; }
+  .app .swap { animation: rise .45s cubic-bezier(.2, .7, .2, 1) both; }
+  @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .tv *, .tv *::before, .tv *::after { animation: none !important; transition: none !important; } }
+</style>
+
+<h2>The row noun, in place</h2>
+<p class="subtitle">Pick a file to see what the app guesses, then type your own word in the Data step's box. The Results screen below rewrites itself from templates. Words that came from the noun are highlighted in green.</p>
+
+<div class="ctl">
+  <span class="lbl">File:</span>
+  <button class="on" onclick="pickSet(this, 0)">support_tickets.csv</button>
+  <button onclick="pickSet(this, 1)">claims_2026.csv</button>
+  <button onclick="pickSet(this, 2)">data.csv</button>
+  <span class="sp"></span>
+  <button onclick="document.querySelectorAll('.tv').forEach((a) => a.classList.toggle('dark'))">Light / dark</button>
+</div>
+
+<div class="frame"><div class="app tv" id="data"></div></div>
+<p class="cap">Data step: the new box sits right under the uploaded file.</p>
+<div class="frame"><div class="app tv" id="res"></div></div>
+<p class="cap">Results step, written from templates. The small grey line under each mistake summary shows which template produced it. It's here for this review only.</p>
+
+<script>
+  const SETS = [
+    { file: "support_tickets.csv", rows: 200, cols: 7, exact: [2, 24], qs: [
+      { id: "department", type: "choice", ask: "Which team should handle this ticket?", labels: ["account", "billing", "technical"], cm: [[9, 1, 0], [0, 9, 0], [1, 0, 10]], before: 11 },
+      { id: "urgency", type: "score", ask: "How soon does this ticket need a reply?", labels: ["Can wait", "This week", "Today"], cm: [[12, 1, 1], [0, 10, 1], [0, 0, 5]], before: 10 },
+      { id: "outage", type: "yesno", ask: "Is something down or unusable for this customer?", labels: ["yes", "no"], cm: [[5, 0], [3, 22]], before: 19 } ] },
+    { file: "claims_2026.csv", rows: 200, cols: 9, exact: [3, 23], qs: [
+      { id: "reviewer", type: "choice", ask: "Which team should review this claim?", labels: ["standard", "fraud review", "medical review"], cm: [[14, 1, 0], [1, 8, 0], [0, 0, 6]], before: 12 },
+      { id: "risk", type: "score", ask: "How risky is this claim?", labels: ["Low risk", "Medium risk", "High risk"], cm: [[10, 2, 0], [0, 9, 1], [0, 0, 8]], before: 11 },
+      { id: "pay_in_full", type: "yesno", ask: "Should this claim be paid in full?", labels: ["yes", "no"], cm: [[16, 2], [1, 11]], before: 17 } ] },
+    { file: "data.csv", rows: 200, cols: 4, exact: [9, 25], qs: [
+      { id: "sentiment", type: "choice", ask: "What is the overall sentiment of this review?", labels: ["positive", "neutral", "negative"], cm: [[11, 1, 0], [2, 7, 1], [0, 0, 8]], before: 15 },
+      { id: "mentions_shipping", type: "yesno", ask: "Does the review mention shipping or delivery?", labels: ["yes", "no"], cm: [[9, 0], [2, 19]], before: 20 } ] },
+  ];
+  const STOP = new Set(["data", "dataset", "export", "final", "train", "training", "labeled", "labelled", "sample", "copy", "v", "csv", "new", "all"]);
+  let set = 0, noun = guessNoun(SETS[0].file);
+
+  function singular(w) {
+    if (/ies$/.test(w)) return w.slice(0, -3) + "y";
+    if (/(ss|us|is)$/.test(w)) return w;
+    if (/(sses|xes|zes|ches|shes)$/.test(w)) return w.slice(0, -2);
+    if (/s$/.test(w)) return w.slice(0, -1);
+    return w;
+  }
+  function plural(w) {
+    if (/[^aeiou]y$/.test(w)) return w.slice(0, -1) + "ies";
+    if (/(s|x|z|ch|sh)$/.test(w)) return w + "es";
+    return w + "s";
+  }
+  function guessNoun(file) {
+    const words = file.replace(/\.[^.]+$/, "").toLowerCase().split(/[^a-z]+/).filter((w) => w && !STOP.has(w));
+    return words.length ? singular(words[words.length - 1]) : "";
+  }
+  const N = 30;
+  const word = () => (noun.trim() || "example");
+  const one = () => `<mark>${word()}</mark>`;
+  const many = () => `<mark>${plural(word())}</mark>`;
+  const nounFor = (c) => (c === 1 ? one() : many());
+  const num = (c) => (c === 1 ? "one" : String(c));
+  const all = (k) => (k === 2 ? "both answers were" : k === 3 ? "all three answers were" : `all ${k} answers were`);
+
+  function insight(q) {
+    const errs = [];
+    q.cm.forEach((r, i) => r.forEach((c, j) => { if (i !== j && c) errs.push([i, j, c]); }));
+    const total = errs.reduce((s, e) => s + e[2], 0);
+    if (!total) return [`No mistakes on this question.`, "none"];
+    if (q.type === "choice") {
+      const parts = errs.slice(0, 2).map(([i, j, c]) => `${num(c)} <b>${q.labels[i]}</b> ${nounFor(c)} marked <b>${q.labels[j]}</b>`);
+      const rest = errs.slice(2).reduce((s, e) => s + e[2], 0);
+      if (rest) parts.push(`${rest} more`);
+      const list = parts.length === 1 ? parts[0] : parts.slice(0, -1).join(", ") + (parts.length > 2 ? "," : "") + " and " + parts[parts.length - 1];
+      return [`Its ${total === 1 ? "one mistake" : total + " mistakes"}: ${list}.`, "choice: list the biggest mix-ups"];
+    }
+    if (q.type === "score") {
+      const up = errs.filter(([i, j]) => j > i).reduce((s, e) => s + e[2], 0);
+      const down = total - up;
+      const step1 = errs.every(([i, j]) => Math.abs(i - j) === 1);
+      const tail = step1 ? " Every mistake was one step off." : "";
+      if (!down) return [`When it's wrong, it leans toward the top of the scale (<b>${q.labels[q.labels.length - 1]}</b>): all ${total} mistakes picked a higher answer.${tail}`, "scale: direction of mistakes, top answer named"];
+      if (!up) return [`When it's wrong, it leans toward the bottom of the scale (<b>${q.labels[0]}</b>): all ${total} mistakes picked a lower answer.${tail}`, "scale: direction of mistakes, bottom answer named"];
+      return [`Its mistakes go both ways: ${up} too high and ${down} too low.${tail}`, "scale: mixed directions"];
+    }
+    const [[tp, fn], [fp]] = q.cm, yes = tp + fn;
+    const caught = fn === 0 ? `It caught all ${yes} ${many()} where the answer was <b>yes</b>.` : `It caught ${tp} of the ${yes} ${many()} where the answer was <b>yes</b>.`;
+    const fa = fp ? ` ${fp === 1 ? "One mistake" : fp + " mistakes"} said yes when the answer was no.` : " It never said yes when the answer was no.";
+    return [caught + fa, "yes/no: caught vs. said yes wrongly"];
+  }
+
+  function renderData() {
+    const s = SETS[set], g = guessNoun(s.file);
+    document.getElementById("data").innerHTML = `<div class="top"><span class="mark"></span><b>clef-tune</b></div>
+      <ol class="steps"><li class="now"><span>01</span>Your data</li><li><span>02</span>What to predict</li><li><span>03</span>Settings</li><li><span>04</span>Train</li></ol>
+      <h4>Your data</h4><div class="rule"></div>
+      <p class="lede">Upload a spreadsheet of examples with the expected outputs filled in, from past work or labeled just for this. The closer they are to what the model will see in real use, the better it learns.</p>
+      <div class="file"><span class="ic"></span><span><span class="fn">${s.file}</span><br><span class="fm">${s.rows} rows · ${s.cols} columns</span></span><a class="rep">Replace file</a></div>
+      <label class="noun">Each row is one <input id="nounbox" value="${noun}" placeholder="example" oninput="noun = this.value; renderRes(); hint()" spellcheck="false">
+        <span class="guess" id="guess">${g ? "Guessed from the file name" : "Couldn't guess from the file name"}</span></label>
+      <p class="nhelp" id="nhelp"></p>`;
+    hint();
+  }
+  function hint() {
+    const g = guessNoun(SETS[set].file);
+    document.getElementById("guess").style.visibility = noun === g ? "visible" : "hidden";
+    document.getElementById("nhelp").innerHTML = `Used in sentences like <q>right on 24 of 30 ${plural(word())}</q> and <q>one ${word()} marked billing</q>. Leave it empty to say “example”.`;
+  }
+  function renderRes() {
+    const s = SETS[set], name = s.file.replace(/\.[^.]+$/, "").replace(/_/g, "-");
+    const dots = (k, cls) => `<div class="dg ${cls}">${Array.from({ length: N }, (_, j) => `<i class="${j < k ? "y" : ""}"></i>`).join("")}</div>`;
+    document.getElementById("res").innerHTML = `<div class="top"><span class="mark"></span><b>clef-tune</b></div>
+      <div class="hero"><svg class="tick" viewBox="0 0 30 30"><circle cx="15" cy="15" r="14"/><path d="M9.5 15.5l4 4 7-8"/></svg><h4>${name} is ready</h4></div><div class="rule"></div>
+      <p class="lede swap">We tested it on ${N} of your ${many()} that it never saw during training, before and after.</p>
+      <p class="big swap">It now gets every answer right on <b>${s.exact[1]} of ${N}</b> ${many()}. Before training, it managed ${s.exact[0]}.</p>
+      <div class="dots"><span class="dl">Before</span>${dots(s.exact[0], "before")}<span class="dl">After</span>${dots(s.exact[1], "after")}
+        <span class="dn">Each dot is one test ${one()}. A filled dot means ${all(s.qs.length)} right.</span></div>
+      ${s.qs.map((q) => {
+        const after = q.cm.reduce((t, r, i) => t + r[i], 0), [text, how] = insight(q);
+        return `<div class="qres"><div class="qq">${q.ask}</div><span class="qid">${q.id}</span>
+          <div class="score"><span>Before: right ${q.before} of ${N}</span><span>After: <b>right ${after} of ${N}</b></span></div>
+          <p class="insight swap"><span>${text}</span></p><p class="from">template · <code>${how}</code></p></div>`;
+      }).join("")}
+      <div class="nextrow"><span class="nt">Predict a new spreadsheet<small>Upload new ${many()} and get them back with the model's answers filled in.</small></span><span class="ch">›</span></div>`;
+  }
+  function pickSet(btn, i) {
+    btn.parentElement.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b === btn && i >= 0));
+    set = i; noun = guessNoun(SETS[i].file);
+    renderData(); renderRes();
+  }
+  renderData(); renderRes();
+</script>

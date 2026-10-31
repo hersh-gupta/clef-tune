@@ -1,0 +1,246 @@
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500&display=swap" rel="stylesheet">
+
+<style>
+  .cards { grid-template-columns: 1fr; gap: 2rem; }
+  .card { cursor: default; }
+  .card:hover { transform: none; }
+  .card .card-image { aspect-ratio: auto; display: block; padding: 0; background: none; overflow: visible; }
+  .pick, .theme { font: inherit; font-size: .85rem; background: none; border: 1px solid var(--border); border-radius: 999px; padding: .3rem .9rem; cursor: pointer; color: var(--text-secondary); }
+  .pick { margin-top: .6rem; }
+  .theme { margin: 0 0 1rem; }
+  .pick:hover, .theme:hover { color: var(--text-primary); }
+  .card.selected .pick { border-color: var(--selected-border); color: var(--text-primary); }
+
+  .app {
+    --page: #F7F2EA; --line: #DDD0BC; --line-soft: #E8DFD1; --ink: #33302A; --muted: #665E52; --field: #FBF8F3;
+    --sage: #5C7A64; --sage-ink: #48644F; --sage-wash: #E9EDE3; --oak: #A88B66; --oak-ink: #5E4E38; --btn-ink: #F7F2EA;
+    --pop: #FBF8F3; --shadow: rgba(60, 45, 25, .28);
+  }
+  .app.dark {
+    --page: #23211D; --line: #3A362F; --line-soft: #312E28; --ink: #ECE5D8; --muted: #A79E8F; --field: #2A2723;
+    --sage: #9DB89F; --sage-ink: #A9C4AB; --sage-wash: #2B302A; --oak: #C9A982; --oak-ink: #D7BD99; --btn-ink: #23211D;
+    --pop: #2D2A25; --shadow: rgba(0, 0, 0, .5);
+  }
+  .app { background: var(--page); color: var(--ink); font-family: "Noto Sans JP", system-ui, sans-serif; font-weight: 400;
+         padding: 24px 32px 24px; text-align: left; transition: background-color .5s ease, color .5s ease; }
+  .app .top { display: flex; align-items: center; gap: 10px; }
+  .app .mark { width: 13px; height: 13px; border: 1.5px solid var(--sage); transform: rotate(45deg); }
+  .app .top b { font-weight: 500; letter-spacing: .14em; text-transform: uppercase; font-size: 11.5px; }
+  .app .steps { display: flex; margin: 20px 0 0; padding: 0; list-style: none; font-size: 11px; letter-spacing: .06em; color: var(--muted); }
+  .app .steps li { flex: 1; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+  .app .steps li span { display: block; font-size: 10px; margin-bottom: 1px; }
+  .app .steps .done span::after { content: " ✓"; color: var(--sage-ink); }
+  .app .steps .now { color: var(--ink); border-bottom: 2px solid var(--sage); }
+  .app .steps .now span { position: relative; padding-left: 11px; }
+  .app .steps .now span::before, .app .steps .now span::after { content: ""; position: absolute; left: 0; top: 50%; width: 6px; height: 6px; margin-top: -3px; border-radius: 50%; background: var(--sage); }
+  .app .steps .now span::after { animation: breathe 3.2s ease-in-out infinite; }
+  .app h4 { font-size: 23px; font-weight: 300; letter-spacing: .02em; margin: 28px 0 8px; }
+  .app .rule { height: 1px; width: 48px; background: var(--oak); margin: 0 0 12px; }
+  .app .lede { margin: 0 0 22px; font-size: 13px; line-height: 1.6; color: var(--muted); max-width: 580px; }
+  .app .label { display: block; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; }
+  .app .section { margin: 0 0 24px; }
+
+  .app .name { display: block; width: 100%; max-width: 360px; box-sizing: border-box; font: inherit; font-size: 16px; font-weight: 300; color: var(--ink);
+               background: var(--field); border: 1px solid var(--line); border-radius: 3px; padding: 9px 12px; outline: none; transition: border-color .35s ease, box-shadow .35s ease; }
+  .app .name:hover { border-color: var(--oak); }
+  .app .name:focus { border-color: var(--sage); box-shadow: 0 0 0 3px var(--sage-wash); }
+  .app .meta { font-size: 11.5px; color: var(--muted); margin-top: 6px; }
+  .app .meta b { font-weight: 500; color: var(--ink); }
+
+  .app .seg { display: flex; gap: 28px; }
+  .app .seg button { font: inherit; font-size: 14px; color: var(--muted); background: none; border: 0; border-bottom: 2px solid transparent; padding: 3px 0 6px; cursor: pointer; text-align: left; transition: color .4s ease, border-color .4s ease; }
+  .app .seg button:hover { color: var(--ink); }
+  .app .seg button.on { color: var(--ink); border-bottom-color: var(--sage); }
+  .app .seg small { display: block; font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+
+  /* A: three columns */
+  .app .plans { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .app .plan { padding: 16px 16px 16px; cursor: pointer; position: relative; border-top: 2px solid transparent; margin-top: -1px; transition: border-color .4s ease, background-color .4s ease; }
+  .app .plan + .plan { border-left: 1px solid var(--line-soft); }
+  .app .plan:hover { background: var(--sage-wash); }
+  .app .plan.on { border-top-color: var(--sage); }
+  .app .plan .pn { font-size: 15px; font-weight: 500; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; padding-right: 22px; }
+  .app .plan .rec { font-size: 10.5px; font-weight: 400; color: var(--sage-ink); letter-spacing: .04em; display: inline-flex; align-items: center; gap: 5px; }
+  .app .plan .rec::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--sage); }
+  .app .plan p { font-size: 12.5px; line-height: 1.55; color: var(--muted); margin: 6px 0 12px; min-height: 58px; }
+  .app .plan .pt { font-size: 12.5px; color: var(--ink); }
+  .app .plan .pc { font-size: 12.5px; color: var(--muted); }
+  .app .plan .radio { position: absolute; right: 14px; top: 18px; width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid var(--line); transition: border-color .4s ease; }
+  .app .plan.on .radio { border-color: var(--sage); }
+  .app .plan.on .radio::after { content: ""; position: absolute; inset: 2px; border-radius: 50%; background: var(--sage); animation: dot .35s ease both; }
+
+  /* B: sentence */
+  .app .sentence { font-size: 25px; font-weight: 300; line-height: 1.7; margin: 4px 0 26px; max-width: 640px; }
+  .app .tok { position: relative; display: inline-block; color: var(--sage-ink); border-bottom: 1px dashed var(--sage); cursor: pointer; transition: color .3s ease; outline: none; }
+  .app .tok:hover, .app .tok:focus-visible { color: var(--ink); }
+  .app .tok.edit { cursor: text; border-bottom-style: dashed; }
+  .app .menu { position: absolute; left: -12px; top: calc(100% + 8px); z-index: 6; min-width: 280px; background: var(--pop); border: 1px solid var(--line); border-radius: 4px;
+               box-shadow: 0 16px 40px -18px var(--shadow); padding: 6px 0; opacity: 0; transform: translateY(4px); pointer-events: none; transition: opacity .25s ease, transform .25s ease; }
+  .app .tok.open .menu { opacity: 1; transform: none; pointer-events: auto; }
+  .app .menu .opt { display: block; padding: 9px 14px; cursor: pointer; line-height: 1.35; color: var(--ink); }
+  .app .menu .opt:hover { background: var(--sage-wash); }
+  .app .menu b { display: block; font-size: 14px; font-weight: 500; }
+  .app .menu small { display: block; font-size: 12px; color: var(--muted); }
+  .app .menu .opt.on b::after { content: "  ✓"; color: var(--sage-ink); }
+
+  /* estimate band (shared) */
+  .app .est { display: flex; align-items: baseline; gap: 26px; flex-wrap: wrap; padding: 18px 0 6px; }
+  .app .est .big { font-size: 26px; font-weight: 300; letter-spacing: .01em; }
+  .app .est .big small { font-size: 12px; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; display: block; margin-bottom: 2px; }
+  .app .est .swap { animation: rise .55s cubic-bezier(.2, .7, .2, 1) both; }
+  .app .fine { font-size: 12.5px; line-height: 1.6; color: var(--muted); margin: 6px 0 0; max-width: 620px; }
+  .app .fine b { font-weight: 500; color: var(--ink); }
+  .app .holdout { display: flex; gap: 10px; align-items: flex-start; font-size: 12.5px; line-height: 1.6; color: var(--muted); margin: 18px 0 0; padding: 12px 0 0; border-top: 1px solid var(--line-soft); max-width: 620px; }
+  .app .holdout::before { content: ""; flex: none; width: 7px; height: 7px; margin-top: 7px; border-radius: 50%; border: 1.5px solid var(--oak); }
+
+  /* advanced fold (shared) */
+  .app .adv { margin-top: 20px; border-top: 1px solid var(--line-soft); }
+  .app .adv-head { display: flex; justify-content: space-between; align-items: baseline; padding: 14px 0; cursor: pointer; font-size: 13.5px; }
+  .app .adv-head span { color: var(--muted); font-size: 12px; }
+  .app .adv-head .chev::after { content: "›"; display: inline-block; margin-left: 8px; transition: transform .4s ease; color: var(--sage-ink); }
+  .app .adv.open .adv-head .chev::after { transform: rotate(90deg); }
+  .app .fold { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .55s cubic-bezier(.2, .7, .2, 1); }
+  .app .adv.open .fold { grid-template-rows: 1fr; }
+  .app .fold > div { overflow: hidden; }
+  .app .setting { display: grid; grid-template-columns: 1fr auto; gap: 2px 20px; padding: 10px 0; border-top: 1px solid var(--line-soft); }
+  .app .setting .sl { font-size: 13px; }
+  .app .setting .sl code { font-family: ui-monospace, monospace; font-size: 10.5px; color: var(--muted); margin-left: 8px; font-variant-ligatures: none; }
+  .app .setting .sv { font-size: 13px; text-align: right; color: var(--ink); }
+  .app .setting .sv a { color: var(--sage-ink); text-decoration: none; border-bottom: 1px solid var(--line); margin-left: 8px; font-size: 12px; }
+  .app .setting .sd { grid-column: 1 / -1; font-size: 11.5px; color: var(--muted); }
+
+  .app .foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line-soft); }
+  .app .back { font: inherit; font-size: 13px; background: none; border: 0; color: var(--muted); cursor: pointer; padding: 9px 0; }
+  .app .back:hover { color: var(--ink); }
+  .app .go { font: inherit; font-size: 13.5px; cursor: pointer; background: none; color: var(--sage-ink); border: 1px solid var(--sage); border-radius: 2px; padding: 9px 20px; letter-spacing: .06em; transition: background-color .3s ease, color .3s ease, transform .3s ease; }
+  .app .go:hover { background: var(--sage); color: var(--btn-ink); transform: translateY(-1px); }
+
+  @keyframes rise    { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  @keyframes breathe { 0%, 100% { transform: scale(1); opacity: .45; } 50% { transform: scale(1.9); opacity: 0; } }
+  @keyframes dot     { from { transform: scale(0); } to { transform: scale(1); } }
+  .app h4, .app .rule, .app .lede { animation: rise .7s cubic-bezier(.2, .7, .2, 1) both; }
+  .app .section { animation: rise .7s cubic-bezier(.2, .7, .2, 1) both; animation-delay: calc(var(--i) * 90ms + 200ms); }
+  @media (prefers-reduced-motion: reduce) { .app *, .app *::before, .app *::after { animation: none !important; transition: none !important; } }
+</style>
+
+<h2>The Settings step</h2>
+<p class="subtitle">Two ways to lay out the same choices, with real estimates for the 200-ticket example. Change the model or the amount of training and watch the time and cost update. "Advanced settings" opens at the bottom.</p>
+<button class="theme" onclick="document.querySelectorAll('.app').forEach((a) => a.classList.toggle('dark'))">Light / dark</button>
+
+<div class="cards">
+  <div class="card" data-choice="three-columns">
+    <div class="card-image"><div class="app" id="a"></div></div>
+    <div class="card-body">
+      <h3>A · Three side-by-side choices</h3>
+      <p>The name, then the model, then three columns for how much training, each with its own time and cost so you can compare at a glance. The total sits underneath.</p>
+      <button class="pick" onclick="toggleSelect(this.closest('.card'))">Pick this one</button>
+    </div>
+  </div>
+  <div class="card" data-choice="sentence">
+    <div class="card-image"><div class="app" id="b"></div></div>
+    <div class="card-body">
+      <h3>B · One sentence</h3>
+      <p>The whole setup reads as a sentence. Each underlined word is a choice: click it for the alternatives, or type a new name. It's the calmest and shortest version, but the options are hidden until you click.</p>
+      <button class="pick" onclick="toggleSelect(this.closest('.card'))">Pick this one</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const MODELS = { flash: ["Clef-Flash", "Fast and affordable · 9B"], clef: ["Clef", "Most capable · 27B · about 3× the cost"] };
+  const PRESETS = {
+    quick: ["Quick test", "A fast, light run to check everything works before a real one."],
+    balanced: ["Balanced", "A good first real model. Three passes over your examples."],
+    thorough: ["Thorough", "Trains longer and more deeply. Most useful with larger datasets."],
+  };
+  // From clef_tune.estimate on examples/support_tickets.csv (169 to train, 31 to test).
+  const EST = {
+    flash: { quick: ["7–15 minutes", "$0.21–$0.46"], balanced: ["8–17 minutes", "$0.23–$0.50"], thorough: ["8–18 minutes", "$0.25–$0.53"] },
+    clef: { quick: ["14–31 minutes", "$0.60–$1.29"], balanced: ["16–34 minutes", "$0.73–$1.56"], thorough: ["17–37 minutes", "$0.78–$1.67"] },
+  };
+  const HW = {
+    flash: { quick: ["one L40S GPU", "30 minutes", "$0.90"], balanced: ["one L40S GPU", "30 minutes", "$0.90"], thorough: ["one L40S GPU", "30 minutes", "$0.90"] },
+    clef: { quick: ["one A100 GPU", "1 hour", "$2.50"], balanced: ["one RTX PRO 6000 GPU", "1 hour", "$2.75"], thorough: ["one RTX PRO 6000 GPU", "1 hour", "$2.75"] },
+  };
+  const ADV = [
+    ["Hardware", "hardware", "Picked for the lowest cost that fits.", (s) => `${HW[s.model][s.preset][0]}<a href="#" onclick="event.preventDefault()">Change</a>`],
+    ["Passes over your data", "epochs", "How many times training reads every example.", (s) => ({ quick: 1, balanced: 3, thorough: 5 })[s.preset]],
+    ["What gets trained", "mode", "Adapters change how the model reads; the answer layer turns that into predictions.", (s) => s.preset === "quick" ? "Answer layer only" : "Adapters and answer layer"],
+    ["Adapter size", "lora.r", "Bigger adapters can learn more, and need more data.", (s) => s.preset === "quick" ? "—" : s.preset === "thorough" ? 32 : 16],
+    ["Longest example", "max_length", "Longer examples are cut to fit.", (s) => s.preset === "quick" ? "2,048 tokens" : "4,096 tokens"],
+    ["Memory saving", "quantization", "Stores the model in 4 bits to fit smaller GPUs, a little slower.", () => "Off"],
+    ["Calibrate confidence", "calibrate", "Adjusts confidence so 80% means right about 80% of the time.", () => "On"],
+    ["Stop early", "early_stopping", "Stops when the test results stop improving.", (s) => s.preset === "thorough" ? "After 3 checks" : "Off"],
+  ];
+
+  const HEAD = `<div class="top"><span class="mark"></span><b>clef-tune</b></div>
+    <ol class="steps"><li class="done"><span>01</span>Your data</li><li class="done"><span>02</span>What to predict</li><li class="now"><span>03</span>Settings</li><li><span>04</span>Train</li></ol>
+    <h4>How should it be trained?</h4><div class="rule"></div>
+    <p class="lede">We've picked settings that suit most data. Change anything you like, and the time and cost update as you go.</p>`;
+  const FOOT = `<div class="foot"><button class="back">← Back</button><button class="go">Continue</button></div>`;
+
+  function estimate(s) {
+    const [t, c] = EST[s.model][s.preset];
+    const [hw, cap, max] = HW[s.model][s.preset];
+    return `<div class="est"><span class="big swap"><small>Time</small>About ${t}</span><span class="big swap" style="animation-delay:60ms"><small>Cost</small>${c}</span></div>
+      <p class="fine">Runs on Hugging Face's cloud on ${hw}, billed to your Hugging Face account. The run stops itself after <b>${cap}</b>, so it can never cost more than <b>${max}</b>.</p>
+      <p class="holdout">We'll set aside 31 of your 200 examples and test the model on them before and after training, so you can see how much it improved.</p>`;
+  }
+  function advanced(s, id) {
+    return `<div class="adv" id="${id}-adv"><div class="adv-head" onclick="this.parentElement.classList.toggle('open')">Advanced settings <span>For people who know fine-tuning<span class="chev"></span></span></div>
+      <div class="fold"><div>${ADV.map(([l, code, d, v]) => `<div class="setting"><span class="sl">${l}<code>${code}</code></span><span class="sv">${v(s)}</span><span class="sd">${d}</span></div>`).join("")}</div></div></div>`;
+  }
+
+  // A
+  const sa = { model: "flash", preset: "balanced", name: "support-tickets" };
+  function renderA(first) {
+    const el = document.getElementById("a");
+    const open = document.getElementById("a-adv")?.classList.contains("open");
+    el.innerHTML = HEAD + `
+      <div class="section" style="--i:0"><span class="label">Name your model</span><input class="name" value="${sa.name}" oninput="sa.name = this.value; document.getElementById('a-repo').textContent = 'hvgupta1/' + (this.value || '…')">
+        <div class="meta">Saved to your Hugging Face account as <b id="a-repo">hvgupta1/${sa.name}</b></div></div>
+      <div class="section" style="--i:1"><span class="label">Model</span><div class="seg">${Object.entries(MODELS).map(([k, [n, d]]) =>
+        `<button class="${k === sa.model ? "on" : ""}" onclick="sa.model='${k}'; renderA()">${n}<small>${d}</small></button>`).join("")}</div></div>
+      <div class="section" style="--i:2"><span class="label">How much training</span><div class="plans">${Object.entries(PRESETS).map(([k, [n, d]]) =>
+        `<div class="plan ${k === sa.preset ? "on" : ""}" onclick="sa.preset='${k}'; renderA()"><span class="radio"></span>
+          <div class="pn">${n}${k === "balanced" ? `<span class="rec">Recommended</span>` : ""}</div><p>${d}</p>
+          <div class="pt">About ${EST[sa.model][k][0]}</div><div class="pc">${EST[sa.model][k][1]}</div></div>`).join("")}</div>
+        ${estimate(sa)}</div>
+      ${advanced(sa, "a")}${FOOT}`;
+    if (open) document.getElementById("a-adv").classList.add("open");
+    if (!first) el.querySelectorAll("h4, .rule, .lede, .section").forEach((n) => (n.style.animation = "none"));
+  }
+  renderA(true);
+
+  // B
+  const sb = { model: "flash", preset: "balanced", name: "support-tickets" };
+  function menu(kind) {
+    const src = kind === "model" ? MODELS : PRESETS;
+    return `<span class="menu">${Object.entries(src).map(([k, [n, d]]) => {
+      const extra = kind === "preset" ? ` · about ${EST[sb.model][k][0]}, ${EST[sb.model][k][1]}` : "";
+      return `<span class="opt ${sb[kind] === k ? "on" : ""}" onclick="event.stopPropagation(); sb.${kind}='${k}'; renderB()"><b>${n}</b><small>${d}${extra}</small></span>`;
+    }).join("")}</span>`;
+  }
+  function renderB(first) {
+    const el = document.getElementById("b");
+    const open = document.getElementById("b-adv")?.classList.contains("open");
+    el.innerHTML = HEAD + `
+      <div class="section" style="--i:0"><div class="sentence">Train a <span class="tok" tabindex="0" onclick="toggleTok(this, event)">${PRESETS[sb.preset][0].toLowerCase()}${menu("preset")}</span>
+        model on <span class="tok" tabindex="0" onclick="toggleTok(this, event)">${MODELS[sb.model][0]}${menu("model")}</span>,
+        named <span class="tok edit" contenteditable="true" spellcheck="false" oninput="sb.name = this.textContent">${sb.name}</span>.</div>
+        <div class="meta" style="margin-top:-14px">Saved to your Hugging Face account as <b>hvgupta1/${sb.name}</b></div>
+        ${estimate(sb)}</div>
+      ${advanced(sb, "b")}${FOOT}`;
+    if (open) document.getElementById("b-adv").classList.add("open");
+    if (!first) el.querySelectorAll("h4, .rule, .lede, .section").forEach((n) => (n.style.animation = "none"));
+  }
+  function toggleTok(tok, ev) {
+    ev.stopPropagation();
+    const wasOpen = tok.classList.contains("open");
+    document.querySelectorAll(".tok.open").forEach((t) => t.classList.remove("open"));
+    if (!wasOpen) tok.classList.add("open");
+  }
+  document.addEventListener("click", () => document.querySelectorAll(".tok.open").forEach((t) => t.classList.remove("open")));
+  renderB(true);
+</script>

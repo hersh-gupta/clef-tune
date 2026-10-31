@@ -1,0 +1,283 @@
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500&display=swap" rel="stylesheet">
+
+<style>
+  .ctl { display: flex; gap: .5rem; margin: 0 0 1.2rem; }
+  .ctl button { font: inherit; font-size: .85rem; background: none; border: 1px solid var(--border); border-radius: 999px; padding: .3rem .9rem; cursor: pointer; color: var(--text-secondary); }
+  .ctl button:hover { color: var(--text-primary); }
+  .row2 { display: flex; gap: 2rem; align-items: flex-start; flex-wrap: wrap; }
+  .frame { border-radius: 12px; overflow: visible; border: 1px solid var(--border); }
+  .cap { color: var(--text-secondary); font-size: .85rem; margin: .6rem 0 1.6rem; }
+
+  .tv {
+    --page: #F7F2EA; --line: #DDD0BC; --line-soft: #E8DFD1; --ink: #33302A; --muted: #665E52; --field: #FBF8F3;
+    --sage: #5C7A64; --sage-ink: #48644F; --sage-wash: #E9EDE3; --oak: #A88B66; --oak-ink: #5E4E38; --oak-wash: #F0E6D6; --rust: #A4573A;
+    --btn-ink: #F7F2EA; --pop: #FBF8F3; --shadow: rgba(60, 45, 25, .28); --scrim: rgba(40, 32, 22, .32);
+    font-family: "Noto Sans JP", system-ui, sans-serif; color: var(--ink);
+  }
+  .tv.dark {
+    --page: #23211D; --line: #3A362F; --line-soft: #312E28; --ink: #ECE5D8; --muted: #A79E8F; --field: #2A2723;
+    --sage: #9DB89F; --sage-ink: #A9C4AB; --sage-wash: #2B302A; --oak: #C9A982; --oak-ink: #D7BD99; --oak-wash: #332D24; --rust: #D9896B;
+    --btn-ink: #23211D; --pop: #2D2A25; --shadow: rgba(0, 0, 0, .5); --scrim: rgba(0, 0, 0, .5);
+  }
+  .app { background: var(--page); text-align: left; padding: 24px 32px 26px; border-radius: 12px; transition: background-color .5s ease, color .5s ease; }
+  .phone { width: 360px; height: 740px; flex: none; border-radius: 36px; border: 10px solid #141414; overflow: hidden; position: relative; background: var(--page); box-shadow: 0 30px 60px -30px rgba(0, 0, 0, .6); }
+  .phone .app { height: 100%; overflow-y: auto; box-sizing: border-box; padding: 18px 20px 110px; border-radius: 0; scrollbar-width: none; }
+  .phone .app::-webkit-scrollbar { display: none; }
+  .pfoot { position: absolute; left: 0; right: 0; bottom: 0; padding: 26px 20px 18px; background: linear-gradient(to bottom, transparent, var(--page) 34%); }
+  .pfoot .go { width: 100%; padding: 13px; font-size: 14.5px; }
+
+  .app .top { display: flex; align-items: center; gap: 10px; }
+  .app .mark { width: 13px; height: 13px; border: 1.5px solid var(--sage); transform: rotate(45deg); }
+  .app .top b { font-weight: 500; letter-spacing: .14em; text-transform: uppercase; font-size: 11.5px; }
+  .app .steps { display: flex; margin: 20px 0 0; padding: 0; list-style: none; font-size: 11px; letter-spacing: .06em; color: var(--muted); }
+  .app .steps li { flex: 1; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+  .app .steps li span { display: block; font-size: 10px; margin-bottom: 1px; }
+  .app .steps .now { color: var(--ink); border-bottom: 2px solid var(--sage); }
+  .app .now-dot { position: relative; padding-left: 11px; }
+  .app .now-dot::before, .app .now-dot::after { content: ""; position: absolute; left: 0; top: 50%; width: 6px; height: 6px; margin-top: -3px; border-radius: 50%; background: var(--sage); }
+  .app .now-dot::after { animation: breathe 3.2s ease-in-out infinite; }
+  .app .msteps { margin-top: 16px; }
+  .app .msteps .segs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+  .app .msteps .segs i { height: 2px; background: var(--line); }
+  .app .msteps .segs i.on { background: var(--sage); }
+  .app .msteps .capt { display: block; font-size: 11px; letter-spacing: .06em; color: var(--muted); margin-top: 7px; }
+  .app .msteps .capt b { color: var(--ink); font-weight: 500; }
+  .app h4 { font-size: 23px; font-weight: 300; letter-spacing: .02em; margin: 26px 0 8px; }
+  .phone .app h4 { font-size: 21px; margin-top: 22px; }
+  .app h5 { font-size: 17px; font-weight: 300; margin: 30px 0 4px; }
+  .app .rule { height: 1px; width: 48px; background: var(--oak); margin: 0 0 12px; }
+  .app .lede { margin: 0 0 18px; font-size: 13px; line-height: 1.6; color: var(--muted); max-width: 620px; }
+  .app .sub { margin: 0 0 12px; font-size: 12.5px; color: var(--muted); }
+
+  /* empty state */
+  .app .drop { border: 1.5px dashed var(--oak); border-radius: 4px; padding: 44px 20px; text-align: center; transition: background-color .4s ease, border-color .4s ease; cursor: pointer; }
+  .app .drop:hover { background: var(--oak-wash); border-color: var(--oak-ink); }
+  .app .drop .dic { width: 34px; height: 40px; margin: 0 auto 14px; border: 1.4px solid var(--oak); border-radius: 3px; position: relative; animation: float 4s ease-in-out infinite; }
+  .app .drop .dic::after { content: ""; position: absolute; left: 7px; right: 7px; top: 12px; height: 14px; border-top: 1.4px solid var(--oak); border-bottom: 1.4px solid var(--oak); }
+  .app .drop b { display: block; font-size: 16px; font-weight: 400; }
+  .app .drop b u { color: var(--sage-ink); text-decoration: none; border-bottom: 1px solid var(--sage); }
+  .app .drop small { display: block; font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .app .sample { display: flex; align-items: center; gap: 12px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line-soft); font-size: 13px; color: var(--muted); }
+  .app .sample a { color: var(--sage-ink); border-bottom: 1px solid var(--line); text-decoration: none; }
+  .phone .app .drop { padding: 30px 16px; }
+  .phone .app .sample { display: block; line-height: 1.6; }
+  .app .choose { display: inline-block; margin-top: 14px; font-size: 14px; color: var(--btn-ink); background: var(--sage); padding: 11px 22px; border-radius: 2px; letter-spacing: .04em; }
+
+  /* uploaded */
+  .app .file { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line-soft); }
+  .app .file .ic { width: 22px; height: 26px; border: 1.3px solid var(--oak); border-radius: 2px; position: relative; flex: none; }
+  .app .file .ic::after { content: ""; position: absolute; left: 4px; right: 4px; top: 8px; height: 9px; border-top: 1.3px solid var(--oak); border-bottom: 1.3px solid var(--oak); }
+  .app .file .fn { font-size: 14px; font-weight: 500; }
+  .app .file .fm { font-size: 12px; color: var(--muted); }
+  .app .file .rep { margin-left: auto; font-size: 12px; color: var(--sage-ink); border-bottom: 1px solid var(--line); cursor: pointer; }
+  .app .noun { display: flex; align-items: baseline; flex-wrap: wrap; gap: 10px; padding: 14px 0 4px; font-size: 17px; font-weight: 300; }
+  .app .noun input { font: inherit; font-size: 17px; font-weight: 400; color: var(--sage-ink); width: 7ch; background: none; border: 0; border-bottom: 1px dashed var(--sage);
+                     border-radius: 0; padding: 0 2px 1px; outline: none; cursor: pointer; transition: border-color .3s ease, background-color .3s ease; }
+  .app .noun input:hover { border-bottom-style: solid; }
+  .app .noun input:focus { cursor: text; border-bottom: 1px solid var(--sage); background: var(--sage-wash); }
+  .app .noun .pen { font-size: 13px; color: var(--sage-ink); margin-left: -6px; opacity: 0; transform: translateX(-3px); transition: opacity .3s ease, transform .3s ease; }
+  .app .noun:hover .pen, .app .noun:focus-within .pen { opacity: 1; transform: none; }
+  @media (hover: none) { .app .noun .pen { opacity: 1; transform: none; } }
+  .phone .app .noun .pen { opacity: 1; transform: none; }
+  .app .noun .guess { font-size: 11px; color: var(--oak-ink); }
+
+  .app .tbl { overflow-x: auto; border-top: 1px solid var(--line); }
+  .app table.pv { border-collapse: collapse; font-size: 12.5px; min-width: 100%; }
+  .app table.pv th { text-align: left; font-weight: 500; font-size: 12px; padding: 9px 14px 7px 0; white-space: nowrap; border-bottom: 2px solid var(--line-soft); }
+  .app table.pv th.read { border-bottom-color: var(--oak); }
+  .app table.pv th.out { border-bottom-color: var(--sage); color: var(--sage-ink); }
+  .app table.pv th.id { color: var(--muted); }
+  .app table.pv td { padding: 8px 14px 8px 0; border-bottom: 1px solid var(--line-soft); white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis; color: var(--ink); }
+  .app table.pv td.out { color: var(--sage-ink); }
+  .app table.pv td.id { color: var(--muted); }
+  .app .tblfoot { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--muted); padding: 8px 0 0; }
+
+  .app .rowcard { border-top: 1px solid var(--line); }
+  .app .rowcard .kv { display: grid; grid-template-columns: 96px 1fr; gap: 8px; padding: 9px 0; border-bottom: 1px solid var(--line-soft); font-size: 13px; }
+  .app .rowcard .k { font-size: 11px; color: var(--muted); padding-top: 2px; }
+  .app .rowcard .k.out { color: var(--sage-ink); }
+  .app .rowcard .v.out { color: var(--sage-ink); font-weight: 500; }
+  .app .pager { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--muted); padding: 10px 0 0; }
+  .app .pager button { font: inherit; font-size: 18px; color: var(--sage-ink); background: none; border: 1px solid var(--line); border-radius: 50%; width: 36px; height: 36px; cursor: pointer; }
+
+  .app .rows { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+  .app .rows > li { border-bottom: 1px solid var(--line-soft); padding: 10px 0; position: relative; }
+  .app .rows .r { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .app .col { display: block; font-size: 13.5px; font-weight: 500; }
+  .app .eg { display: block; font-size: 12px; margin-top: 2px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 330px; }
+  .phone .app .eg { max-width: 160px; }
+  .app .tag { font: inherit; font-size: 12px; white-space: nowrap; background: none; border: 0; padding: 6px 0 6px 15px; position: relative; letter-spacing: .02em; cursor: pointer; color: var(--ink); }
+  .app .tag::before { content: ""; position: absolute; left: 0; top: 50%; width: 7px; height: 7px; margin-top: -4.5px; border-radius: 50%; }
+  .app .tag::after { content: " ▾"; font-size: 9px; color: var(--muted); }
+  .app .tag.read { color: var(--oak-ink); } .app .tag.read::before { border: 1.5px solid var(--oak); }
+  .app .tag.out { color: var(--sage-ink); font-weight: 500; } .app .tag.out::before { background: var(--sage); border: 1.5px solid var(--sage); }
+  .app .tag.image { color: var(--oak-ink); } .app .tag.image::before { border: 1.5px solid var(--oak); border-radius: 1px; }
+  .app .tag.id { color: var(--muted); } .app .tag.id::before { border: 1.5px solid var(--muted); width: 5px; height: 5px; margin-top: -3.5px; }
+  .app .tag.skip { color: var(--muted); } .app .tag.skip::before { border: 1.5px dashed #A39A8C; }
+  .app .flag { display: flex; gap: 8px; font-size: 12px; line-height: 1.5; color: var(--oak-ink); margin: 6px 0 0; }
+  .app .flag::before { content: "!"; flex: none; width: 15px; height: 15px; border-radius: 50%; border: 1.3px solid var(--oak); font-size: 9.5px; font-weight: 500; display: grid; place-items: center; margin-top: 1px; }
+
+  .app .checks { margin-top: 26px; }
+  .app .checks .ch { display: flex; gap: 10px; font-size: 13px; line-height: 1.5; padding: 7px 0; }
+  .app .checks .ch::before { flex: none; width: 16px; height: 16px; border-radius: 50%; font-size: 10px; display: grid; place-items: center; margin-top: 1px; }
+  .app .checks .ok::before { content: "✓"; color: var(--sage-ink); border: 1.3px solid var(--sage); }
+  .app .checks .warn::before { content: "!"; color: var(--oak-ink); border: 1.3px solid var(--oak); font-weight: 500; }
+  .app .checks .err::before { content: "×"; color: var(--rust); border: 1.3px solid var(--rust); }
+  .app .checks .err { color: var(--rust); }
+  .app .checks small { display: block; font-size: 11.5px; color: var(--muted); }
+
+  .app .menu { position: absolute; right: 0; top: calc(100% - 6px); z-index: 6; width: 320px; background: var(--pop); border: 1px solid var(--line); border-radius: 4px; box-shadow: 0 16px 40px -18px var(--shadow); padding: 6px 0; animation: rise .3s ease both; }
+  .opt { display: flex; gap: 12px; align-items: flex-start; padding: 10px 14px; cursor: pointer; line-height: 1.35; color: var(--ink); transition: background-color .25s ease; }
+  .opt:hover { background: var(--sage-wash); }
+  .opt .ot { flex: 1; }
+  .opt b { display: block; font-size: 14px; font-weight: 500; }
+  .opt small { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .opt .rad { flex: none; width: 14px; height: 14px; margin-top: 3px; border-radius: 50%; border: 1.5px solid var(--line); position: relative; }
+  .opt.on .rad { border-color: var(--sage); }
+  .opt.on .rad::after { content: ""; position: absolute; inset: 2.5px; border-radius: 50%; background: var(--sage); }
+  .sheet-wrap { position: absolute; inset: 0; pointer-events: none; z-index: 10; }
+  .sheet-wrap .scrim { position: absolute; inset: 0; background: var(--scrim); opacity: 0; transition: opacity .35s ease; }
+  .sheet-wrap .sheet { position: absolute; left: 0; right: 0; bottom: 0; background: var(--pop); border-radius: 20px 20px 0 0; padding: 8px 6px 22px; transform: translateY(105%); transition: transform .5s cubic-bezier(.2, .8, .2, 1); }
+  .sheet-wrap.show { pointer-events: auto; } .sheet-wrap.show .scrim { opacity: 1; } .sheet-wrap.show .sheet { transform: none; }
+  .sheet .grab { width: 38px; height: 4px; border-radius: 4px; background: var(--line); margin: 2px auto 12px; }
+  .sheet h6 { margin: 0 14px 6px; font-size: 10px; font-weight: 400; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .sheet .opt { padding: 12px 14px; }
+
+  .app .foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line-soft); font-size: 12.5px; color: var(--muted); }
+  .go { font: inherit; font-size: 13.5px; cursor: pointer; background: var(--page); color: var(--sage-ink); border: 1px solid var(--sage); border-radius: 2px; padding: 9px 20px; letter-spacing: .06em; transition: background-color .3s ease, color .3s ease; }
+  .go:hover { background: var(--sage); color: var(--btn-ink); }
+
+  @keyframes rise    { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  @keyframes breathe { 0%, 100% { transform: scale(1); opacity: .45; } 50% { transform: scale(1.9); opacity: 0; } }
+  @keyframes fromRight { from { opacity: 0; transform: translateX(14px); } to { opacity: 1; transform: none; } }
+  @keyframes fromLeft  { from { opacity: 0; transform: translateX(-14px); } to { opacity: 1; transform: none; } }
+  @keyframes float   { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+  .app .in { animation: rise .7s cubic-bezier(.2, .7, .2, 1) both; animation-delay: calc(var(--i, 0) * 80ms + 120ms); }
+  @media (prefers-reduced-motion: reduce) { .tv *, .tv *::before, .tv *::after { animation: none !important; transition: none !important; } }
+</style>
+
+<h2>The Data step</h2>
+<p class="subtitle">Top: before a file is chosen. Below: after upload, on a desktop and a phone. The preview's column underlines match each column's role. Click a role tag to change it. Checks appear next to the column they concern and are summed up at the end.</p>
+<div class="ctl"><button onclick="document.querySelectorAll('.tv').forEach((a) => a.classList.toggle('dark'))">Light / dark</button></div>
+
+<div class="row2">
+  <div style="flex:1 1 520px; min-width:0"><div class="frame"><div class="app tv" id="empty"></div></div><p class="cap">Before a file is chosen (desktop)</p></div>
+  <div><div class="phone tv"><div class="app" id="empty-p"></div></div><p class="cap">Before a file is chosen (phone)</p></div>
+</div>
+<div class="row2">
+  <div style="flex:1 1 560px; min-width:0"><div class="frame"><div class="app tv" id="d"></div></div><p class="cap">After upload (desktop)</p></div>
+  <div><div class="phone tv" id="p-phone"><div class="app" id="p"></div><div class="pfoot"><button class="go">Continue</button></div><div class="sheet-wrap" id="p-sheet"></div></div><p class="cap">After upload (phone)</p></div>
+</div>
+
+<script>
+  const LEDE = "Upload a spreadsheet of examples with the expected outputs filled in, from past work or labeled just for this. The closer they are to what the model will see in real use, the better it learns.";
+  const ROLES = {
+    read: ["Model reads it", "Text or numbers the model reads for each row."],
+    out: ["Expected output", "What the model learns to predict. Each one becomes a question."],
+    image: ["Image", "A picture the model looks at, given as a file name or link."],
+    id: ["Row ID", "Names each row, so predictions can be matched back to it."],
+    skip: ["Ignore", "Left out completely."],
+  };
+  const COLS = [
+    ["ticket_id", "id", ["T0001", "T0002", "T0003", "T0004"]],
+    ["subject", "read", ["Invoice 793 looks wrong", "Invoice 1410 looks wrong", "API returning 500 errors", "SDK crash on startup"]],
+    ["body", "read", ["The total on invoice 793 doesn't match our contract. This is blocking our launch.", "The total on invoice 1410 doesn't match our contract. Please…", "Since an hour ago our calls to the API return HTTP 500.", "The Python SDK crashes on import after upgrading."]],
+    ["customer_tier", "read", ["enterprise", "pro", "enterprise", "enterprise"]],
+    ["department", "out", ["billing", "billing", "technical", "technical"]],
+    ["urgency", "out", ["2", "1", "2", "1"]],
+    ["outage", "out", ["no", "no", "yes", "no"]],
+  ];
+  const SAMPLES = { ticket_id: "T0001 · T0002 · T0003", department: "billing · technical · account", urgency: "0 · 1 · 2", outage: "yes · no", customer_tier: "enterprise · pro · free" };
+  const FLAGS = { urgency: "Empty in 3 rows. Those rows still teach the other questions." };
+  const cls = { read: "read", out: "out", id: "id", image: "read", skip: "" };
+  let card = 0;
+
+  const head = (phone, n) => `<div class="top"><span class="mark"></span><b>clef-tune</b></div>` + (phone
+    ? `<div class="msteps"><div class="segs"><i class="on"></i><i></i><i></i><i></i></div><span class="capt"><span class="now-dot">Step 1 of 4</span> · <b>Your data</b></span></div>`
+    : `<ol class="steps"><li class="now"><span class="now-dot">01</span>Your data</li><li><span>02</span>What to predict</li><li><span>03</span>Settings</li><li><span>04</span>Train</li></ol>`) +
+    `<h4 class="in">Your data</h4><div class="rule in"></div><p class="lede in">${LEDE}</p>`;
+
+  function emptyState(phone) {
+    return head(phone) + `<div class="drop in" style="--i:1"><div class="dic"></div>
+      ${phone ? `<b>Choose a spreadsheet</b><span class="choose">Choose a file</span><small>From your phone, iCloud, Google Drive or OneDrive</small>`
+              : `<b>Drop a spreadsheet here, or <u>choose a file</u></b>`}
+      <small>CSV, Excel, JSONL, or a zip with images · up to 50 MB</small></div>
+      <div class="sample in" style="--i:2">No data yet? <a href="#" onclick="event.preventDefault()">Try it with 200 sample support tickets</a></div>`;
+  }
+
+  function tag(id, name, role, phone) {
+    return `<button class="tag ${role}" onclick="event.stopPropagation(); ${phone ? `openSheet('${name}')` : `openMenu(this, '${name}')`}">${ROLES[role][0]}</button>`;
+  }
+  function uploaded(id, phone) {
+    const preview = phone
+      ? `<div class="rowcard in" style="--i:3" id="rowcard">${cardRows()}</div>
+         <div class="pager in" style="--i:3"><button aria-label="Previous row" onclick="stepCard(-1)">‹</button><span id="rowpos">Row ${card + 1} of 200</span><button aria-label="Next row" onclick="stepCard(1)">›</button></div>`
+      : `<div class="tbl in" style="--i:3"><table class="pv"><tr>${COLS.map(([n, r]) => `<th class="${cls[r]}">${n}</th>`).join("")}</tr>
+           ${[0, 1, 2, 3].map((i) => `<tr>${COLS.map(([, r, v]) => `<td class="${cls[r]}">${v[i]}</td>`).join("")}</tr>`).join("")}</table></div>
+         <div class="tblfoot in" style="--i:3"><span>First 4 of 200 rows</span><a style="color:var(--sage-ink)">See all rows</a></div>`;
+    const outs = COLS.filter(([, r]) => r === "out").length;
+    return head(phone) + `
+      <div class="file in" style="--i:1"><span class="ic"></span><span><span class="fn">support_tickets.csv</span><br><span class="fm">200 rows · 7 columns</span></span><a class="rep">Replace</a></div>
+      <label class="noun in" style="--i:2">Each row is one <input value="ticket" spellcheck="false" aria-label="What each row is" oninput="this.style.width = (Math.max(this.value.length, 3) + 1) + 'ch'"><span class="pen" aria-hidden="true">✎</span><span class="guess">Guessed from the file name</span></label>
+      <h5 class="in" style="--i:3">A first look</h5>
+      ${preview}
+      <h5 class="in" style="--i:4">What's in each column?</h5><p class="sub in" style="--i:4">We've made a first guess. ${phone ? "Tap" : "Click"} a tag to change it.</p>
+      <ul class="rows in" style="--i:5">${COLS.map(([n, r]) => `<li><div class="r"><div><span class="col">${n}</span><span class="eg">${SAMPLES[n] || COLS.find((c) => c[0] === n)[2][0]}</span></div>${tag(id, n, r, phone)}</div>
+        ${FLAGS[n] && r === "out" ? `<p class="flag">${FLAGS[n]}</p>` : ""}</li>`).join("")}</ul>
+      <div class="checks in" style="--i:6">
+        <div class="ch ok"><span>All 200 rows read, with 7 columns</span></div>
+        <div class="ch ok"><span>Every row has its own ID</span></div>
+        <div class="ch ok"><span>Every row is short enough for the model to read in full</span></div>
+        ${outs ? `<div class="ch warn"><span>1 thing to look at<small>urgency is empty in 3 rows. You can continue.</small></span></div>`
+               : `<div class="ch err"><span>Choose at least one expected output<small>Mark the column that holds what the model should predict.</small></span></div>`}
+      </div>
+      ${phone ? "" : `<div class="foot"><span>${outs} expected output${outs === 1 ? "" : "s"} · 3 columns read</span><button class="go">Continue</button></div>`}`;
+  }
+
+  function cardRows() {
+    return COLS.map(([n, r, v]) => `<div class="kv"><span class="k ${r === "out" ? "out" : ""}">${n}</span><span class="v ${r === "out" ? "out" : ""}">${v[card]}</span></div>`).join("");
+  }
+  // Only the card changes: its values slide in from the side you moved toward.
+  function stepCard(delta) {
+    card = (card + delta + 4) % 4;
+    const el = document.getElementById("rowcard");
+    el.innerHTML = cardRows();
+    el.style.animation = "none";
+    void el.offsetWidth;
+    el.style.animation = `${delta > 0 ? "fromRight" : "fromLeft"} .45s cubic-bezier(.2, .7, .2, 1) both`;
+    document.getElementById("rowpos").textContent = `Row ${card + 1} of 200`;
+  }
+  function openMenu(btn, name) {
+    closeMenus();
+    const li = btn.closest("li"), role = COLS.find((c) => c[0] === name)[1];
+    li.insertAdjacentHTML("beforeend", `<div class="menu" onclick="event.stopPropagation()">${opts(name, role)}</div>`);
+  }
+  function closeMenus() { document.querySelectorAll(".menu").forEach((m) => m.remove()); }
+  document.addEventListener("click", closeMenus);
+  function opts(name, role) {
+    return Object.entries(ROLES).map(([k, [t, d]]) => `<div class="opt ${k === role ? "on" : ""}" onclick="event.stopPropagation(); setRole('${name}', '${k}')"><span class="ot"><b>${t}</b><small>${d}</small></span><span class="rad"></span></div>`).join("");
+  }
+  function openSheet(name) {
+    const wrap = document.getElementById("p-sheet"), role = COLS.find((c) => c[0] === name)[1];
+    wrap.innerHTML = `<div class="scrim" onclick="closeSheet()"></div><div class="sheet"><div class="grab"></div><h6>${name}</h6>${opts(name, role)}</div>`;
+    void wrap.offsetWidth;
+    requestAnimationFrame(() => wrap.classList.add("show"));
+  }
+  function closeSheet() { document.getElementById("p-sheet").classList.remove("show"); }
+  function setRole(name, role) {
+    COLS.find((c) => c[0] === name)[1] = role;
+    closeMenus(); closeSheet();
+    setTimeout(() => renderAll(true), 200);
+  }
+  function renderAll(quiet) {
+    const pTop = document.getElementById("p").scrollTop;
+    document.getElementById("d").innerHTML = uploaded("d", false);
+    document.getElementById("p").innerHTML = uploaded("p", true);
+    document.getElementById("p").scrollTop = pTop;
+    if (quiet) document.querySelectorAll("#d .in, #p .in").forEach((n) => (n.style.animation = "none"));
+  }
+  document.getElementById("empty").innerHTML = emptyState(false);
+  document.getElementById("empty-p").innerHTML = emptyState(true);
+  renderAll();
+</script>

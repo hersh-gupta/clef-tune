@@ -1,0 +1,223 @@
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500&display=swap" rel="stylesheet">
+
+<style>
+  .ctl { display: flex; flex-wrap: wrap; gap: .5rem; margin: 0 0 1.2rem; align-items: center; }
+  .ctl button { font: inherit; font-size: .85rem; background: none; border: 1px solid var(--border); border-radius: 999px; padding: .3rem .9rem; cursor: pointer; color: var(--text-secondary); }
+  .ctl button.on { border-color: var(--selected-border); color: var(--text-primary); }
+  .ctl .sp { flex: 1; }
+  .row2 { display: flex; gap: 2rem; align-items: flex-start; flex-wrap: wrap; }
+  .grow { flex: 1 1 560px; min-width: 0; }
+  .frame { border-radius: 12px; overflow: hidden; border: 1px solid var(--border); }
+  .cap { color: var(--text-secondary); font-size: .85rem; margin: .6rem 0 1.8rem; }
+
+  .tv {
+    --page: #F7F2EA; --line: #DDD0BC; --line-soft: #E8DFD1; --ink: #33302A; --muted: #665E52; --field: #FBF8F3;
+    --sage: #5C7A64; --sage-ink: #48644F; --sage-wash: #E9EDE3; --oak: #A88B66; --oak-ink: #5E4E38; --oak-wash: #F0E6D6; --rust: #A4573A;
+    --btn-ink: #F7F2EA; --shadow: rgba(60, 45, 25, .28);
+    --s1: #5C7A64; --s2: #A88B66; --s3: #C9BBA4;
+    font-family: "Noto Sans JP", system-ui, sans-serif; color: var(--ink);
+  }
+  .tv.dark {
+    --page: #23211D; --line: #3A362F; --line-soft: #312E28; --ink: #ECE5D8; --muted: #A79E8F; --field: #2A2723;
+    --sage: #9DB89F; --sage-ink: #A9C4AB; --sage-wash: #2B302A; --oak: #C9A982; --oak-ink: #D7BD99; --oak-wash: #332D24; --rust: #D9896B;
+    --btn-ink: #23211D; --shadow: rgba(0, 0, 0, .5);
+    --s1: #9DB89F; --s2: #C9A982; --s3: #5E574B;
+  }
+  .app { background: var(--page); text-align: left; padding: 24px 32px 26px; transition: background-color .5s ease, color .5s ease; }
+  .phone { width: 360px; height: 740px; flex: none; border-radius: 36px; border: 10px solid #141414; overflow: hidden; position: relative; background: var(--page); box-shadow: 0 30px 60px -30px rgba(0, 0, 0, .6); }
+  .phone .app { height: 100%; overflow-y: auto; box-sizing: border-box; padding: 18px 20px 30px; scrollbar-width: none; }
+  .phone .app::-webkit-scrollbar { display: none; }
+
+  .app .top { display: flex; align-items: center; gap: 10px; }
+  .app .mark { width: 13px; height: 13px; border: 1.5px solid var(--sage); transform: rotate(45deg); }
+  .app .top b { font-weight: 500; letter-spacing: .14em; text-transform: uppercase; font-size: 11.5px; }
+  .app .top .nav { margin-left: auto; font-size: 12px; color: var(--sage-ink); border-bottom: 1px solid var(--line); }
+  .app .crumb { font-size: 12px; color: var(--muted); margin: 22px 0 0; }
+  .app .crumb a { color: var(--sage-ink); border-bottom: 1px solid var(--line); }
+  .app h4 { font-size: 23px; font-weight: 300; letter-spacing: .02em; margin: 8px 0 8px; }
+  .phone .app h4 { font-size: 21px; }
+  .app .rule { height: 1px; width: 48px; background: var(--oak); margin: 0 0 12px; }
+  .app .lede { margin: 0 0 20px; font-size: 13px; line-height: 1.6; color: var(--muted); max-width: 620px; }
+  .app h5 { font-size: 16px; font-weight: 300; margin: 26px 0 10px; }
+
+  .app .file { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line-soft); max-width: 660px; }
+  .app .file .ic { width: 22px; height: 26px; border: 1.3px solid var(--oak); border-radius: 2px; position: relative; flex: none; }
+  .app .file .ic::after { content: ""; position: absolute; left: 4px; right: 4px; top: 8px; height: 9px; border-top: 1.3px solid var(--oak); border-bottom: 1.3px solid var(--oak); }
+  .app .file .fn { font-size: 14px; font-weight: 500; }
+  .app .file .fm { font-size: 12px; color: var(--muted); }
+  .app .file .rep { margin-left: auto; font-size: 12px; color: var(--sage-ink); border-bottom: 1px solid var(--line); }
+  .app .checks { margin-top: 14px; max-width: 660px; }
+  .app .checks .ch { display: flex; gap: 10px; font-size: 13px; line-height: 1.5; padding: 6px 0; }
+  .app .checks .ch::before { flex: none; width: 16px; height: 16px; border-radius: 50%; font-size: 10px; display: grid; place-items: center; margin-top: 1px; }
+  .app .checks .ok::before { content: "✓"; color: var(--sage-ink); border: 1.3px solid var(--sage); }
+  .app .checks .info::before { content: "i"; color: var(--muted); border: 1.3px solid var(--line); font-style: italic; }
+  .app .checks small { display: block; font-size: 11.5px; color: var(--muted); }
+  .app .review { font-size: 16px; font-weight: 300; line-height: 1.7; margin: 22px 0 0; max-width: 660px; }
+  .app .review input { font: inherit; font-weight: 400; color: var(--sage-ink); width: 3.2ch; text-align: center; background: none; border: 0; border-bottom: 1px dashed var(--sage); padding: 0 1px; outline: none; cursor: pointer; }
+  .app .review input:hover { border-bottom-style: solid; }
+  .app .review input:focus { cursor: text; background: var(--sage-wash); border-bottom-style: solid; }
+  .app .review small { display: block; font-size: 12px; color: var(--muted); }
+  .app .est { display: flex; gap: 26px; flex-wrap: wrap; padding: 20px 0 4px; }
+  .app .est .big { font-size: 26px; font-weight: 300; }
+  .phone .app .est .big { font-size: 22px; }
+  .app .est .big small { font-size: 10px; color: var(--muted); letter-spacing: .12em; text-transform: uppercase; display: block; margin-bottom: 2px; }
+  .app .fine { font-size: 12.5px; line-height: 1.6; color: var(--muted); margin: 6px 0 0; max-width: 620px; }
+  .app .fine b { font-weight: 500; color: var(--ink); }
+  .app .start { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; margin-top: 22px; }
+  .app .primary { font: inherit; font-size: 14.5px; color: var(--btn-ink); background: var(--sage); border: 1px solid var(--sage); border-radius: 2px; padding: 12px 26px; letter-spacing: .05em; cursor: pointer; }
+  .app .start small { font-size: 12px; color: var(--muted); }
+
+  .app .left { font-size: 28px; font-weight: 300; margin: 2px 0 2px; }
+  .app .eta { font-size: 13px; color: var(--muted); }
+  .app .bar { position: relative; height: 3px; background: var(--line-soft); margin: 18px 0 6px; border-radius: 2px; max-width: 660px; }
+  .app .bar .fill { position: absolute; left: 0; top: 0; bottom: 0; width: 58%; background: var(--sage); border-radius: 2px; }
+  .app .bar .head { position: absolute; top: 50%; left: 58%; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; border-radius: 50%; background: var(--sage); }
+  .app .bar .head::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: var(--sage); animation: breathe 3.2s ease-in-out infinite; }
+  .app .stages { list-style: none; margin: 22px 0 0; padding: 0; border-top: 1px solid var(--line); max-width: 660px; }
+  .app .stages li { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line-soft); font-size: 13.5px; color: var(--muted); }
+  .app .stages li::before { content: ""; flex: none; width: 9px; height: 9px; margin-top: 5px; border-radius: 50%; border: 1.4px solid var(--line); box-sizing: border-box; }
+  .app .stages li.done { color: var(--ink); }
+  .app .stages li.done::before { background: var(--sage); border-color: var(--sage); }
+  .app .stages li.now { color: var(--ink); font-weight: 500; }
+  .app .stages li.now::before { border-color: var(--sage); animation: ring 2.4s ease-out infinite; }
+  .app .stages small { display: block; font-size: 12px; font-weight: 400; color: var(--muted); }
+  .app .safe { display: flex; gap: 12px; margin: 22px 0 0; padding: 14px 16px; background: var(--sage-wash); border-radius: 3px; font-size: 13px; line-height: 1.6; max-width: 660px; }
+  .app .safe::before { content: ""; flex: none; width: 8px; height: 8px; margin-top: 7px; border-radius: 50%; background: var(--sage); }
+
+  /* done */
+  .app .hero { display: flex; align-items: center; gap: 14px; margin: 8px 0 8px; }
+  .app .hero h4 { margin: 0; }
+  .app .tick { flex: none; width: 30px; height: 30px; }
+  .app .tick circle { fill: none; stroke: var(--sage); stroke-width: 1.4; stroke-dasharray: 88; stroke-dashoffset: 88; animation: draw 1.1s cubic-bezier(.6, 0, .2, 1) forwards .2s; }
+  .app .tick path { fill: none; stroke: var(--sage); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 20; stroke-dashoffset: 20; animation: draw .6s ease forwards 1.1s; }
+  .app .dl { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin: 4px 0 6px; }
+  .phone .app .dl .primary { width: 100%; }
+  .app .ghost { font: inherit; font-size: 13px; color: var(--sage-ink); background: none; border: 1px solid var(--sage); border-radius: 2px; padding: 11px 18px; cursor: pointer; }
+  .app .flagged { display: flex; gap: 10px; font-size: 13.5px; line-height: 1.55; margin: 18px 0 0; padding: 12px 0; border-top: 1px solid var(--line-soft); border-bottom: 1px solid var(--line-soft); max-width: 660px; }
+  .app .flagged::before { content: "!"; flex: none; width: 16px; height: 16px; border-radius: 50%; border: 1.3px solid var(--oak); color: var(--oak-ink); font-size: 10px; font-weight: 500; display: grid; place-items: center; margin-top: 2px; }
+  .app .flagged small { display: block; font-size: 12px; color: var(--muted); }
+  .app .dist { max-width: 660px; }
+  .app .dq { padding: 12px 0; border-bottom: 1px solid var(--line-soft); }
+  .app .dq .qq { font-size: 14px; margin-bottom: 8px; }
+  .app .stack { display: flex; height: 8px; border-radius: 2px; overflow: hidden; gap: 2px; }
+  .app .stack i { display: block; height: 100%; transform-origin: left; animation: grow 1s cubic-bezier(.2, .7, .2, 1) both; }
+  .app .stack i:nth-child(1) { background: var(--s1); } .app .stack i:nth-child(2) { background: var(--s2); animation-delay: .1s; } .app .stack i:nth-child(3) { background: var(--s3); animation-delay: .2s; }
+  .app .legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12px; color: var(--muted); margin-top: 7px; }
+  .app .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .app .legend span::before { content: ""; width: 8px; height: 8px; border-radius: 1px; background: var(--c); }
+  .app .legend b { font-weight: 500; color: var(--ink); }
+  .app .tbl { overflow-x: auto; border-top: 1px solid var(--line); }
+  .app table { border-collapse: collapse; font-size: 12.5px; min-width: 100%; }
+  .app th { text-align: left; font-weight: 500; font-size: 12px; padding: 9px 14px 7px 0; white-space: nowrap; border-bottom: 2px solid var(--line-soft); }
+  .app th.new { color: var(--sage-ink); border-bottom-color: var(--sage); }
+  .app td { padding: 8px 14px 8px 0; border-bottom: 1px solid var(--line-soft); white-space: nowrap; max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
+  .app td.new { color: var(--sage-ink); }
+  .app td .pc { color: var(--muted); font-size: 11px; margin-left: 6px; }
+  .app td .low { color: var(--oak-ink); font-weight: 500; }
+  .app td.flag { color: var(--oak-ink); font-size: 11.5px; }
+  .app .tcap { font-size: 11.5px; color: var(--muted); margin: 8px 0 0; }
+  .app .cards { border-top: 1px solid var(--line); }
+  .app .pcard { padding: 12px 0; border-bottom: 1px solid var(--line-soft); font-size: 13px; }
+  .app .pcard .ps { font-weight: 500; margin-bottom: 6px; }
+  .app .pcard .pa { display: flex; justify-content: space-between; padding: 2px 0; }
+  .app .pcard .pa span:first-child { color: var(--muted); font-size: 12px; }
+  .app .pcard .pa span:last-child { color: var(--sage-ink); }
+
+  @keyframes rise    { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  @keyframes breathe { 0%, 100% { transform: scale(1); opacity: .45; } 50% { transform: scale(2.1); opacity: 0; } }
+  @keyframes ring    { 0% { box-shadow: 0 0 0 0 rgba(92, 122, 100, .45); } 70%, 100% { box-shadow: 0 0 0 7px rgba(92, 122, 100, 0); } }
+  @keyframes draw    { to { stroke-dashoffset: 0; } }
+  @keyframes grow    { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+  .app .in { animation: rise .7s cubic-bezier(.2, .7, .2, 1) both; animation-delay: calc(var(--i, 0) * 80ms + 120ms); }
+  @media (prefers-reduced-motion: reduce) { .tv *, .tv *::before, .tv *::after { animation: none !important; transition: none !important; } }
+</style>
+
+<h2>Predict a new spreadsheet</h2>
+<p class="subtitle">You reach this from a ready model, through "What's next" on Results or from Your models. Step through the three states with the buttons. The time and cost are my rough estimate: mostly the time it takes to load the model, plus a minute or so of reading.</p>
+<div class="ctl">
+  <button class="on" onclick="show(this, 'choose')">1 · Choose a file</button>
+  <button onclick="show(this, 'running')">2 · Running</button>
+  <button onclick="show(this, 'done')">3 · Ready</button>
+  <span class="sp"></span>
+  <button onclick="document.querySelectorAll('.tv').forEach((a) => a.classList.toggle('dark'))">Light / dark</button>
+</div>
+
+<div class="row2">
+  <div class="grow"><div class="frame"><div class="app tv" id="d"></div></div><p class="cap">Desktop</p></div>
+  <div><div class="phone tv"><div class="app" id="p"></div></div><p class="cap">Phone</p></div>
+</div>
+
+<script>
+  const head = (phone) => `<div class="top"><span class="mark"></span><b>clef-tune</b><span class="nav">Your models</span></div>
+    <div class="crumb in"><a>support-tickets</a> · Predict</div>`;
+  const ROWS = [
+    ["T2041", "Refund for duplicate charge", ["billing", 97], ["This week", 81], ["no", 99], ""],
+    ["T2042", "Dashboard blank after update", ["technical", 94], ["Today", 72], ["yes", 64], "Review"],
+    ["T2043", "Add a teammate to our plan", ["account", 91], ["Can wait", 88], ["no", 98], ""],
+    ["T2044", "Webhook retries failing since 9am", ["technical", 96], ["Today", 90], ["yes", 83], ""],
+    ["T2045", "Change billing email address", ["account", 58], ["Can wait", 77], ["no", 99], "Review"],
+  ];
+  let threshold = 70;
+
+  function choose(phone) {
+    return head(phone) + `
+      <h4 class="in">Predict with support-tickets</h4><div class="rule in"></div>
+      <p class="lede in">Upload new tickets. The model reads the same columns it learned from and fills in its answers. Expected outputs aren't needed.</p>
+      <div class="file in" style="--i:1"><span class="ic"></span><span><span class="fn">new_tickets_nov.csv</span><br><span class="fm">1,240 rows · 4 columns</span></span><a class="rep">Replace</a></div>
+      <div class="checks in" style="--i:2">
+        <div class="ch ok"><span>Found subject, body and customer_tier<small>The columns the model learned to read.</small></span></div>
+        <div class="ch ok"><span>Every row is short enough to read in full</span></div>
+        <div class="ch info"><span>No expected outputs in this file<small>That's fine. If a file has them, we'll also show how often the model matches them.</small></span></div>
+      </div>
+      <p class="review in" style="--i:3">Mark a row for review when the model is less than <input value="${threshold}" aria-label="Review threshold in percent" oninput="threshold = +this.value || 0">% sure of an answer.
+        <small>Its confidence was calibrated on your test tickets, so 70% sure means right about 70% of the time.</small></p>
+      <div class="est in" style="--i:4"><span class="big"><small>Time</small>About 10–15 minutes</span><span class="big"><small>Cost</small>$0.30–$0.45</span></div>
+      <p class="fine in" style="--i:4">Runs on one L40S GPU on Hugging Face and never costs more than <b>$0.90</b>.</p>
+      <div class="start in" style="--i:5"><button class="primary" ${phone ? 'style="width:100%"' : ""}>Start predicting</button><small>You can leave while it runs.</small></div>`;
+  }
+  function running(phone) {
+    return head(phone) + `
+      <h4 class="in">Predicting 1,240 tickets</h4><div class="rule in"></div>
+      <div class="in" style="--i:1"><div class="left">About 5 minutes left</div><div class="eta">Should be ready around 4:12 PM · $0.21 so far</div>
+        <div class="bar"><span class="fill"></span><span class="head"></span></div></div>
+      <ul class="stages in" style="--i:2">
+        <li class="done"><span>Started a machine<small>One L40S GPU on Hugging Face</small></span></li>
+        <li class="done"><span>Loaded support-tickets</span></li>
+        <li class="now"><span>Reading your tickets<small>640 of 1,240</small></span></li>
+        <li><span>Preparing your spreadsheet</span></li>
+      </ul>
+      <p class="safe in" style="--i:3"><span>You can close this page. It keeps going on Hugging Face, and you'll find it under <b>Your models</b> when you come back.</span></p>`;
+  }
+  function done(phone) {
+    const pc = (v, p) => `${v}<span class="pc ${p < threshold ? "low" : ""}">${p}%</span>`;
+    const table = phone
+      ? `<div class="cards">${ROWS.slice(0, 3).map(([id, s, d, u, o, f]) => `<div class="pcard"><div class="ps">${s}</div>
+           <div class="pa"><span>department</span><span>${d[0]} · ${d[1]}%</span></div><div class="pa"><span>urgency</span><span>${u[0]} · ${u[1]}%</span></div>
+           <div class="pa"><span>outage</span><span>${o[0]} · ${o[1]}%</span></div>${f ? `<div class="pa"><span></span><span style="color:var(--oak-ink)">Marked for review</span></div>` : ""}</div>`).join("")}</div>`
+      : `<div class="tbl"><table><tr><th>ticket_id</th><th>subject</th><th class="new">department</th><th class="new">urgency</th><th class="new">outage</th><th class="new">review</th></tr>
+           ${ROWS.map(([id, s, d, u, o, f]) => `<tr><td>${id}</td><td>${s}</td><td class="new">${pc(...d)}</td><td class="new">${pc(...u)}</td><td class="new">${pc(...o)}</td><td class="flag">${f}</td></tr>`).join("")}</table></div>
+         <p class="tcap">Your columns are kept as they are. The green columns are added: each answer with how sure the model is, and a review mark.</p>`;
+    const dist = (q, parts) => `<div class="dq"><div class="qq">${q}</div><div class="stack">${parts.map(([, v]) => `<i style="width:${v}%"></i>`).join("")}</div>
+      <div class="legend">${parts.map(([n, v], k) => `<span style="--c:var(--s${k + 1})">${n} <b>${v}%</b></span>`).join("")}</div></div>`;
+    return head(phone) + `
+      <div class="hero in"><svg class="tick" viewBox="0 0 30 30"><circle cx="15" cy="15" r="14"/><path d="M9.5 15.5l4 4 7-8"/></svg><h4>1,240 tickets predicted</h4></div><div class="rule in"></div>
+      <p class="lede in">Took 11 minutes and cost $0.33.</p>
+      <div class="dl in" style="--i:1"><button class="primary">Download spreadsheet ↓</button>${phone ? "" : `<button class="ghost">Download as Excel</button>`}</div>
+      <p class="flagged in" style="--i:2"><span>86 tickets are marked for review<small>The model was less than ${threshold}% sure of at least one answer. Filter on the "review" column to find them.</small></span></p>
+      <h5 class="in" style="--i:3">A first look</h5><div class="in" style="--i:3">${table}</div>
+      <h5 class="in" style="--i:4">What it answered</h5>
+      <div class="dist in" style="--i:5">
+        ${dist("Which team should handle this ticket?", [["technical", 47], ["billing", 38], ["account", 15]])}
+        ${dist("How soon does this ticket need a reply?", [["This week", 44], ["Can wait", 31], ["Today", 25]])}
+        ${dist("Is something down or unusable for this customer?", [["no", 89], ["yes", 11]])}
+      </div>`;
+  }
+  const STATES = { choose, running, done };
+  function show(btn, name) {
+    if (btn) btn.parentElement.querySelectorAll("button").forEach((b, k) => k < 3 && b.classList.toggle("on", b === btn));
+    document.getElementById("d").innerHTML = STATES[name](false);
+    document.getElementById("p").innerHTML = STATES[name](true);
+  }
+  show(null, "choose");
+</script>

@@ -1,0 +1,233 @@
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500&display=swap" rel="stylesheet">
+
+<style>
+  .ctl { display: flex; gap: .5rem; margin: 0 0 1.2rem; }
+  .ctl button { font: inherit; font-size: .85rem; background: none; border: 1px solid var(--border); border-radius: 999px; padding: .3rem .9rem; cursor: pointer; color: var(--text-secondary); }
+  .row2 { display: flex; gap: 2rem; align-items: flex-start; flex-wrap: wrap; }
+  .grow { flex: 1 1 540px; min-width: 0; }
+  .frame { border-radius: 12px; overflow: hidden; border: 1px solid var(--border); }
+  .cap { color: var(--text-secondary); font-size: .85rem; margin: .6rem 0 1.8rem; }
+
+  .tv {
+    --page: #F7F2EA; --line: #DDD0BC; --line-soft: #E8DFD1; --ink: #33302A; --muted: #665E52; --field: #FBF8F3;
+    --sage: #5C7A64; --sage-ink: #48644F; --sage-wash: #E9EDE3; --oak: #A88B66; --oak-ink: #5E4E38; --oak-wash: #F0E6D6; --rust: #A4573A;
+    --btn-ink: #F7F2EA; --pop: #FBF8F3; --shadow: rgba(60, 45, 25, .28);
+    font-family: "Noto Sans JP", system-ui, sans-serif; color: var(--ink);
+  }
+  .tv.dark {
+    --page: #23211D; --line: #3A362F; --line-soft: #312E28; --ink: #ECE5D8; --muted: #A79E8F; --field: #2A2723;
+    --sage: #9DB89F; --sage-ink: #A9C4AB; --sage-wash: #2B302A; --oak: #C9A982; --oak-ink: #D7BD99; --oak-wash: #332D24; --rust: #D9896B;
+    --btn-ink: #23211D; --pop: #2D2A25; --shadow: rgba(0, 0, 0, .5);
+  }
+  .app { background: var(--page); text-align: left; padding: 24px 32px 26px; transition: background-color .5s ease, color .5s ease; }
+  .phone { width: 360px; height: 740px; flex: none; border-radius: 36px; border: 10px solid #141414; overflow: hidden; position: relative; background: var(--page); box-shadow: 0 30px 60px -30px rgba(0, 0, 0, .6); }
+  .phone .app { height: 100%; overflow-y: auto; box-sizing: border-box; padding: 18px 20px 30px; scrollbar-width: none; }
+  .phone .app::-webkit-scrollbar { display: none; }
+
+  .app .top { display: flex; align-items: center; gap: 10px; }
+  .app .mark { width: 13px; height: 13px; border: 1.5px solid var(--sage); transform: rotate(45deg); }
+  .app .top b { font-weight: 500; letter-spacing: .14em; text-transform: uppercase; font-size: 11.5px; }
+  .app .top .nav { margin-left: auto; font-size: 12px; color: var(--sage-ink); border-bottom: 1px solid var(--line); cursor: pointer; }
+  .app .top .who { font-size: 12px; color: var(--muted); margin-left: 14px; }
+  .app .steps { display: flex; margin: 20px 0 0; padding: 0; list-style: none; font-size: 11px; letter-spacing: .06em; color: var(--muted); }
+  .app .steps li { flex: 1; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+  .app .steps li span { display: block; font-size: 10px; margin-bottom: 1px; }
+  .app .steps .done span::after { content: " ✓"; color: var(--sage-ink); }
+  .app .steps .now { color: var(--ink); border-bottom: 2px solid var(--sage); }
+  .app .now-dot { position: relative; padding-left: 11px; }
+  .app .now-dot::before, .app .now-dot::after { content: ""; position: absolute; left: 0; top: 50%; width: 6px; height: 6px; margin-top: -3px; border-radius: 50%; background: var(--sage); }
+  .app .now-dot::after { animation: breathe 3.2s ease-in-out infinite; }
+  .app .msteps { margin-top: 16px; }
+  .app .msteps .segs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+  .app .msteps .segs i { height: 2px; background: var(--sage); }
+  .app .msteps .capt { display: block; font-size: 11px; letter-spacing: .06em; color: var(--muted); margin-top: 7px; }
+  .app .msteps .capt b { color: var(--ink); font-weight: 500; }
+  .app h4 { font-size: 23px; font-weight: 300; letter-spacing: .02em; margin: 26px 0 8px; }
+  .phone .app h4 { font-size: 21px; margin-top: 22px; }
+  .app .rule { height: 1px; width: 48px; background: var(--oak); margin: 0 0 12px; }
+  .app .lede { margin: 0 0 20px; font-size: 13px; line-height: 1.6; color: var(--muted); max-width: 600px; }
+  .app .label { display: block; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; }
+
+  /* ready */
+  .app .srows { border-top: 1px solid var(--line); max-width: 640px; }
+  .app .srow { display: flex; align-items: baseline; gap: 14px; padding: 11px 0; border-bottom: 1px solid var(--line-soft); }
+  .app .srow .sk { width: 92px; flex: none; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .app .srow .sv { flex: 1; font-size: 14.5px; }
+  .app .srow .sv small { display: block; font-size: 11.5px; color: var(--muted); margin-top: 1px; }
+  .app .srow a { font-size: 12px; color: var(--sage-ink); border-bottom: 1px solid var(--line); cursor: pointer; }
+  .app .est { display: flex; gap: 26px; flex-wrap: wrap; padding: 20px 0 4px; }
+  .app .est .big { font-size: 26px; font-weight: 300; }
+  .app .est .big small { font-size: 10px; color: var(--muted); letter-spacing: .12em; text-transform: uppercase; display: block; margin-bottom: 2px; }
+  .app .fine { font-size: 12.5px; line-height: 1.6; color: var(--muted); margin: 6px 0 0; max-width: 620px; }
+  .app .fine b { font-weight: 500; color: var(--ink); }
+  .app .fine a { color: var(--sage-ink); border-bottom: 1px solid var(--line); }
+  .app .signin { display: flex; align-items: center; gap: 12px; margin: 22px 0 0; padding: 14px 0; border-top: 1px solid var(--line-soft); border-bottom: 1px solid var(--line-soft); max-width: 640px; font-size: 13.5px; }
+  .app .signin .av { width: 26px; height: 26px; border-radius: 50%; background: var(--oak-wash); border: 1px solid var(--oak); display: grid; place-items: center; font-size: 12px; color: var(--oak-ink); }
+  .app .signin small { display: block; font-size: 11.5px; color: var(--muted); }
+  .app .signin a { margin-left: auto; font-size: 12px; color: var(--sage-ink); border-bottom: 1px solid var(--line); }
+  .app .start { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; margin-top: 22px; }
+  .app .primary { font: inherit; font-size: 14.5px; color: var(--btn-ink); background: var(--sage); border: 1px solid var(--sage); border-radius: 2px; padding: 12px 26px; letter-spacing: .05em; cursor: pointer; transition: transform .3s ease, box-shadow .3s ease; }
+  .app .primary:hover { transform: translateY(-1px); box-shadow: 0 8px 18px -10px var(--shadow); }
+  .app .start small { font-size: 12px; color: var(--muted); }
+  .app .back { font: inherit; font-size: 13px; background: none; border: 0; color: var(--muted); cursor: pointer; padding: 0; margin-top: 22px; }
+
+  /* running */
+  .app .left { font-size: 28px; font-weight: 300; margin: 2px 0 2px; }
+  .phone .app .left { font-size: 24px; }
+  .app .eta { font-size: 13px; color: var(--muted); }
+  .app .bar { position: relative; height: 3px; background: var(--line-soft); margin: 18px 0 6px; border-radius: 2px; }
+  .app .bar .fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--sage); border-radius: 2px; transition: width 1.4s cubic-bezier(.3, .7, .3, 1); }
+  .app .bar .head { position: absolute; top: 50%; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; border-radius: 50%; background: var(--sage); transition: left 1.4s cubic-bezier(.3, .7, .3, 1); }
+  .app .bar .head::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: var(--sage); animation: breathe 3.2s ease-in-out infinite; }
+  .app .barcap { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--muted); }
+  .app .stages { list-style: none; margin: 22px 0 0; padding: 0; border-top: 1px solid var(--line); max-width: 640px; }
+  .app .stages li { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line-soft); font-size: 13.5px; color: var(--muted); }
+  .app .stages li::before { content: ""; flex: none; width: 9px; height: 9px; margin-top: 5px; border-radius: 50%; border: 1.4px solid var(--line); box-sizing: border-box; }
+  .app .stages li.done { color: var(--ink); }
+  .app .stages li.done::before { background: var(--sage); border-color: var(--sage); }
+  .app .stages li.now { color: var(--ink); font-weight: 500; }
+  .app .stages li.now::before { border-color: var(--sage); box-shadow: 0 0 0 0 var(--sage); animation: ring 2.4s ease-out infinite; }
+  .app .stages small { display: block; font-size: 12px; font-weight: 400; color: var(--muted); margin-top: 1px; }
+  .app .safe { display: flex; gap: 12px; align-items: flex-start; margin: 22px 0 0; padding: 14px 16px; background: var(--sage-wash); border-radius: 3px; font-size: 13px; line-height: 1.6; max-width: 640px; }
+  .app .safe::before { content: ""; flex: none; width: 8px; height: 8px; margin-top: 7px; border-radius: 50%; background: var(--sage); }
+  .app .acts { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; margin-top: 18px; }
+  .app .toggle { display: inline-flex; align-items: center; gap: 10px; font-size: 13px; cursor: pointer; background: none; border: 0; color: var(--ink); font-family: inherit; padding: 6px 0; }
+  .app .toggle .sw { width: 30px; height: 17px; border-radius: 99px; background: var(--line); position: relative; transition: background-color .35s ease; }
+  .app .toggle .sw::after { content: ""; position: absolute; left: 2px; top: 2px; width: 13px; height: 13px; border-radius: 50%; background: var(--page); transition: transform .35s cubic-bezier(.2, .8, .2, 1); }
+  .app .toggle.on .sw { background: var(--sage); }
+  .app .toggle.on .sw::after { transform: translateX(13px); }
+  .app .stop { font: inherit; font-size: 12.5px; color: var(--muted); background: none; border: 0; border-bottom: 1px solid var(--line); padding: 2px 0; cursor: pointer; transition: color .3s ease, border-color .3s ease; }
+  .app .stop:hover { color: var(--rust); border-color: var(--rust); }
+  .app .confirm { margin-top: 12px; font-size: 12.5px; color: var(--ink); line-height: 1.6; display: none; max-width: 600px; }
+  .app .confirm.show { display: block; animation: rise .35s ease both; }
+  .app .confirm button { font: inherit; font-size: 12.5px; margin: 8px 10px 0 0; padding: 6px 14px; border-radius: 2px; cursor: pointer; background: none; border: 1px solid var(--line); color: var(--ink); }
+  .app .confirm button.danger { border-color: var(--rust); color: var(--rust); }
+  .app .curve { margin-top: 18px; border-top: 1px solid var(--line-soft); padding-top: 12px; max-width: 640px; }
+  .app .curve summary { font-size: 12.5px; color: var(--sage-ink); cursor: pointer; list-style: none; }
+  .app .curve summary::after { content: " ›"; }
+  .app .curve svg { width: 100%; height: 90px; margin-top: 10px; }
+  .app .curve p { font-size: 11.5px; color: var(--muted); margin: 4px 0 0; }
+
+  /* your models */
+  .app .mlist { list-style: none; padding: 0; margin: 0; border-top: 1px solid var(--line); }
+  .app .mlist li { padding: 13px 0; border-bottom: 1px solid var(--line-soft); cursor: pointer; }
+  .app .mlist .mt { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+  .app .mlist .mn { font-size: 14.5px; font-weight: 500; }
+  .app .mlist .ms { font-size: 11.5px; letter-spacing: .04em; display: inline-flex; align-items: center; gap: 6px; }
+  .app .mlist .ms::before { content: ""; width: 7px; height: 7px; border-radius: 50%; }
+  .app .mlist .run { color: var(--sage-ink); } .app .mlist .run::before { background: var(--sage); animation: ring 2.4s ease-out infinite; }
+  .app .mlist .ok { color: var(--sage-ink); } .app .mlist .ok::before { background: var(--sage); }
+  .app .mlist .stopped { color: var(--muted); } .app .mlist .stopped::before { border: 1.3px solid var(--muted); }
+  .app .mlist .fail { color: var(--rust); } .app .mlist .fail::before { border: 1.3px solid var(--rust); }
+  .app .mlist small { display: block; font-size: 12px; color: var(--muted); margin-top: 3px; line-height: 1.5; }
+  .app .mlist .mini { height: 2px; background: var(--line-soft); margin-top: 8px; position: relative; }
+  .app .mlist .mini i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--sage); }
+  .app .new { display: block; width: 100%; margin-top: 18px; font: inherit; font-size: 14px; color: var(--sage-ink); background: none; border: 1px solid var(--sage); border-radius: 2px; padding: 12px; letter-spacing: .05em; cursor: pointer; }
+
+  @keyframes rise    { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  @keyframes breathe { 0%, 100% { transform: scale(1); opacity: .45; } 50% { transform: scale(2.1); opacity: 0; } }
+  @keyframes ring    { 0% { box-shadow: 0 0 0 0 rgba(92, 122, 100, .45); } 70%, 100% { box-shadow: 0 0 0 7px rgba(92, 122, 100, 0); } }
+  .app .in { animation: rise .7s cubic-bezier(.2, .7, .2, 1) both; animation-delay: calc(var(--i, 0) * 80ms + 120ms); }
+  @media (prefers-reduced-motion: reduce) { .tv *, .tv *::before, .tv *::after { animation: none !important; transition: none !important; } }
+</style>
+
+<h2>The Train step</h2>
+<p class="subtitle">Built for leaving and coming back. Top: the last check before spending money, then the run in progress. It's simulated, so the step count moves. Below: the run on a phone, and "Your models", where you land when you come back.</p>
+<div class="ctl"><button onclick="document.querySelectorAll('.tv').forEach((a) => a.classList.toggle('dark'))">Light / dark</button></div>
+
+<div class="row2">
+  <div class="grow"><div class="frame"><div class="app tv" id="ready"></div></div><p class="cap">Ready to train (desktop)</p></div>
+</div>
+<div class="row2">
+  <div class="grow"><div class="frame"><div class="app tv" id="run-d"></div></div><p class="cap">Training (desktop)</p></div>
+</div>
+<div class="row2" style="justify-content:center">
+  <div><div class="phone tv"><div class="app" id="run-p"></div></div><p class="cap">Training (phone)</p></div>
+  <div><div class="phone tv"><div class="app" id="models"></div></div><p class="cap">Your models: where you land when you come back</p></div>
+</div>
+
+<script>
+  const TOTAL = 120;
+  let step = 64;
+  const topBar = (phone) => `<div class="top"><span class="mark"></span><b>clef-tune</b><span class="nav">Your models</span>${phone ? "" : `<span class="who">hvgupta1</span>`}</div>`;
+  const steps = (phone, now) => phone
+    ? `<div class="msteps"><div class="segs"><i></i><i></i><i></i><i></i></div><span class="capt"><span class="now-dot">Step 4 of 4</span> · <b>Train</b></span></div>`
+    : `<ol class="steps"><li class="done"><span>01</span>Your data</li><li class="done"><span>02</span>What to predict</li><li class="done"><span>03</span>Settings</li><li class="now"><span class="now-dot">04</span>Train</li></ol>`;
+
+  document.getElementById("ready").innerHTML = topBar(false) + steps(false) + `
+    <h4 class="in">Ready to train</h4><div class="rule in"></div>
+    <p class="lede in">Check the details. Training starts on Hugging Face's cloud when you press Start, and you can leave while it runs.</p>
+    <div class="srows in" style="--i:1">
+      <div class="srow"><span class="sk">Model</span><span class="sv">Clef-Flash · Balanced<small>Three passes over your examples</small></span><a>Change</a></div>
+      <div class="srow"><span class="sk">Data</span><span class="sv">200 tickets · 3 questions<small>169 to learn from, 31 set aside to test it</small></span><a>Change</a></div>
+      <div class="srow"><span class="sk">Saved as</span><span class="sv">hvgupta1/support-tickets<small>Private to your Hugging Face account</small></span><a>Change</a></div>
+    </div>
+    <div class="est in" style="--i:2"><span class="big"><small>Time</small>About 8–17 minutes</span><span class="big"><small>Cost</small>$0.23–$0.50</span></div>
+    <p class="fine in" style="--i:2">Billed to your Hugging Face account's prepaid credits, and it never costs more than <b>$0.90</b>. <a>Add credits</a></p>
+    <div class="signin in" style="--i:3"><span class="av">h</span><span>Signed in as <b>hvgupta1</b><small>Training runs and is billed under this account</small></span><a>Switch</a></div>
+    <div class="start in" style="--i:4"><button class="primary">Start training</button><small>You pay only for the time it runs, at most $0.90.</small></div>
+    <button class="back in" style="--i:5">← Back to settings</button>`;
+
+  function stageList() {
+    const s = (cls, t, sub) => `<li class="${cls}"><span>${t}${sub ? `<small>${sub}</small>` : ""}</span></li>`;
+    return `<ul class="stages">
+      ${s("done", "Started a machine", "One L40S GPU on Hugging Face")}
+      ${s("done", "Loaded Clef-Flash")}
+      ${s("done", "Measured the starting point", "Before training it matched every expected output on 2 of 30 tickets")}
+      ${s("now", "Learning from your examples", `Step <span class="stepn">${step}</span> of ${TOTAL}`)}
+      ${s("", "Testing the result")}
+      ${s("", "Saving to your account")}
+    </ul>`;
+  }
+  function running(phone, id) {
+    return topBar(phone) + steps(phone) + `
+      <h4 class="in">Training support-tickets</h4><div class="rule in"></div>
+      <div class="in" style="--i:1"><div class="left"><span class="minleft">About 12 minutes left</span></div><div class="eta">Should be ready around <span class="clock"></span></div>
+        <div class="bar"><span class="fill"></span><span class="head"></span></div>
+        <div class="barcap"><span class="spent">$0.19 so far</span><span>at most $0.90</span></div></div>
+      <div class="in" style="--i:2">${stageList()}</div>
+      <p class="safe in" style="--i:3"><span>You can close this page. Training keeps going on Hugging Face, and you'll find it under <b>Your models</b> when you come back.</span></p>
+      <div class="acts in" style="--i:4">
+        <button class="toggle" onclick="this.classList.toggle('on')"><span class="sw"></span>Notify me when it's done</button>
+        <button class="stop" onclick="this.parentElement.nextElementSibling.classList.toggle('show')">Stop training</button>
+      </div>
+      <div class="confirm">Stop now? You'll pay for the time so far (<span class="spent2">$0.19</span>) and won't get a model.<br>
+        <button class="danger">Stop training</button><button onclick="this.parentElement.classList.remove('show')">Keep going</button></div>
+      ${phone ? "" : `<details class="curve in" style="--i:5"><summary>Live training curve</summary>
+        <svg viewBox="0 0 600 90" preserveAspectRatio="none"><polyline id="${id}-line" fill="none" stroke="var(--sage)" stroke-width="1.5" vector-effect="non-scaling-stroke" points=""/></svg>
+        <p>Training loss, where lower is better. For people who know fine-tuning.</p></details>`}`;
+  }
+  document.getElementById("run-d").innerHTML = running(false, "d");
+  document.getElementById("run-p").innerHTML = running(true, "p");
+
+  const LOSS = Array.from({ length: TOTAL }, (_, k) => 0.95 * Math.exp(-k / 38) + 0.18 + 0.05 * Math.sin(k * 1.7) * Math.exp(-k / 60));
+  function tick() {
+    const frac = step / TOTAL, left = Math.max(1, Math.round((TOTAL - step) * 0.22));
+    const done = new Date(Date.now() + left * 60000);
+    document.querySelectorAll(".stepn").forEach((n) => (n.textContent = step));
+    document.querySelectorAll(".minleft").forEach((n) => (n.textContent = left === 1 ? "About a minute left" : `About ${left} minutes left`));
+    document.querySelectorAll(".clock").forEach((n) => (n.textContent = done.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })));
+    const cost = `$${(0.06 + frac * 0.22).toFixed(2)}`;
+    document.querySelectorAll(".spent").forEach((n) => (n.textContent = `${cost} so far`));
+    document.querySelectorAll(".spent2").forEach((n) => (n.textContent = cost));
+    document.querySelectorAll(".bar .fill").forEach((n) => (n.style.width = `${(0.18 + frac * 0.7) * 100}%`));
+    document.querySelectorAll(".bar .head").forEach((n) => (n.style.left = `${(0.18 + frac * 0.7) * 100}%`));
+    const pts = LOSS.slice(0, step).map((v, k) => `${(k / (TOTAL - 1)) * 600},${90 - (v / 1.2) * 85}`).join(" ");
+    document.querySelectorAll("polyline").forEach((n) => n.setAttribute("points", pts));
+    if (step < TOTAL - 4) step += 1;
+  }
+  tick(); setInterval(tick, 1600);
+
+  document.getElementById("models").innerHTML = topBar(true) + `
+    <h4 class="in">Your models</h4><div class="rule in"></div>
+    <p class="lede in">Everything you've trained, newest first.</p>
+    <ul class="mlist in" style="--i:1">
+      <li><div class="mt"><span class="mn">support-tickets</span><span class="ms run">Training</span></div><small>About 12 minutes left · ready around <span class="clock"></span></small><div class="mini"><i style="width:56%"></i></div></li>
+      <li><div class="mt"><span class="mn">claims-2026</span><span class="ms ok">Ready</span></div><small>Matched every expected output on 23 of 30 claims, up from 3 · Oct 29</small></li>
+      <li><div class="mt"><span class="mn">first-try</span><span class="ms stopped">Stopped</span></div><small>You stopped it after 4 minutes · $0.12 · Oct 28</small></li>
+      <li><div class="mt"><span class="mn">reviews-test</span><span class="ms fail">Didn't finish</span></div><small>Hugging Face credits ran out. Add credits, then try again. · Oct 27</small></li>
+    </ul>
+    <button class="new in" style="--i:2">Train a new model</button>`;
+  tick();
+</script>

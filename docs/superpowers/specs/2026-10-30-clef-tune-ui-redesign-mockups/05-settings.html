@@ -1,0 +1,260 @@
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500&display=swap" rel="stylesheet">
+
+<style>
+  .theme { margin: 0 0 1.2rem; font: inherit; font-size: .85rem; background: none; border: 1px solid var(--border); border-radius: 999px; padding: .3rem .9rem; cursor: pointer; color: var(--text-secondary); }
+  .theme:hover { color: var(--text-primary); }
+  .pick { margin-top: .7rem; font: inherit; font-size: .85rem; background: none; border: 1px solid var(--border); border-radius: 999px; padding: .3rem .9rem; cursor: pointer; color: var(--text-secondary); }
+  .pick:hover { color: var(--text-primary); }
+  .choice.selected .pick { border-color: var(--selected-border); color: var(--text-primary); }
+  .phones { display: flex; flex-wrap: wrap; gap: 2rem; justify-content: center; margin-bottom: 2.5rem; }
+  .choice { max-width: 380px; }
+  .choice h3 { margin: .9rem 0 .25rem; }
+  .choice p { color: var(--text-secondary); font-size: .85rem; line-height: 1.5; margin: 0; }
+  .deskwrap { border-radius: 12px; overflow: visible; border: 1px solid var(--border); }
+
+  .tv {
+    --page: #F7F2EA; --line: #DDD0BC; --line-soft: #E8DFD1; --ink: #33302A; --muted: #665E52; --field: #FBF8F3;
+    --sage: #5C7A64; --sage-ink: #48644F; --sage-wash: #E9EDE3; --oak: #A88B66; --oak-ink: #5E4E38; --btn-ink: #F7F2EA;
+    --pop: #FBF8F3; --shadow: rgba(60, 45, 25, .28); --scrim: rgba(40, 32, 22, .32);
+    font-family: "Noto Sans JP", system-ui, sans-serif; color: var(--ink);
+  }
+  .tv.dark {
+    --page: #23211D; --line: #3A362F; --line-soft: #312E28; --ink: #ECE5D8; --muted: #A79E8F; --field: #2A2723;
+    --sage: #9DB89F; --sage-ink: #A9C4AB; --sage-wash: #2B302A; --oak: #C9A982; --oak-ink: #D7BD99; --btn-ink: #23211D;
+    --pop: #2D2A25; --shadow: rgba(0, 0, 0, .5); --scrim: rgba(0, 0, 0, .5);
+  }
+
+  /* phone frame */
+  .phone { width: 360px; height: 740px; border-radius: 36px; border: 10px solid #141414; overflow: hidden; position: relative; background: var(--page);
+           box-shadow: 0 30px 60px -30px rgba(0, 0, 0, .6); transition: background-color .5s ease; }
+  .phone .app { height: 100%; overflow-y: auto; box-sizing: border-box; padding: 18px 20px 110px; scrollbar-width: none; }
+  .phone .app::-webkit-scrollbar { display: none; }
+  .pfoot { position: absolute; left: 0; right: 0; bottom: 0; padding: 26px 20px 18px; background: linear-gradient(to bottom, transparent, var(--page) 34%); display: flex; flex-direction: column; gap: 6px; }
+  .pfoot .go { width: 100%; padding: 13px; font-size: 14.5px; }
+  .pfoot .back { align-self: center; padding: 4px; }
+
+  .app { background: var(--page); text-align: left; font-weight: 400; transition: background-color .5s ease, color .5s ease; }
+  .desk .app { padding: 24px 32px 24px; border-radius: 12px; }
+  .app .top { display: flex; align-items: center; gap: 10px; }
+  .app .mark { width: 13px; height: 13px; border: 1.5px solid var(--sage); transform: rotate(45deg); }
+  .app .top b { font-weight: 500; letter-spacing: .14em; text-transform: uppercase; font-size: 11.5px; }
+  .app .steps { display: flex; margin: 20px 0 0; padding: 0; list-style: none; font-size: 11px; letter-spacing: .06em; color: var(--muted); }
+  .app .steps li { flex: 1; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+  .app .steps li span { display: block; font-size: 10px; margin-bottom: 1px; }
+  .app .steps .done span::after { content: " ✓"; color: var(--sage-ink); }
+  .app .steps .now { color: var(--ink); border-bottom: 2px solid var(--sage); }
+  .app .now-dot { position: relative; padding-left: 11px; }
+  .app .now-dot::before, .app .now-dot::after { content: ""; position: absolute; left: 0; top: 50%; width: 6px; height: 6px; margin-top: -3px; border-radius: 50%; background: var(--sage); }
+  .app .now-dot::after { animation: breathe 3.2s ease-in-out infinite; }
+  .app .msteps { margin-top: 16px; }
+  .app .msteps .segs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+  .app .msteps .segs i { height: 2px; background: var(--line); }
+  .app .msteps .segs i.on { background: var(--sage); }
+  .app .msteps .cap { display: block; font-size: 11px; letter-spacing: .06em; color: var(--muted); margin-top: 7px; }
+  .app .msteps .cap b { color: var(--ink); font-weight: 500; }
+  .app h4 { font-size: 23px; font-weight: 300; letter-spacing: .02em; margin: 26px 0 8px; }
+  .phone .app h4 { font-size: 21px; margin-top: 22px; }
+  .app .rule { height: 1px; width: 48px; background: var(--oak); margin: 0 0 12px; }
+  .app .lede { margin: 0 0 20px; font-size: 13px; line-height: 1.6; color: var(--muted); max-width: 580px; }
+  .app .meta { font-size: 11.5px; color: var(--muted); margin-top: 6px; }
+  .app .meta b { font-weight: 500; color: var(--ink); }
+
+  /* sentence (B) */
+  .app .sentence { font-size: 25px; font-weight: 300; line-height: 1.75; margin: 4px 0 10px; }
+  .phone .app .sentence { font-size: 22px; line-height: 1.8; }
+  .app .tok { display: inline; color: var(--sage-ink); border-bottom: 1px dashed var(--sage); cursor: pointer; padding: 2px 0; outline: none; transition: color .3s ease; }
+  .app .tok:hover, .app .tok:focus-visible { color: var(--ink); }
+  .app .tok.edit { cursor: text; }
+
+  /* summary rows (C) */
+  .app .srows { border-top: 1px solid var(--line); max-width: 620px; }
+  .app .srow { display: flex; align-items: center; gap: 14px; min-height: 54px; padding: 8px 0; border-bottom: 1px solid var(--line-soft); cursor: pointer; position: relative; transition: background-color .3s ease; }
+  .app .srow:hover { background: linear-gradient(to right, transparent, var(--sage-wash) 30%, transparent); }
+  .app .srow .sk { width: 92px; flex: none; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .app .srow .sv { flex: 1; font-size: 15px; font-weight: 400; }
+  .app .srow .sv small { display: block; font-size: 11.5px; color: var(--muted); margin-top: 1px; }
+  .app .srow .chev { color: var(--sage-ink); font-size: 18px; transition: transform .35s ease; }
+  .app .srow.open .chev { transform: rotate(90deg); }
+  .app .srow.name { cursor: default; }
+  .app .srow.name:hover { background: none; }
+  .app .sinput { flex: 1; min-width: 0; font: inherit; font-size: 15px; color: var(--ink); background: none; border: 0; border-bottom: 1px dashed var(--line); padding: 4px 0; outline: none; }
+  .app .sinput:focus { border-bottom: 1px solid var(--sage); }
+
+  /* desktop popover */
+  .app .menu { position: absolute; left: 106px; top: calc(100% - 4px); z-index: 6; width: 360px; background: var(--pop); border: 1px solid var(--line); border-radius: 4px;
+               box-shadow: 0 16px 40px -18px var(--shadow); padding: 6px 0; animation: rise .3s ease both; cursor: default; }
+
+  /* options (popover and sheet) */
+  .opt { display: flex; gap: 12px; align-items: flex-start; padding: 11px 14px; cursor: pointer; line-height: 1.35; color: var(--ink); transition: background-color .25s ease; }
+  .opt:hover { background: var(--sage-wash); }
+  .opt .ot { flex: 1; }
+  .opt b { display: block; font-size: 14.5px; font-weight: 500; }
+  .opt small { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .opt .oc { display: block; font-size: 12px; color: var(--ink); margin-top: 4px; }
+  .opt .rad { flex: none; width: 14px; height: 14px; margin-top: 3px; border-radius: 50%; border: 1.5px solid var(--line); position: relative; }
+  .opt.on .rad { border-color: var(--sage); }
+  .opt.on .rad::after { content: ""; position: absolute; inset: 2.5px; border-radius: 50%; background: var(--sage); }
+  .opt .recd { font-size: 10.5px; font-weight: 400; color: var(--sage-ink); margin-left: 6px; }
+
+  /* bottom sheet */
+  .sheet-wrap { position: absolute; inset: 0; pointer-events: none; z-index: 10; }
+  .sheet-wrap .scrim { position: absolute; inset: 0; background: var(--scrim); opacity: 0; transition: opacity .35s ease; }
+  .sheet-wrap .sheet { position: absolute; left: 0; right: 0; bottom: 0; background: var(--pop); border-radius: 20px 20px 0 0; padding: 8px 6px 22px;
+                       transform: translateY(105%); transition: transform .5s cubic-bezier(.2, .8, .2, 1); box-shadow: 0 -10px 30px -18px var(--shadow); }
+  .sheet-wrap.show { pointer-events: auto; }
+  .sheet-wrap.show .scrim { opacity: 1; }
+  .sheet-wrap.show .sheet { transform: none; }
+  .sheet .grab { width: 38px; height: 4px; border-radius: 4px; background: var(--line); margin: 2px auto 12px; }
+  .sheet h5 { margin: 0 14px 6px; font-size: 10px; font-weight: 400; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .sheet .opt { padding: 13px 14px; }
+
+  /* estimate */
+  .app .est { display: flex; align-items: baseline; gap: 26px; flex-wrap: wrap; padding: 20px 0 4px; }
+  .app .est .big { font-size: 26px; font-weight: 300; letter-spacing: .01em; }
+  .phone .app .est { gap: 22px; padding-top: 18px; }
+  .phone .app .est .big { font-size: 22px; }
+  .app .est .big small { font-size: 10px; color: var(--muted); letter-spacing: .12em; text-transform: uppercase; display: block; margin-bottom: 2px; }
+  .app .est .swap { animation: rise .55s cubic-bezier(.2, .7, .2, 1) both; }
+  .app .fine { font-size: 12.5px; line-height: 1.6; color: var(--muted); margin: 6px 0 0; max-width: 620px; }
+  .app .fine b { font-weight: 500; color: var(--ink); }
+  .app .holdout { display: flex; gap: 10px; align-items: flex-start; font-size: 12.5px; line-height: 1.6; color: var(--muted); margin: 16px 0 0; padding: 12px 0 0; border-top: 1px solid var(--line-soft); max-width: 620px; }
+  .app .holdout::before { content: ""; flex: none; width: 7px; height: 7px; margin-top: 7px; border-radius: 50%; border: 1.5px solid var(--oak); }
+  .app .advrow { display: flex; justify-content: space-between; align-items: center; min-height: 48px; margin-top: 14px; border-top: 1px solid var(--line-soft); border-bottom: 1px solid var(--line-soft); font-size: 13.5px; cursor: pointer; max-width: 620px; }
+  .app .advrow span { color: var(--sage-ink); font-size: 18px; }
+
+  .app .foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line-soft); }
+  .back { font: inherit; font-size: 13px; background: none; border: 0; color: var(--muted); cursor: pointer; padding: 9px 0; }
+  .back:hover { color: var(--ink); }
+  .go { font: inherit; font-size: 13.5px; cursor: pointer; background: var(--page); color: var(--sage-ink); border: 1px solid var(--sage); border-radius: 2px; padding: 9px 20px; letter-spacing: .06em; transition: background-color .3s ease, color .3s ease, transform .3s ease; }
+  .go:hover { background: var(--sage); color: var(--btn-ink); transform: translateY(-1px); }
+
+  @keyframes rise    { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  @keyframes breathe { 0%, 100% { transform: scale(1); opacity: .45; } 50% { transform: scale(1.9); opacity: 0; } }
+  .app .in { animation: rise .7s cubic-bezier(.2, .7, .2, 1) both; animation-delay: calc(var(--i, 0) * 90ms + 150ms); }
+  @media (prefers-reduced-motion: reduce) { .tv *, .tv *::before, .tv *::after { animation: none !important; transition: none !important; } }
+</style>
+
+<h2>The Settings step on a phone</h2>
+<p class="subtitle">Left: your option B on a phone. Its underlined words open a sheet from the bottom. Middle: option C, a hybrid with one row per choice. It reads almost as calmly as B, gives each row a full-width tap target, and the model list can grow later. Tap the choices. Below is C on a desktop.</p>
+<button class="theme" onclick="document.querySelectorAll('.tv').forEach((a) => a.classList.toggle('dark'))">Light / dark</button>
+
+<div class="phones">
+  <div class="choice" data-choice="sentence-mobile">
+    <div class="phone tv" id="bp-phone"><div class="app" id="bp"></div><div class="pfoot"><button class="go">Continue</button><button class="back">← Back</button></div><div class="sheet-wrap" id="bp-sheet"></div></div>
+    <h3>B on a phone · one sentence</h3>
+    <p>The sentence wraps over a few lines. Each underlined word opens a sheet that slides up from the bottom.</p>
+    <button class="pick" onclick="toggleSelect(this.closest('.choice'))">Pick this one</button>
+  </div>
+  <div class="choice" data-choice="rows-mobile">
+    <div class="phone tv" id="cp-phone"><div class="app" id="cp"></div><div class="pfoot"><button class="go">Continue</button><button class="back">← Back</button></div><div class="sheet-wrap" id="cp-sheet"></div></div>
+    <h3>C on a phone · one row per choice</h3>
+    <p>Name, model and amount of training, each a row showing its current value. Tap a row to get a sheet. A long model list fits in a sheet without changing the page.</p>
+    <button class="pick" onclick="toggleSelect(this.closest('.choice'))">Pick this one</button>
+  </div>
+</div>
+
+<div class="choice" data-choice="rows-desktop" style="max-width:none">
+  <div class="deskwrap desk"><div class="app tv" id="cd"></div></div>
+  <h3>C on a desktop</h3>
+  <p>The same rows. A click opens the options in a small panel under the row instead of a sheet.</p>
+</div>
+
+<script>
+  const MODELS = { flash: ["Clef-Flash", "Fast and affordable · 9B"], clef: ["Clef", "Most capable · 27B · about 3× the cost"] };
+  const PRESETS = {
+    quick: ["Quick test", "A fast, light run to check everything works."],
+    balanced: ["Balanced", "A good first real model. Three passes over your examples."],
+    thorough: ["Thorough", "Trains longer and more deeply. Most useful with larger datasets."],
+  };
+  const EST = {
+    flash: { quick: ["7–15", "$0.21–$0.46"], balanced: ["8–17", "$0.23–$0.50"], thorough: ["8–18", "$0.25–$0.53"] },
+    clef: { quick: ["14–31", "$0.60–$1.29"], balanced: ["16–34", "$0.73–$1.56"], thorough: ["17–37", "$0.78–$1.67"] },
+  };
+  const HW = { flash: ["one L40S GPU", "30 minutes", "$0.90"], clef: ["one A100 or RTX PRO 6000 GPU", "1 hour", "$2.75"] };
+  const S = { bp: { model: "flash", preset: "balanced", name: "support-tickets" },
+              cp: { model: "flash", preset: "balanced", name: "support-tickets" },
+              cd: { model: "flash", preset: "balanced", name: "support-tickets" } };
+
+  const phoneHead = `<div class="top"><span class="mark"></span><b>clef-tune</b></div>
+    <div class="msteps"><div class="segs"><i class="on"></i><i class="on"></i><i class="on"></i><i></i></div><span class="cap"><span class="now-dot">Step 3 of 4</span> · <b>Settings</b></span></div>
+    <h4 class="in">How should it be trained?</h4><div class="rule in"></div>
+    <p class="lede in">We've picked settings that suit most data. The time and cost update as you change them.</p>`;
+  const deskHead = `<div class="top"><span class="mark"></span><b>clef-tune</b></div>
+    <ol class="steps"><li class="done"><span>01</span>Your data</li><li class="done"><span>02</span>What to predict</li><li class="now"><span class="now-dot">03</span>Settings</li><li><span>04</span>Train</li></ol>
+    <h4 class="in">How should it be trained?</h4><div class="rule in"></div>
+    <p class="lede in">We've picked settings that suit most data. Change anything you like, and the time and cost update as you go.</p>`;
+
+  function estimate(id, compact) {
+    const s = S[id], [t, c] = EST[s.model][s.preset], [hw, cap, max] = HW[s.model];
+    return `<div class="est" id="${id}-est"><span class="big swap"><small>Time</small>${compact ? `${t} min` : `About ${t} minutes`}</span><span class="big swap" style="animation-delay:60ms"><small>Cost</small>${c}</span></div>
+      <p class="fine">Runs on Hugging Face's cloud on ${hw}, billed to your account. It stops itself after <b>${cap}</b>, so it never costs more than <b>${s.model === "flash" ? max : "$2.75"}</b>.</p>
+      <p class="holdout">We'll set aside 31 of your 200 examples and test the model on them before and after training.</p>`;
+  }
+
+  function options(id, kind, target) {
+    const s = S[id], src = kind === "model" ? MODELS : PRESETS;
+    return Object.entries(src).map(([k, [n, d]]) => {
+      const cost = kind === "preset" ? `<span class="oc">About ${EST[s.model][k][0]} min · ${EST[s.model][k][1]}</span>` : "";
+      const rec = k === "balanced" ? `<span class="recd">● Recommended</span>` : "";
+      return `<div class="opt ${s[kind] === k ? "on" : ""}" onclick="event.stopPropagation(); choose('${id}', '${kind}', '${k}', '${target}')"><span class="ot"><b>${n}${rec}</b><small>${d}</small>${cost}</span><span class="rad"></span></div>`;
+    }).join("");
+  }
+
+  function body(id) {
+    const s = S[id];
+    if (id === "bp") {
+      return `<div class="sentence in" style="--i:1">Train a <span class="tok" tabindex="0" onclick="openSheet('bp', 'preset')">${PRESETS[s.preset][0].toLowerCase()}</span> model on
+        <span class="tok" tabindex="0" onclick="openSheet('bp', 'model')">${MODELS[s.model][0]}</span>, named <span class="tok edit" contenteditable="true" spellcheck="false">${s.name}</span>.</div>
+        <div class="meta in" style="--i:2">Saved to your Hugging Face account as <b>hvgupta1/${s.name}</b></div>
+        <div class="in" style="--i:3">${estimate(id, true)}</div>
+        <div class="advrow in" style="--i:4">Advanced settings <span>›</span></div>`;
+    }
+    const phone = id === "cp";
+    const open = (kind) => phone ? `openSheet('${id}', '${kind}')` : `openPop(this, '${id}', '${kind}')`;
+    return `<div class="srows in" style="--i:1">
+        <label class="srow name"><span class="sk">Name</span><input class="sinput" value="${s.name}" oninput="S['${id}'].name = this.value"></label>
+        <div class="srow" onclick="${open("model")}"><span class="sk">Model</span><span class="sv">${MODELS[s.model][0]}<small>${MODELS[s.model][1]}</small></span><span class="chev">›</span></div>
+        <div class="srow" onclick="${open("preset")}"><span class="sk">Training</span><span class="sv">${PRESETS[s.preset][0]}<small>${PRESETS[s.preset][1]}</small></span><span class="chev">›</span></div>
+      </div>
+      <div class="meta in" style="--i:2">Saved to your Hugging Face account as <b>hvgupta1/${s.name}</b></div>
+      <div class="in" style="--i:3">${estimate(id, phone)}</div>
+      <div class="advrow in" style="--i:4">Advanced settings <span>›</span></div>
+      ${phone ? "" : `<div class="foot"><button class="back">← Back</button><button class="go">Continue</button></div>`}`;
+  }
+
+  function render(id, first) {
+    const el = document.getElementById(id);
+    const top = el.scrollTop;
+    el.innerHTML = (id === "cd" ? deskHead : phoneHead) + body(id);
+    if (!first) { el.querySelectorAll(".in").forEach((n) => (n.style.animation = "none")); el.scrollTop = top; }
+    if (!first) el.querySelectorAll(".est .big").forEach((n) => { n.classList.remove("swap"); void n.offsetWidth; n.classList.add("swap"); });
+  }
+
+  function openSheet(id, kind) {
+    const wrap = document.getElementById(id + "-sheet");
+    wrap.innerHTML = `<div class="scrim" onclick="closeSheet('${id}')"></div><div class="sheet"><div class="grab"></div><h5>${kind === "model" ? "Model" : "How much training"}</h5>${options(id, kind, "sheet")}</div>`;
+    void wrap.offsetWidth;
+    requestAnimationFrame(() => wrap.classList.add("show"));
+  }
+  function closeSheet(id) { document.getElementById(id + "-sheet").classList.remove("show"); }
+
+  function openPop(row, id, kind) {
+    const wasOpen = row.classList.contains("open");
+    document.querySelectorAll("#cd .srow.open").forEach((r) => { r.classList.remove("open"); r.querySelector(".menu")?.remove(); });
+    if (wasOpen) return;
+    row.classList.add("open");
+    row.insertAdjacentHTML("beforeend", `<div class="menu" onclick="event.stopPropagation()">${options(id, kind, "pop")}</div>`);
+  }
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest("#cd .srow")) document.querySelectorAll("#cd .srow.open").forEach((r) => { r.classList.remove("open"); r.querySelector(".menu")?.remove(); });
+  });
+
+  function choose(id, kind, value, target) {
+    S[id][kind] = value;
+    if (target === "sheet") { closeSheet(id); setTimeout(() => render(id), 220); }
+    else render(id);
+  }
+
+  ["bp", "cp", "cd"].forEach((id) => render(id, true));
+</script>

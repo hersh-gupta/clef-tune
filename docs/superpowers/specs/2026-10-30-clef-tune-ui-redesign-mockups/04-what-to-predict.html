@@ -1,0 +1,170 @@
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500&display=swap" rel="stylesheet">
+
+<style>
+  .theme { margin: 0 0 1rem; font: inherit; font-size: .85rem; background: none; border: 1px solid var(--border); border-radius: 999px; padding: .3rem .9rem; cursor: pointer; color: var(--text-secondary); }
+  .theme:hover { color: var(--text-primary); }
+  .frame { border-radius: 12px; overflow: hidden; border: 1px solid var(--border); }
+
+  .app {
+    --page: #F7F2EA; --line: #DDD0BC; --line-soft: #E8DFD1; --ink: #33302A; --muted: #665E52; --field: #FBF8F3;
+    --sage: #5C7A64; --sage-ink: #48644F; --sage-wash: #E9EDE3; --oak: #A88B66; --oak-ink: #5E4E38; --btn-ink: #F7F2EA;
+    --tip: #33302A; --tip-ink: #F7F2EA;
+  }
+  .app.dark {
+    --page: #23211D; --line: #3A362F; --line-soft: #312E28; --ink: #ECE5D8; --muted: #A79E8F; --field: #2A2723;
+    --sage: #9DB89F; --sage-ink: #A9C4AB; --sage-wash: #2B302A; --oak: #C9A982; --oak-ink: #D7BD99; --btn-ink: #23211D;
+    --tip: #ECE5D8; --tip-ink: #23211D;
+  }
+  .app { background: var(--page); color: var(--ink); font-family: "Noto Sans JP", system-ui, sans-serif; font-weight: 400;
+         padding: 24px 32px 24px; text-align: left; transition: background-color .5s ease, color .5s ease; }
+  .app .top { display: flex; align-items: center; gap: 10px; }
+  .app .mark { width: 13px; height: 13px; border: 1.5px solid var(--sage); transform: rotate(45deg); }
+  .app .top b { font-weight: 500; letter-spacing: .14em; text-transform: uppercase; font-size: 11.5px; }
+  .app .steps { display: flex; margin: 20px 0 0; padding: 0; list-style: none; font-size: 11px; letter-spacing: .06em; color: var(--muted); }
+  .app .steps li { flex: 1; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+  .app .steps li span { display: block; font-size: 10px; margin-bottom: 1px; }
+  .app .steps .done span::after { content: " ✓"; color: var(--sage-ink); }
+  .app .steps .now { color: var(--ink); border-bottom: 2px solid var(--sage); }
+  .app .steps .now span { position: relative; padding-left: 11px; }
+  .app .steps .now span::before, .app .steps .now span::after { content: ""; position: absolute; left: 0; top: 50%; width: 6px; height: 6px; margin-top: -3px; border-radius: 50%; background: var(--sage); }
+  .app .steps .now span::after { animation: breathe 3.2s ease-in-out infinite; }
+  .app h4 { font-size: 23px; font-weight: 300; letter-spacing: .02em; margin: 28px 0 8px; }
+  .app .rule { height: 1px; width: 48px; background: var(--oak); margin: 0 0 12px; }
+  .app .lede { margin: 0 0 14px; font-size: 13px; line-height: 1.6; color: var(--muted); max-width: 580px; }
+  .app .label { display: flex; align-items: center; gap: 7px; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; }
+
+  .app .rolesline { font-size: 13px; color: var(--muted); padding: 10px 0 14px; border-bottom: 1px solid var(--line-soft); margin-bottom: 22px; }
+  .app .rolesline b { font-weight: 500; color: var(--ink); }
+  .app .rolesline a { color: var(--sage-ink); margin-left: 10px; text-decoration: none; border-bottom: 1px solid var(--line); }
+
+  .app .split2 { display: grid; grid-template-columns: 158px 1fr; gap: 30px; }
+  .app .qlist { list-style: none; margin: 0; padding: 0; }
+  .app .qlist li { padding: 10px 0 10px 12px; border-left: 2px solid var(--line-soft); cursor: pointer; transition: border-color .4s ease; }
+  .app .qlist li:hover { border-left-color: var(--line); }
+  .app .qlist li.on { border-left-color: var(--sage); }
+  .app .qlist .num { font-size: 10px; color: var(--muted); letter-spacing: .08em; }
+  .app .qlist .nm { display: block; font-size: 13.5px; font-weight: 500; }
+  .app .qlist .sub { display: block; font-size: 11.5px; color: var(--muted); margin-top: 2px; line-height: 1.4; }
+
+  .app .q > * { animation: rise .6s cubic-bezier(.2, .7, .2, 1) both; }
+  .app .q > :nth-child(2) { animation-delay: 70ms; } .app .q > :nth-child(3) { animation-delay: 140ms; } .app .q > :nth-child(4) { animation-delay: 210ms; }
+
+  /* the bigger "Asked as" box */
+  .app .ask { display: block; width: 100%; box-sizing: border-box; min-height: 92px; resize: vertical;
+              font: inherit; font-size: 19px; font-weight: 300; line-height: 1.5; color: var(--ink);
+              background: var(--field); border: 1px solid var(--line); border-radius: 3px; padding: 14px 16px; margin: 0 0 6px;
+              outline: none; transition: border-color .35s ease, box-shadow .35s ease; }
+  .app .ask:hover { border-color: var(--oak); }
+  .app .ask:focus { border-color: var(--sage); box-shadow: 0 0 0 3px var(--sage-wash); }
+  .app .askmeta { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--muted); margin: 0 0 22px; }
+
+  /* info tip */
+  .app .info { position: relative; display: inline-flex; }
+  .app .info button { width: 16px; height: 16px; border-radius: 50%; border: 1px solid var(--muted); background: none; color: var(--muted);
+                      font: 500 10px/1 "Noto Sans JP", system-ui, sans-serif; padding: 0; cursor: help; display: grid; place-items: center;
+                      transition: color .3s ease, border-color .3s ease; }
+  .app .info button:hover, .app .info button:focus-visible { color: var(--sage-ink); border-color: var(--sage); outline: none; }
+  .app .tip { position: absolute; left: -12px; top: calc(100% + 10px); z-index: 5; width: 300px;
+              background: var(--tip); color: var(--tip-ink); border-radius: 4px; padding: 12px 14px;
+              font-size: 12.5px; line-height: 1.55; letter-spacing: 0; text-transform: none;
+              opacity: 0; transform: translateY(4px); pointer-events: none; transition: opacity .3s ease, transform .3s ease;
+              box-shadow: 0 10px 30px -12px rgba(40, 30, 20, .45); }
+  .app .tip::before { content: ""; position: absolute; left: 15px; top: -5px; width: 10px; height: 10px; background: var(--tip); transform: rotate(45deg); }
+  .app .tip b { font-weight: 500; }
+  .app .info:hover .tip, .app .info:focus-within .tip { opacity: 1; transform: none; }
+
+  .app .seg { display: flex; gap: 24px; margin: 0 0 22px; }
+  .app .seg button { font: inherit; font-size: 13px; color: var(--muted); background: none; border: 0; border-bottom: 2px solid transparent; padding: 3px 0 5px; cursor: pointer; transition: color .4s ease, border-color .4s ease; text-align: left; }
+  .app .seg button:hover { color: var(--ink); }
+  .app .seg button.on { color: var(--ink); border-bottom-color: var(--sage); }
+  .app .seg small { display: block; font-size: 11px; color: var(--muted); margin-top: 1px; }
+
+  .app .answers { display: grid; grid-template-columns: minmax(80px, auto) 1fr 104px; }
+  .app .answers > span { padding: 9px 18px 9px 0; border-bottom: 1px solid var(--line-soft); font-size: 13px; }
+  .app .answers > span:nth-child(3n) { padding-right: 0; }
+  .app .answers .head { padding-bottom: 5px; border-bottom: 1px solid var(--line); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .app .answers .val { font-weight: 500; }
+  .app .answers .val i { font-style: normal; font-size: 11px; color: var(--muted); margin-right: 8px; }
+  .app .desc { outline: none; border-radius: 2px; transition: background-color .3s ease; }
+  .app .desc:hover { background: var(--sage-wash); }
+  .app .desc:focus { background: var(--sage-wash); box-shadow: inset 0 -1px 0 var(--sage); }
+  .app .desc:empty::before { content: attr(data-ph); color: var(--muted); font-style: italic; }
+  .app .n { text-align: right; color: var(--muted); }
+  .app .bar { display: block; height: 3px; background: var(--line-soft); margin-top: 6px; border-radius: 2px; overflow: hidden; }
+  .app .bar b { display: block; height: 100%; background: var(--sage); transform-origin: left; animation: grow .9s cubic-bezier(.2, .7, .2, 1) both .25s; }
+  .app .hint { font-size: 12px; color: var(--muted); margin: 10px 0 0; }
+
+  .app .foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--line-soft); font-size: 12.5px; color: var(--muted); }
+  .app .foot a { color: var(--sage-ink); text-decoration: none; border-bottom: 1px solid var(--line); }
+  .app .go { font: inherit; font-size: 13.5px; cursor: pointer; background: none; color: var(--sage-ink); border: 1px solid var(--sage); border-radius: 2px; padding: 9px 20px; letter-spacing: .06em; transition: background-color .3s ease, color .3s ease, transform .3s ease; }
+  .app .go:hover { background: var(--sage); color: var(--btn-ink); transform: translateY(-1px); }
+
+  @keyframes rise    { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  @keyframes breathe { 0%, 100% { transform: scale(1); opacity: .45; } 50% { transform: scale(1.9); opacity: 0; } }
+  @keyframes grow    { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+  .app h4, .app .rule, .app .lede, .app .rolesline { animation: rise .7s cubic-bezier(.2, .7, .2, 1) both; }
+  .app .qlist li { animation: rise .7s cubic-bezier(.2, .7, .2, 1) both; animation-delay: calc(var(--i) * 80ms + 200ms); }
+  @media (prefers-reduced-motion: reduce) { .app *, .app *::before, .app *::after { animation: none !important; transition: none !important; } }
+</style>
+
+<h2>Option 2, revised</h2>
+<p class="subtitle">The new title, a bigger "Asked as" box, and a ⓘ beside it. Hover over the ⓘ or tab to it. Click a question on the left to switch, type in the box, and edit any description.</p>
+<button class="theme" onclick="document.querySelector('.app').classList.toggle('dark')">Light / dark</button>
+
+<div class="frame"><div class="app" id="m"></div></div>
+
+<script>
+  const Q = [
+    { id: "department", ask: "Which team should handle this ticket?", type: "choice", options: [
+      ["billing", "Payments, invoices and refunds", 78], ["technical", "Bugs, errors, outages and integrations", 84], ["account", "Logins, teammates, ownership and closing accounts", 38]] },
+    { id: "urgency", ask: "How soon does this ticket need a reply?", type: "score", options: [
+      ["0", "Can wait", 61], ["1", "This week", 83], ["2", "Today", 56]] },
+    { id: "outage", ask: "Is something down or unusable for this customer?", type: "yesno", options: [
+      ["yes", "", 47], ["no", "", 153]] },
+  ];
+  const TYPES = [["choice", "Pick one", "of named answers"], ["score", "Scale", "answers in order"], ["yesno", "Yes or no", "true or false"]];
+
+  function editor(q, i) {
+    const max = Math.max(...q.options.map((o) => o[2]));
+    const answers = q.options.map(([v, d, n], k) => `
+      <span class="val">${q.type === "score" ? `<i>${k + 1}</i>` : ""}${v}</span>
+      <span class="desc" contenteditable="true" spellcheck="false" data-ph="Optional: what this answer means">${d}</span>
+      <span class="n">${n} examples<span class="bar"><b style="width:${Math.round((n / max) * 100)}%"></b></span></span>`).join("");
+    const hint = q.type === "score" ? `<p class="hint">Lowest first. Drag an answer to reorder the scale.</p>`
+      : q.type === "yesno" ? `<p class="hint">Descriptions are optional. The question alone is often enough for yes or no.</p>` : "";
+    return `<div class="q">
+      <div>
+        <span class="label" id="ask-label">Asked as
+          <span class="info"><button type="button" aria-label="How this question is used" aria-describedby="ask-tip">?</button>
+            <span class="tip" role="tooltip" id="ask-tip">This sentence becomes part of the <b>prompt</b>, the text the model reads. It reads it with every example while it's being tuned, and again each time it makes a prediction later. Ask one clear question about a single row of your data.</span>
+          </span>
+        </span>
+        <textarea class="ask" aria-labelledby="ask-label" spellcheck="false" oninput="Q[${i}].ask = this.value; syncList(${i})">${q.ask}</textarea>
+        <div class="askmeta"><span>From the column <b>${q.id}</b></span><span>${q.options.length} answers in your data</span></div>
+      </div>
+      <div><span class="label">Type of answer</span><div class="seg">${TYPES.map(([k, t, s]) =>
+        `<button class="${k === q.type ? "on" : ""}" onclick="setType(this)">${t}<small>${s}</small></button>`).join("")}</div></div>
+      <div class="answers"><span class="head">Answer</span><span class="head">What it means</span><span class="head" style="text-align:right">Labeled</span>${answers}</div>
+      ${hint}
+    </div>`;
+  }
+  function setType(btn) { btn.parentElement.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b === btn)); }
+  function syncList(i) { document.querySelectorAll(".qlist .sub")[i].textContent = Q[i].ask; }
+  function pickQ(li, i) {
+    li.parentElement.querySelectorAll("li").forEach((o) => o.classList.toggle("on", o === li));
+    document.getElementById("ed").innerHTML = editor(Q[i], i);
+  }
+
+  document.getElementById("m").innerHTML = `
+    <div class="top"><span class="mark"></span><b>clef-tune</b></div>
+    <ol class="steps"><li class="done"><span>01</span>Your data</li><li class="now"><span>02</span>What to predict</li><li><span>03</span>Settings</li><li><span>04</span>Train</li></ol>
+    <h4>What should the model learn to predict?</h4><div class="rule"></div>
+    <p class="lede">Each question below is something the model learns to predict from your examples.</p>
+    <div class="rolesline">Reads <b>subject</b>, <b>body</b> · Ignores <b>ticket_id</b> · Predicts <b>3 questions</b><a href="#" onclick="event.preventDefault()">Change columns</a></div>
+    <div class="split2">
+      <ul class="qlist">${Q.map((q, i) => `<li style="--i:${i}" class="${i === 0 ? "on" : ""}" onclick="pickQ(this, ${i})"><span class="num">0${i + 1}</span><span class="nm">${q.id}</span><span class="sub">${q.ask}</span></li>`).join("")}</ul>
+      <div id="ed">${editor(Q[0], 0)}</div>
+    </div>
+    <div class="foot"><span>3 questions · 200 examples · <a href="#" onclick="event.preventDefault()">See what the model reads</a></span><button class="go">Continue</button></div>`;
+</script>

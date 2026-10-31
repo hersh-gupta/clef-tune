@@ -1,0 +1,221 @@
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500&display=swap" rel="stylesheet">
+
+<style>
+  .ctl { display: flex; flex-wrap: wrap; gap: .5rem; margin: 0 0 1.2rem; align-items: center; }
+  .ctl button { font: inherit; font-size: .85rem; background: none; border: 1px solid var(--border); border-radius: 999px; padding: .3rem .9rem; cursor: pointer; color: var(--text-secondary); }
+  .ctl button.on { border-color: var(--selected-border); color: var(--text-primary); }
+  .ctl .sp { flex: 1; }
+  .row2 { display: flex; gap: 2rem; align-items: flex-start; flex-wrap: wrap; }
+  .grow { flex: 1 1 600px; min-width: 0; }
+  .frame { border-radius: 12px; overflow: hidden; border: 1px solid var(--border); }
+  .cap { color: var(--text-secondary); font-size: .85rem; margin: .6rem 0 1.8rem; }
+
+  .tv {
+    --page: #F7F2EA; --line: #DDD0BC; --line-soft: #E8DFD1; --ink: #33302A; --muted: #665E52; --field: #FBF8F3;
+    --sage: #5C7A64; --sage-ink: #48644F; --sage-wash: #E9EDE3; --oak: #A88B66; --oak-ink: #5E4E38; --oak-wash: #F0E6D6;
+    --btn-ink: #F7F2EA; --shadow: rgba(60, 45, 25, .28);
+    font-family: "Noto Sans JP", system-ui, sans-serif; color: var(--ink);
+  }
+  .tv.dark {
+    --page: #23211D; --line: #3A362F; --line-soft: #312E28; --ink: #ECE5D8; --muted: #A79E8F; --field: #2A2723;
+    --sage: #9DB89F; --sage-ink: #A9C4AB; --sage-wash: #2B302A; --oak: #C9A982; --oak-ink: #D7BD99; --oak-wash: #332D24;
+    --btn-ink: #23211D; --shadow: rgba(0, 0, 0, .5);
+  }
+  .app { background: var(--page); text-align: left; padding: 24px 40px 30px; transition: background-color .5s ease, color .5s ease; }
+  .phone { width: 360px; height: 740px; flex: none; border-radius: 36px; border: 10px solid #141414; overflow: hidden; position: relative; background: var(--page); box-shadow: 0 30px 60px -30px rgba(0, 0, 0, .6); }
+  .phone .app { height: 100%; overflow-y: auto; box-sizing: border-box; padding: 18px 22px 30px; scrollbar-width: none; }
+  .phone .app::-webkit-scrollbar { display: none; }
+
+  .app .top { display: flex; align-items: center; gap: 10px; }
+  .app .mark { width: 13px; height: 13px; border: 1.5px solid var(--sage); transform: rotate(45deg); }
+  .app .top b { font-weight: 500; letter-spacing: .14em; text-transform: uppercase; font-size: 11.5px; }
+  .app .top .right { margin-left: auto; display: flex; align-items: center; gap: 16px; font-size: 12px; }
+  .app .top .right a { color: var(--sage-ink); border-bottom: 1px solid var(--line); cursor: pointer; }
+  .app .top .right .muted { color: var(--muted); }
+  .app .theme { width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--line); background: none; cursor: pointer; display: grid; place-items: center; }
+  .app .theme::after { content: ""; width: 10px; height: 10px; border-radius: 50%; background: linear-gradient(90deg, var(--ink) 50%, transparent 50%); border: 1px solid var(--ink); }
+
+  /* hero */
+  .app .hero { display: grid; grid-template-columns: 1.15fr .85fr; gap: 40px; align-items: center; padding: 56px 0 40px; border-bottom: 1px solid var(--line-soft); }
+  .phone .app .hero { grid-template-columns: 1fr; gap: 26px; padding: 34px 0 28px; }
+  .app .kicker { font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--oak-ink); margin: 0 0 14px; }
+  .app h1 { font-size: 40px; font-weight: 300; line-height: 1.2; letter-spacing: .005em; margin: 0 0 16px; }
+  .phone .app h1 { font-size: 30px; }
+  .app h1 em { font-style: normal; color: var(--sage-ink); }
+  .app .rule { height: 1px; width: 56px; background: var(--oak); margin: 0 0 16px; }
+  .app .lede { margin: 0 0 26px; font-size: 14.5px; line-height: 1.7; color: var(--muted); max-width: 460px; }
+  .app .ctas { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
+  .phone .app .ctas { flex-direction: column; align-items: stretch; gap: 14px; }
+  .app .primary { font: inherit; font-size: 15px; color: var(--btn-ink); background: var(--sage); border: 1px solid var(--sage); border-radius: 2px; padding: 13px 28px; letter-spacing: .05em; cursor: pointer; transition: transform .3s ease, box-shadow .3s ease; }
+  .app .primary:hover { transform: translateY(-1px); box-shadow: 0 10px 22px -12px var(--shadow); }
+  .app .link { font-size: 13.5px; color: var(--sage-ink); border-bottom: 1px solid var(--line); cursor: pointer; align-self: center; }
+  .app .note { font-size: 12px; color: var(--muted); margin: 14px 0 0; }
+  .app .samples { font-size: 13px; color: var(--muted); margin: 16px 0 0; line-height: 1.8; }
+  .app .samples a { color: var(--sage-ink); border-bottom: 1px solid var(--line); cursor: pointer; transition: border-color .3s ease; }
+  .app .samples a:hover { border-bottom-color: var(--sage); }
+
+  /* illustration */
+  .app .ill { position: relative; height: 230px; }
+  .phone .app .ill { height: 170px; }
+  .app .ill svg { width: 100%; height: 100%; overflow: visible; }
+  .app .ill .ln { stroke: var(--line); stroke-width: 1; fill: none; }
+  .app .ill .sheet rect { fill: var(--field); stroke: var(--oak); stroke-width: 1.2; }
+  .app .ill .sheet line { stroke: var(--oak); stroke-width: 1; opacity: .7; }
+  .app .ill .sheet .ok { fill: var(--sage); }
+  .app .ill .dia { fill: var(--page); stroke: var(--sage); stroke-width: 1.5; }
+  .app .ill .halo { fill: none; stroke: var(--sage); stroke-width: 1; transform-box: fill-box; transform-origin: center; animation: halo 3.6s ease-in-out infinite; }
+  .app .ill .out circle { fill: var(--sage); }
+  .app .ill .out .bar { fill: var(--sage-wash); }
+  .app .ill .out .barfill { fill: var(--sage); opacity: .55; transform-box: fill-box; transform-origin: left; animation: grow 1.4s cubic-bezier(.2, .7, .2, 1) both; }
+  .app .ill text { font-family: "Noto Sans JP", system-ui, sans-serif; font-size: 10px; fill: var(--muted); letter-spacing: .08em; }
+
+  /* steps */
+  .app h5 { font-size: 10px; font-weight: 400; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin: 30px 0 14px; }
+  .app .how { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--line); }
+  .phone .app .how { grid-template-columns: 1fr; }
+  .app .how div { padding: 14px 18px 16px 0; }
+  .app .how div + div { padding-left: 18px; border-left: 1px solid var(--line-soft); }
+  .phone .app .how div { padding: 12px 0; border-left: 0; border-bottom: 1px solid var(--line-soft); }
+  .phone .app .how div + div { padding-left: 0; }
+  .app .how span { display: block; font-size: 10px; letter-spacing: .1em; color: var(--muted); }
+  .app .how b { display: block; font-size: 15px; font-weight: 400; margin: 3px 0 4px; }
+  .app .how p { margin: 0; font-size: 12.5px; line-height: 1.6; color: var(--muted); }
+
+  .app .facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; margin-top: 30px; padding-top: 18px; border-top: 1px solid var(--line-soft); }
+  .phone .app .facts { grid-template-columns: 1fr; gap: 14px; }
+  .app .facts div { display: flex; gap: 10px; font-size: 12.5px; line-height: 1.6; color: var(--muted); }
+  .app .facts div::before { content: ""; flex: none; width: 7px; height: 7px; margin-top: 7px; border-radius: 50%; border: 1.4px solid var(--oak); }
+  .app .facts b { font-weight: 500; color: var(--ink); display: block; }
+  .app .foot { margin-top: 30px; font-size: 11.5px; color: var(--muted); }
+  .app .foot a { color: var(--sage-ink); border-bottom: 1px solid var(--line); }
+
+  /* returning */
+  .app .wb { padding: 40px 0 12px; }
+  .app .wb h1 { font-size: 32px; }
+  .phone .app .wb h1 { font-size: 26px; }
+  .app .mlist { list-style: none; padding: 0; margin: 0; border-top: 1px solid var(--line); max-width: 700px; }
+  .app .mlist li { display: flex; align-items: center; gap: 14px; padding: 13px 0; border-bottom: 1px solid var(--line-soft); cursor: pointer; }
+  .app .mlist .mt { flex: 1; }
+  .app .mlist .mn { font-size: 14.5px; font-weight: 500; }
+  .app .mlist small { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .app .mlist .ms { font-size: 11.5px; display: inline-flex; align-items: center; gap: 6px; color: var(--sage-ink); white-space: nowrap; }
+  .app .mlist .ms::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--sage); }
+  .app .mlist .ms.run::before { animation: ring 2.4s ease-out infinite; }
+  .app .mlist .ch { color: var(--sage-ink); font-size: 18px; }
+
+  @keyframes rise  { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+  @keyframes halo  { 0%, 100% { transform: scale(1); opacity: .5; } 50% { transform: scale(1.6); opacity: 0; } }
+  @keyframes grow  { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+  @keyframes ring  { 0% { box-shadow: 0 0 0 0 rgba(92, 122, 100, .45); } 70%, 100% { box-shadow: 0 0 0 7px rgba(92, 122, 100, 0); } }
+  .app .in { animation: rise .8s cubic-bezier(.2, .7, .2, 1) both; animation-delay: calc(var(--i, 0) * 90ms + 120ms); }
+  @media (prefers-reduced-motion: reduce) { .tv *, .tv *::before, .tv *::after { animation: none !important; transition: none !important; } }
+</style>
+
+<h2>The welcome screen, round 3</h2>
+<p class="subtitle">"Owned by you" headline, clef-tune name, and the samples reduced to one line. Hover a sample to see what it predicts. The app now always opens in light. Dark is only a choice from the toggle, remembered on that browser.</p>
+<div class="ctl">
+  <span class="lbl" style="color:var(--text-secondary);font-size:.85rem">Headline:</span>
+  <button class="on" data-g="h" onclick="pick(this, 'h', 0)">Owned by you</button>
+  <button data-g="h" onclick="pick(this, 'h', 1)">Trained on your own data</button>
+  <button data-g="h" onclick="pick(this, 'h', 2)">Frontier, owned by you</button>
+  <span class="sp"></span>
+  <button class="on" data-g="v" onclick="show(this, 'first')">First visit</button>
+  <button data-g="v" onclick="show(this, 'back')">Coming back</button>
+</div>
+<div class="ctl">
+  <span class="lbl" style="color:var(--text-secondary);font-size:.85rem">Name:</span>
+  <button class="on" data-g="n" onclick="pick(this, 'n', 0)">clef-tune</button>
+  <button data-g="n" onclick="pick(this, 'n', 1)">decisionwright</button>
+  <button data-g="n" onclick="pick(this, 'n', 2)">verdictly</button>
+  <span class="sp"></span>
+  <button onclick="document.querySelectorAll('.tv').forEach((a) => a.classList.toggle('dark'))">Light / dark</button>
+</div>
+
+<div class="row2">
+  <div class="grow"><div class="frame"><div class="app tv" id="d"></div></div><p class="cap">Desktop</p></div>
+  <div><div class="phone tv"><div class="app" id="p"></div></div><p class="cap">Phone</p></div>
+</div>
+
+<script>
+  const ILL = `<svg viewBox="0 0 300 200" role="img" aria-label="Your data trains your decision model, which gives answers">
+      <path class="ln" d="M92 100 H130"/><path class="ln" d="M170 100 H206"/>
+      <g class="sheet"><rect x="20" y="52" width="72" height="96" rx="3"/>
+        <line x1="30" y1="72" x2="82" y2="72"/><line x1="30" y1="88" x2="74" y2="88"/><line x1="30" y1="104" x2="80" y2="104"/><line x1="30" y1="120" x2="70" y2="120"/>
+        <circle class="ok" cx="84" cy="88" r="2.4"/><circle class="ok" cx="84" cy="120" r="2.4"/></g>
+      <rect class="halo" x="136" y="86" width="28" height="28" transform="rotate(45 150 100)"/>
+      <rect class="dia" x="136" y="86" width="28" height="28" transform="rotate(45 150 100)"/>
+      <g class="out">
+        <circle cx="214" cy="70" r="3"/><rect class="bar" x="224" y="67" width="60" height="6" rx="2"/><rect class="barfill" x="224" y="67" width="54" height="6" rx="2" style="animation-delay:.6s"/>
+        <circle cx="214" cy="100" r="3"/><rect class="bar" x="224" y="97" width="60" height="6" rx="2"/><rect class="barfill" x="224" y="97" width="38" height="6" rx="2" style="animation-delay:.75s"/>
+        <circle cx="214" cy="130" r="3"/><rect class="bar" x="224" y="127" width="60" height="6" rx="2"/><rect class="barfill" x="224" y="127" width="49" height="6" rx="2" style="animation-delay:.9s"/></g>
+      <text x="56" y="170" text-anchor="middle">YOUR DATA</text><text x="150" y="170" text-anchor="middle">YOUR DECISION</text><text x="150" y="183" text-anchor="middle">MODEL</text><text x="254" y="170" text-anchor="middle">ANSWERS</text>
+    </svg>`;
+
+  function topBar(signedIn) {
+    return `<div class="top"><span class="mark"></span><b>${NAMES[name]}</b><span class="right">
+      ${signedIn ? `<a>Your models</a><span class="muted">hvgupta1</span>` : `<a>Sign in with Hugging Face</a>`}<button class="theme" aria-label="Light or dark"></button></span></div>`;
+  }
+  function first(phone) {
+    return topBar(false) + `
+      <div class="hero">
+        <div>
+          <p class="kicker in">Fine-tuned decisions for everyone</p>
+          <h1 class="in" style="--i:1">${HEADS[head]}</h1>
+          <div class="rule in" style="--i:2"></div>
+          <p class="lede in" style="--i:2">Upload a spreadsheet of examples with the expected outputs filled in. ${NAMES[name]} fine-tunes a decision model to predict them for new cases, and shows you how much better it got before you use it.</p>
+          <div class="ctas in" style="--i:3"><button class="primary">Start with your data</button></div>
+          <p class="samples in" style="--i:4">Or try a sample:
+            <a title="Which team, how urgent, is it an outage">support tickets</a> ·
+            <a title="Which reviewer, how risky, pay in full">claim triage</a> ·
+            <a title="How severe, which component, act now">server logs</a></p>
+          <p class="note in" style="--i:4">No sign-in needed to look around. You'll sign in with Hugging Face when you're ready to train.</p>
+        </div>
+        <div class="ill in" style="--i:3">${ILL}</div>
+      </div>
+      <h5 class="in" style="--i:5">How it works</h5>
+      <div class="how in" style="--i:5">
+        <div><span>01</span><b>Your data</b><p>Upload examples from past work, or label some just for this.</p></div>
+        <div><span>02</span><b>What to predict</b><p>Say what each output column means, as a plain question.</p></div>
+        <div><span>03</span><b>Settings</b><p>Pick how much training. See the time and price first.</p></div>
+        <div><span>04</span><b>Train</b><p>It runs on Hugging Face. Leave, and come back to the results.</p></div>
+      </div>
+      <div class="facts in" style="--i:6">
+        <div><span><b>Pay only for what runs</b>Often under a dollar for a few hundred examples, billed by Hugging Face. You see the price before anything starts.</span></div>
+        <div><span><b>Your data stays yours</b>Training data and the finished model are stored privately in your own Hugging Face account.</span></div>
+        <div><span><b>See before you trust</b>Every model is tested on examples it never saw, before and after training.</span></div>
+      </div>
+      <p class="foot in" style="--i:7">Fine-tunes Cloudflare's open Clef decision models · Open source on <a>GitHub</a> · MIT licence</p>`;
+  }
+  function back(phone) {
+    return topBar(true) + `
+      <div class="wb"><p class="kicker in">Welcome back</p><h1 class="in" style="--i:1">Good afternoon, hvgupta1.</h1><div class="rule in" style="--i:2"></div></div>
+      <h5 class="in" style="--i:2">Your models</h5>
+      <ul class="mlist in" style="--i:3">
+        <li><span class="mt"><span class="mn">support-tickets</span><small>About 12 minutes left</small></span><span class="ms run">Training</span><span class="ch">›</span></li>
+        <li><span class="mt"><span class="mn">claims-2026</span><small>Matched every expected output on 23 of 30 claims</small></span><span class="ms">Ready</span><span class="ch">›</span></li>
+      </ul>
+      <p class="note in" style="--i:4"><a class="link">See all 4 models</a></p>
+      <div class="ctas in" style="--i:5; margin-top:28px"><button class="primary">Train a new model</button></div>`;
+  }
+  const HEADS = [
+    "Bespoke intelligence, <em>owned by you</em>.",
+    "Bespoke intelligence, trained on <em>your own data</em>.",
+    "Bespoke frontier intelligence, <em>owned by you</em>.",
+  ];
+  const NAMES = ["clef-tune", "decisionwright", "verdictly"];
+  let head = 0, name = 0, view = "first";
+  function pick(btn, group, k) {
+    btn.parentElement.querySelectorAll(`[data-g="${group}"]`).forEach((b) => b.classList.toggle("on", b === btn));
+    if (group === "h") head = k; else name = k;
+    show(null, view);
+  }
+  const S = { first, back };
+  function show(btn, v) {
+    view = v;
+    if (btn) btn.parentElement.querySelectorAll("[data-g=v]").forEach((b) => b.classList.toggle("on", b === btn));
+    document.getElementById("d").innerHTML = S[v](false);
+    document.getElementById("p").innerHTML = S[v](true);
+  }
+  show(null, "first");
+</script>
