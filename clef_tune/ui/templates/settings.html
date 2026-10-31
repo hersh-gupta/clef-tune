@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block title %}Settings · clef-tune{% endblock %}
+{% block steps %}{{ m.step_bar(steps) }}{% endblock %}
+{% block main %}
+<h1 class="title in">How should it be trained?</h1>
+<div class="rule in"></div>
+<p class="lede in">We've picked settings that suit most data. Change anything you like, and the time and cost update as you go.</p>
+<div id="settings-body" class="in" style="--i:1">{% include "_settings_body.html" %}</div>
+{% endblock %}

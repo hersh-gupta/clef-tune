@@ -150,6 +150,23 @@ def workload_from(config: Config, tokens: TokenStats) -> Workload:
     )
 
 
+def prediction_workload(config: Config, tokens: int) -> Workload:
+    """One forward pass over `tokens` prompt tokens: training_flops then counts only the
+    evaluation term, and the memory is a frozen (head-only) model's."""
+    train = config.train
+    return Workload(
+        train_tokens_per_epoch=0,
+        eval_tokens=tokens,
+        epochs=1,
+        eval_passes=1,
+        mode="head_only",
+        quantization=train.quantization,
+        max_tokens_per_batch=train.max_tokens_per_batch,
+        lora_r=train.lora.r,
+        gradient_checkpointing=train.gradient_checkpointing,
+    )
+
+
 def training_flops(model: ModelSpec, workload: Workload) -> float:
     per_token = 6 if workload.mode == "lora" else 2
     train = per_token * model.flop_params * workload.train_tokens_per_epoch * workload.epochs
@@ -284,6 +301,13 @@ def estimate_hf_flavors(
 def recommend(rows: list[EstimateRow]) -> EstimateRow | None:
     fitting = [row for row in rows if row.fits and row.cost_point is not None]
     return min(fitting, key=lambda row: row.cost_point) if fitting else None
+
+
+def estimate_prediction(
+    model: ModelSpec, config: Config, tokens: int, prices: dict[str, float] | None = None
+) -> EstimateRow | None:
+    """The cheapest fitting hardware for predicting `tokens` prompt tokens, or None."""
+    return recommend(estimate_hf_flavors(model, prediction_workload(config, tokens), prices))
 
 
 def suggest_timeout(row: EstimateRow, extra_minutes: float = 0) -> str:

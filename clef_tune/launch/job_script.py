@@ -13,6 +13,8 @@ MODEL_MOUNT = "/model"  # the base model repo, mounted read-only
 KERNEL_MOUNT = "/kernels"  # the bucket folder caching the causal-conv1d wheel between jobs
 BUNDLE_CONFIG = f"{WORK_MOUNT}/bundle/config.yaml"
 JOB_OUTPUT_DIR = f"{WORK_MOUNT}/out"
+INPUT_DIR = f"{WORK_MOUNT}/input"  # a prediction job's uploaded file
+PREDICTIONS_PATH = f"{JOB_OUTPUT_DIR}/predictions.csv"
 
 
 def kernel_step(cache_dir: str = KERNEL_MOUNT) -> str:
@@ -61,6 +63,43 @@ def job_script(
         'wait "$train_pid"',
     ]
     return "\n".join(lines)
+
+
+def predict_script(
+    source: Source,
+    *,
+    adapter_repo: str,
+    input_name: str,
+    review_below: float,
+    keep_input: bool,
+    kernels: bool,
+) -> str:
+    """Predict the uploaded file with an adapter into /work/out/predictions.csv, then (unless
+    the input is kept) delete the uploaded file. The output stays for the person to download."""
+    requirement = source.requirement()
+    input_path = f"{INPUT_DIR}/{input_name}"
+    predict = (
+        f"clef-tune predict {shlex.quote(adapter_repo)} {shlex.quote(input_path)} "
+        f"-o {PREDICTIONS_PATH} --review-below {review_below:g} --base-model {MODEL_MOUNT}"
+    )
+    lines = [
+        "set -euo pipefail",
+        f'echo "clef-tune job: installing {requirement}"',
+        f"pip install --root-user-action=ignore {shlex.quote(requirement)}",
+        *([kernel_step()] if kernels else []),
+        f"mkdir -p {JOB_OUTPUT_DIR}",
+        f"{predict} &",
+        "predict_pid=$!",
+        'trap \'echo "clef-tune job: stopping"; kill -TERM "$predict_pid" 2>/dev/null\' TERM INT',
+        'wait "$predict_pid"',
+    ]
+    if not keep_input:
+        lines.append(f"rm -f {shlex.quote(input_path)}")
+    return "\n".join(lines)
+
+
+def predict_command(source: Source, **kwargs) -> list[str]:
+    return ["bash", "-c", predict_script(source, **kwargs)]
 
 
 def job_command(

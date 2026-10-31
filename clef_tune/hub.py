@@ -6,9 +6,11 @@ from __future__ import annotations
 import json
 import warnings
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import yaml
 from huggingface_hub import HfApi, hf_hub_download, snapshot_download
 
 WRITE_ROLES = ("write", "admin")
@@ -133,3 +135,32 @@ def pull_metrics(
         return json.loads(Path(path).read_text(encoding="utf-8"))
     except Exception as exc:
         raise HubError(f"cannot read metrics.json from {repo_id}: {exc}") from exc
+
+
+@dataclass
+class RunFiles:
+    metrics: dict
+    config: dict  # train_config.yaml
+    schema: dict | None  # schema.yaml, when the adapter has one
+
+
+def pull_run_files(
+    repo_id: str, *, token: str | None = None, download: Callable[..., str] = hf_hub_download
+) -> RunFiles:
+    """What the results view needs from an adapter repo: its metrics, config and schema."""
+    try:
+        metrics = json.loads(
+            Path(download(repo_id, "metrics.json", token=token)).read_text("utf-8")
+        )
+        config = yaml.safe_load(
+            Path(download(repo_id, "train_config.yaml", token=token)).read_text("utf-8")
+        )
+    except Exception as exc:
+        raise HubError(f"cannot read the results of {repo_id}: {exc}") from exc
+    try:
+        schema = yaml.safe_load(
+            Path(download(repo_id, "schema.yaml", token=token)).read_text("utf-8")
+        )
+    except Exception:  # an adapter without a separate schema file keeps it in the config
+        schema = None
+    return RunFiles(metrics, config or {}, schema)

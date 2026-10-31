@@ -1,8 +1,6 @@
 import subprocess
 import sys
 
-import pytest
-
 NO_TORCH_MODULES = [
     "clef_tune",
     "clef_tune.cli",
@@ -23,21 +21,11 @@ NO_TORCH_MODULES = [
     "clef_tune.launch.job_script",
     "clef_tune.launch.hf_jobs",
     "clef_tune.automap",
+    "clef_tune.predictions",
     "clef_tune.ui",
-    "clef_tune.ui.charts",
-    "clef_tune.ui.fragments",
-    "clef_tune.ui.settings",
-    "clef_tune.ui.session",
-    "clef_tune.ui.services",
-    "clef_tune.ui.handlers",
-    "clef_tune.ui.runs",
-    "clef_tune.ui.local",
-]
-
-# The UI's logic stays importable and testable without gradio; only the layout imports it.
-NO_GRADIO_MODULES = [
-    "clef_tune.ui.charts",
-    "clef_tune.ui.fragments",
+    "clef_tune.ui.wording",
+    "clef_tune.ui.views",
+    "clef_tune.ui.server",
     "clef_tune.ui.settings",
     "clef_tune.ui.session",
     "clef_tune.ui.services",
@@ -51,17 +39,4 @@ def test_core_modules_never_import_torch():
     imports = "; ".join(f"import {module}" for module in NO_TORCH_MODULES)
     check = "bad = [m for m in ('torch', 'transformers', 'peft') if m in sys.modules]"
     code = f"import sys; {imports}; {check}; assert not bad, bad"
-    subprocess.run([sys.executable, "-c", code], check=True)
-
-
-def test_ui_logic_never_imports_gradio():
-    imports = "; ".join(f"import {module}" for module in NO_GRADIO_MODULES)
-    code = f"import sys; {imports}; assert 'gradio' not in sys.modules"
-    subprocess.run([sys.executable, "-c", code], check=True)
-
-
-def test_the_ui_layout_never_imports_torch():
-    pytest.importorskip("gradio")
-    check = "bad = [m for m in ('torch', 'transformers', 'peft') if m in sys.modules]"
-    code = f"import sys; import clef_tune.ui.app, clef_tune.ui.theme; {check}; assert not bad, bad"
     subprocess.run([sys.executable, "-c", code], check=True)

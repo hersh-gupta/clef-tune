@@ -1,253 +1,290 @@
-"""Event handlers for the Launch step's HF Jobs tab: the launch review and confirmation, the
-runs list, the run monitor, cancel and resume, and the results view. Every Hub call uses the
-user's own token; nothing starts or resumes without a confirmation that shows its cost."""
+"""Runs: reviewing and starting a training job, following any run (training or prediction),
+stopping, resuming and cleaning it up, and what its results say. Plain data for the pages;
+every Hub call uses the person's own token, and nothing that costs money starts without a
+review that shows the most it can cost."""
 
 from __future__ import annotations
 
-import dataclasses
 import json
+import math
 import warnings
-from dataclasses import dataclass
-from typing import Any
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Any, Literal
 
+from clef_tune.estimate import HF_FLAVORS
 from clef_tune.hub import HubError
-from clef_tune.launch.hf_jobs import JobRequest, LaunchError
-from clef_tune.ui import charts, fragments
+from clef_tune.launch.hf_jobs import JobRequest, JobStatus, LaunchError, timeout_hours
+from clef_tune.ui import wording as w
 from clef_tune.ui.services import Services
 from clef_tune.ui.session import Session
-from clef_tune.ui.settings import Settings, SignInRequired, user_token
 
-LOG_TAIL = 200
-POLL_SECONDS = 10
+POLL_SECONDS = 5
 TERMINAL = ("COMPLETED", "CANCELED", "ERROR", "DELETED")
 RESUMABLE = ("ERROR", "CANCELED")
+DOTS_MAX = 60
 # What a Hub or Jobs call can raise that the person can act on. HfHubHTTPError is an OSError.
-_ERRORS = (SignInRequired, LaunchError, HubError, OSError, ValueError)
+_ERRORS = (LaunchError, HubError, OSError, ValueError)
+Status = Literal["running", "done", "stopped", "failed"]
+StageState = Literal["done", "now", "todo", "stopped"]
 
 
-@dataclass
-class PendingLaunch:
-    plan: Any  # hf_jobs.LaunchPlan
-    fingerprint: str  # the draft it was reviewed for
+def _status(stage: str) -> Status:
+    if stage == "COMPLETED":
+        return "done"
+    if stage == "CANCELED":
+        return "stopped"
+    if stage in ("ERROR", "DELETED"):
+        return "failed"
+    return "running"
 
 
-@dataclass
-class LaunchReview:
-    summary: str
-    confirm_label: str
-    can_confirm: bool
-    timeout: str
-    error: str | None
+def hardware(flavor: str | None) -> str:
+    """A flavor in words: "one L40S GPU"."""
+    spec = HF_FLAVORS.get(flavor or "")
+    if spec is None:
+        return "a GPU"
+    count = "one" if spec.count == 1 else str(spec.count)
+    return f"{count} {spec.gpu.replace('-', ' ')} GPU{'s' if spec.count > 1 else ''}"
 
 
-@dataclass
-class ResultsView:
-    table: str
-    heatmaps: str
-    calibration: str
-    repo_link: str
-    snippet: str
-
-
-@dataclass
-class RunView:
-    badge: str
-    progress: str
-    stats: str
-    loss_chart: str
-    eval_chart: str
-    logs: str
-    can_cancel: bool
-    can_resume: bool
-    polling: bool
-    results: ResultsView | None
-    notice: str | None
-
-
-def _money(value: float | None) -> str:
-    return "—" if value is None else f"${value:,.2f}"
-
-
-def _stage(info: Any) -> str:
-    stage = info.status.stage
-    return str(getattr(stage, "value", stage))
-
-
-def _token(settings: Settings, oauth_token: str | None, pasted: str | None) -> str:
-    return user_token(settings, oauth_token, pasted)
-
-
-# ---------------------------------------------------------------------------- launching
-
-
-def account(
-    settings: Settings, services: Services, *, oauth_token: str | None, pasted: str | None
-) -> str | None:
-    """The signed-in user's name, or None."""
+def cap_cost(price_per_hour: float | None, timeout: str | None) -> float | None:
+    if price_per_hour is None or not timeout:
+        return None
     try:
-        return services.whoami(_token(settings, oauth_token, pasted))
-    except Exception:  # not signed in, or the token cannot be read: the UI says sign in
+        return timeout_hours(timeout) * price_per_hour
+    except LaunchError:
         return None
 
 
-def default_adapter_repo(session: Session, namespace: str) -> str:
-    return f"{namespace}/clef-tune-{session.draft.run_name}"
+# ---------------------------------------------------------------------------- following a run
 
 
-def _fact(label: str, value: str) -> str:
-    return f"<div><dt>{fragments.esc(label)}</dt><dd>{fragments.esc(value)}</dd></div>"
+@dataclass
+class Stage:
+    label: str
+    detail: str = ""
+    state: StageState = "todo"
 
 
-def _plan_summary(plan: Any, notes: list[str]) -> str:
-    gpus = f"{plan.gpus} GPU" + ("s" if plan.gpus > 1 else "")
-    estimate = plan.estimate
-    if estimate is None:
-        expected = "No estimate for this model"
-    else:
-        cost = (
-            ""
-            if estimate.cost_low is None
-            else (f" · {_money(estimate.cost_low)}–{_money(estimate.cost_high)}")
-        )
-        expected = f"{estimate.hours_low:.1f}–{estimate.hours_high:.1f} h{cost}"
-    ceiling = (
-        "Unknown (no price for this hardware)"
-        if plan.max_cost is None
-        else f"{_money(plan.max_cost)}, if it runs until the time limit"
-    )
-    if not plan.kernels:
-        kernels = "Off (slower training)"
-    elif plan.kernels_cached:
-        kernels = "Cached from an earlier job"
-    else:
-        kernels = "Built once (about 12 min), then cached"
-    facts = [
-        _fact("Hardware", f"{plan.flavor} ({gpus})"),
-        _fact("Time limit", plan.timeout),
-        _fact("Expected", expected),
-        _fact("Most it can cost", ceiling),
-        _fact("Adapter repo", f"{plan.adapter_repo} (private)"),
-        _fact("Training data", "Kept" if plan.keep_data else "Deleted after a successful run"),
-        _fact("Fast kernels", kernels),
-        _fact("clef-tune code", f"{plan.source.repo_url} @ {plan.source.ref[:12]}"),
-    ]
-    callouts = "".join(fragments.callout("warning", note) for note in notes)
-    return f'<div class="ct-review"><dl class="ct-facts">{"".join(facts)}</dl>{callouts}</div>'
-
-
-def review_launch(
-    session: Session,
-    settings: Settings,
-    services: Services,
-    *,
-    oauth_token: str | None,
-    pasted: str | None,
-    flavor: str | None,
-    timeout: str,
-    adapter_repo: str,
-    delete_data: bool,
-) -> LaunchReview:
-    """Check everything a launch needs and show what it will cost. Uploads and starts nothing."""
-    session.pending = None
-    timeout = (timeout or "").strip()
-    try:
-        token = _token(settings, oauth_token, pasted)
-        if session.draft is None:
-            raise ValueError("Load data on the Data step first")
-        config_path = session.write_config()
-        try:
-            counter = services.counter(session.config())
-        except Exception:  # plan_launch retries and reports why it could not
-            counter = None
-        request = JobRequest(
-            flavor=flavor or None,
-            timeout=timeout or None,
-            keep_data=not delete_data,
-            adapter_repo=(adapter_repo or "").strip() or None,
-        )
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
-            plan = services.plan_launch(
-                config_path, request, token=token, counter=counter, prices=services.prices()
-            )
-    except _ERRORS as exc:
-        return LaunchReview("", "Launch", False, timeout, str(exc))
-    session.pending = PendingLaunch(plan, session.draft.fingerprint())
-    label = "Launch" if plan.max_cost is None else f"Launch for up to {_money(plan.max_cost)}"
-    notes = [str(item.message) for item in caught]
-    return LaunchReview(_plan_summary(plan, notes), label, True, plan.timeout, None)
-
-
-def confirm_launch(
-    session: Session,
-    settings: Settings,
-    services: Services,
-    *,
-    oauth_token: str | None,
-    pasted: str | None,
-) -> str:
-    """Start the reviewed job. The review is used once, and only for the draft it reviewed."""
-    pending, session.pending = session.pending, None
-    if pending is None:
-        return fragments.callout("info", "Nothing to launch; review the launch first.")
-    if session.draft is None or pending.fingerprint != session.draft.fingerprint():
-        return fragments.callout(
-            "warning", "The settings changed after the review; review the launch again."
-        )
-    try:
-        job = services.submit_launch(pending.plan, token=_token(settings, oauth_token, pasted))
-    except _ERRORS as exc:
-        return fragments.callout("error", f"The job did not start: {exc}")
-    session.job_id, session.last_view = job.id, None
-    return fragments.callout(
-        "success",
-        f"Job {job.id} started. Follow it below, under Your runs.",
-        link=("Open it on Hugging Face", job.url),
-    )
-
-
-# ---------------------------------------------------------------------------- runs list
-
-
-def list_runs(
-    settings: Settings, services: Services, *, oauth_token: str | None, pasted: str | None
-) -> tuple[list[list[str]], str | None]:
-    """The user's clef-tune jobs, newest first, as rows: id, run, hardware, stage, created."""
-    try:
-        jobs = services.list_jobs(token=_token(settings, oauth_token, pasted))
-    except _ERRORS as exc:
-        return [], str(exc)
-    rows = []
-    for info in jobs:
-        created = info.created_at
-        rows.append(
-            [
-                info.id,
-                (info.labels or {}).get("run", "—"),
-                info.flavor or "—",
-                _stage(info).capitalize(),
-                f"{created:%Y-%m-%d %H:%M}" if created else "—",
-            ]
-        )
-    return rows, None
-
-
-def select_run(session: Session, job_id: str) -> None:
-    session.job_id, session.last_view = job_id, None
-
-
-# ---------------------------------------------------------------------------- monitor
+@dataclass
+class RunState:
+    id: str
+    kind: str  # "train" or "predict"
+    name: str
+    status: Status
+    stages: list[Stage]
+    fraction: float  # how far along, 0-1
+    time_left: str | None
+    eta_seconds: float | None
+    spent: str
+    cap: str | None
+    message: str | None
+    can_stop: bool
+    can_resume: bool
+    loss: list[tuple[int, float]] = field(default_factory=list)
+    adapter_repo: str | None = None
+    url: str | None = None
+    hours: float | None = None
+    cost: float | None = None
 
 
 def _latest(events: list[dict], event: str) -> dict | None:
     return next((e for e in reversed(events) if e.get("event") == event), None)
 
 
-def _minutes(seconds: float) -> str:
-    minutes = max(1, round(seconds / 60))
-    if minutes < 60:
-        return f"about {minutes} min left"
-    return f"about {minutes / 60:.1f} h left"
+def _stages(labels: list[tuple[str, str, str, str]], reached: list[bool], running: bool):
+    """Stages from (done, now, todo, detail) labels and which of them were reached: the first
+    one not reached is where the run is now, or where it stopped."""
+    first_todo = next((k for k, ok in enumerate(reached) if not ok), len(reached))
+    stages = []
+    for k, (done, now, todo, detail) in enumerate(labels):
+        if k < first_todo:
+            stages.append(Stage(done, detail, "done"))
+        elif k == first_todo:
+            stages.append(Stage(now, detail, "now" if running else "stopped"))
+        else:
+            stages.append(Stage(todo, "", "todo"))
+    return stages
+
+
+def _machine(flavor: str | None) -> str:
+    return f"{hardware(flavor)[0].upper()}{hardware(flavor)[1:]} on Hugging Face"
+
+
+def train_stages(
+    stage: str, events: list[dict], model: str, noun: str, flavor: str | None
+) -> list[Stage]:
+    """The six training stages, from the job's stage and its metrics.jsonl events."""
+    baseline, train = _latest(events, "baseline"), _latest(events, "train")
+    total = (train or {}).get("total_steps")
+    trained = bool(train and total and train["step"] >= total)
+    tested = _latest(events, "done") is not None
+    complete = stage == "COMPLETED"
+    starting = ""
+    if baseline and baseline.get("exact_match") is not None:
+        share = round(baseline["exact_match"] * 100)
+        starting = (
+            f"Before training it matched every expected output on {share}% of the test "
+            f"{w.plural(noun)}"
+        )
+    steps = ""
+    if train:
+        steps = f"Step {train['step']} of {total}" if total else f"Step {train['step']}"
+    labels = [
+        ("Started a machine", "Starting a machine", "Start a machine", _machine(flavor)),
+        (f"Loaded {model}", f"Loading {model}", f"Load {model}", ""),
+        (
+            "Measured the starting point",
+            "Measuring the starting point",
+            "Measure the starting point",
+            starting,
+        ),
+        (
+            "Learned from your examples",
+            "Learning from your examples",
+            "Learn from your examples",
+            steps,
+        ),
+        ("Tested the result", "Testing the result", "Test the result", ""),
+        ("Saved to your account", "Saving to your account", "Save to your account", ""),
+    ]
+    reached = [
+        stage != "SCHEDULING",
+        bool(events) or complete,
+        baseline is not None or complete,
+        trained or tested or complete,
+        tested or complete,
+        complete,
+    ]
+    return _stages(labels, reached, _status(stage) == "running")
+
+
+def predict_stages(stage: str, model: str, noun: str, flavor: str | None) -> list[Stage]:
+    things = w.plural(noun)
+    labels = [
+        ("Started a machine", "Starting a machine", "Start a machine", _machine(flavor)),
+        (
+            f"Read your {things} with {model}",
+            f"Reading your {things} with {model}",
+            f"Read your {things}",
+            "",
+        ),
+        ("Prepared your spreadsheet", "Preparing your spreadsheet", "Prepare your spreadsheet", ""),
+    ]
+    complete = stage == "COMPLETED"
+    reached = [stage != "SCHEDULING", complete, complete]
+    return _stages(labels, reached, _status(stage) == "running")
+
+
+def _fraction(stages: list[Stage], events: list[dict]) -> float:
+    done = sum(1 for s in stages if s.state == "done")
+    if done == len(stages):
+        return 1.0
+    train = _latest(events, "train")
+    if (
+        train
+        and train.get("total_steps")
+        and any(s.state == "now" and s.label.startswith("Learning") for s in stages)
+    ):
+        return 0.15 + 0.75 * min(train["step"] / train["total_steps"], 1.0)
+    return max(0.04, done / len(stages))
+
+
+def _failure(status: JobStatus) -> str | None:
+    if status.stage == "CANCELED":
+        return "You stopped this run."
+    if status.stage in ("ERROR", "DELETED"):
+        reason = f" ({status.message})" if status.message else ""
+        return (
+            f"It stopped with an error{reason}. Its logs on Hugging Face say more; you can try "
+            "again from where it stopped."
+        )
+    return None
+
+
+def run_state(status: JobStatus, *, model: str = "the model", noun: str = "example") -> RunState:
+    noun = w.noun_or_default(noun)
+    events = status.progress or []
+    if status.kind == "predict":
+        stages = predict_stages(status.stage, model, noun, status.flavor)
+    else:
+        stages = train_stages(status.stage, events, model, noun, status.flavor)
+    train = _latest(events, "train")
+    running = _status(status.stage) == "running"
+    eta = train.get("eta_s") if train and running else None
+    cap = cap_cost(status.price_per_hour, status.timeout)
+    return RunState(
+        id=status.id,
+        kind=status.kind,
+        name=status.run or status.id,
+        status=_status(status.stage),
+        stages=stages,
+        fraction=_fraction(stages, events),
+        time_left=w.time_left(eta) if eta is not None else None,
+        eta_seconds=eta,
+        spent=w.money(status.cost) if status.cost is not None else "$0.00",
+        cap=w.money(cap) if cap is not None else None,
+        message=_failure(status),
+        can_stop=running,
+        can_resume=status.stage in RESUMABLE and status.kind == "train",
+        loss=[(e["step"], e["loss"]) for e in events if e.get("event") == "train"],
+        adapter_repo=status.adapter_repo,
+        url=status.url,
+        hours=status.hours,
+        cost=status.cost,
+    )
+
+
+def job_state(
+    session: Session, services: Services, job_id: str, *, token: str, model: str, noun: str
+) -> tuple[RunState | None, str | None]:
+    """A job's state, and a notice when it could not be read. A failed poll keeps the last
+    state it read, so the page stays put while Hugging Face is briefly unreachable."""
+    try:
+        status = services.job_status(job_id, token=token)
+    except _ERRORS as exc:
+        last = session.last_states.get(job_id)
+        return last, f"Could not reach Hugging Face ({exc}); trying again."
+    state = run_state(status, model=model, noun=noun)
+    session.last_states[job_id] = state
+    return state, None
+
+
+# ---------------------------------------------------------------------------- results
+
+
+@dataclass
+class QuestionResult:
+    id: str
+    ask: str
+    kind: str
+    n: int
+    before_right: int
+    after_right: int
+    before_pct: int
+    after_pct: int
+    summary: w.Phrase
+    names: list[str]  # answer names, in matrix order
+    matrix: list[list[int]]  # rows: expected output; columns: the model's answer
+    tech: str
+
+
+@dataclass
+class ResultsView:
+    name: str
+    noun: str
+    n: int
+    headline: w.Phrase
+    dots: tuple[int, int, int] | None  # before, after, total (in dots)
+    dots_caption: str
+    questions: list[QuestionResult]
+    run_line: str | None
+    repo: str | None
+    local_path: str | None
+    snippet: str
+    calibration_note: str | None
+    state_columns: list[str] = field(default_factory=list)
 
 
 def predictor_snippet(repo: str, state_columns: list[str] | None) -> str:
@@ -263,256 +300,374 @@ def predictor_snippet(repo: str, state_columns: list[str] | None) -> str:
     )
 
 
+def _descriptions(definition: dict, labels: list[str]) -> list[str]:
+    criteria = definition.get("criteria")
+    if isinstance(criteria, list):
+        return [
+            str(criteria[int(label)]) if label.isdigit() and int(label) < len(criteria) else ""
+            for label in labels
+        ]
+    if isinstance(criteria, dict):
+        return [str(criteria.get(label) or "") for label in labels]
+    return ["" for _ in labels]
+
+
+def _tech(before: dict, after: dict, calibration: dict | None) -> str:
+    parts = []
+    if before.get("f1") is not None and after.get("f1") is not None:
+        parts.append(f"Macro-F1 {before['f1']:.2f} → {after['f1']:.2f}")
+    if before.get("log_loss") is not None and after.get("log_loss") is not None:
+        parts.append(f"log-loss {before['log_loss']:.2f} → {after['log_loss']:.2f}")
+    if before.get("mae") is not None and after.get("mae") is not None:
+        parts.append(f"average error {before['mae']:.2f} → {after['mae']:.2f} steps")
+    if calibration and calibration.get("fitted"):
+        ece = (calibration.get("ece_before"), calibration.get("ece_after"))
+        if None not in ece:
+            parts.append(f"calibration error {ece[0]:.1%} → {ece[1]:.1%}")
+    return " · ".join(parts)
+
+
 def results_view(
-    metrics: dict, adapter_repo: str | None, state_columns: list[str] | None
+    metrics: dict,
+    config: dict,
+    schema: dict | None,
+    *,
+    name: str,
+    repo: str | None = None,
+    local_path: str | None = None,
 ) -> ResultsView:
-    baseline, final = metrics.get("baseline", {}), metrics.get("final", {})
-    run = metrics.get("run", {})
-
-    def change(key: str) -> str:
-        before, after = baseline.get(key), final.get(key)
-        if before is None or after is None:
-            return "—"
-        return f"{before:.2f} → {after:.2f}"
-
-    tiles = [("Exact match", change("exact_match")), ("Mean macro-F1", change("mean_macro_f1"))]
+    data = config.get("data") or {}
+    noun = w.noun_or_default(data.get("row_noun"))
+    definitions = (schema or config.get("schema") or {}).get("questions") or {}
+    baseline, final = metrics.get("baseline") or {}, metrics.get("final") or {}
+    n = int(final.get("n_records") or baseline.get("n_records") or 0)
+    calibration = metrics.get("calibration") or {}
+    questions = []
+    for qid, after in (final.get("questions") or {}).items():
+        before = (baseline.get("questions") or {}).get(qid, {})
+        definition = definitions.get(qid) or {}
+        kind = after.get("question_type") or definition.get("type") or "choice"
+        confusion = after.get("confusion") or {}
+        labels = [str(label) for label in confusion.get("labels", [])]
+        matrix = confusion.get("matrix", [])
+        names = (
+            [{"true": "yes", "false": "no"}.get(label, label) for label in labels]
+            if kind == "noul"
+            else w.answer_names(kind, labels, _descriptions(definition, labels))
+        )
+        count = int(after.get("n") or n)
+        before_acc, after_acc = before.get("accuracy") or 0.0, after.get("accuracy") or 0.0
+        questions.append(
+            QuestionResult(
+                id=qid,
+                ask=str(definition.get("instructions") or qid),
+                kind=kind,
+                n=count,
+                before_right=round(before_acc * count),
+                after_right=round(after_acc * count),
+                before_pct=round(before_acc * 100),
+                after_pct=round(after_acc * 100),
+                summary=w.mistake_summary(kind, labels if kind == "noul" else names, matrix, noun),
+                names=names,
+                matrix=matrix,
+                tech=_tech(before, after, calibration.get(qid)),
+            )
+        )
+    exact_before = round((baseline.get("exact_match") or 0.0) * n)
+    exact_after = round((final.get("exact_match") or 0.0) * n)
+    mean = lambda key: (  # noqa: E731
+        sum(q.before_pct if key == "b" else q.after_pct for q in questions) / 100 / len(questions)
+        if questions
+        else 0.0
+    )
+    dots = None
+    caption = w.dots_caption(len(questions), noun)
+    if len(questions) <= 3 and n:
+        unit = math.ceil(n / DOTS_MAX)
+        dots = (round(exact_before / unit), round(exact_after / unit), math.ceil(n / unit))
+        if unit > 1:
+            caption = caption.replace(f"one test {noun}", f"{unit} test {w.plural(noun)}")
+    run = metrics.get("run") or {}
+    run_line = None
     if run.get("hours") is not None:
-        tiles.append(("Run time", f"{run['hours']:.1f} h"))
-    if run.get("cost") is not None:
-        tiles.append(("Cost", _money(run["cost"])))
-    table = fragments.stat_tiles(tiles) + fragments.metrics_table(baseline, final)
-    figures = []
-    for qid, question in final.get("questions", {}).items():
-        confusion = question.get("confusion") or {}
-        heat = charts.heatmap(confusion.get("labels", []), confusion.get("matrix", []))
-        figures.append(
-            f'<figure class="ct-heatmap-card"><figcaption>{fragments.esc(qid)}</figcaption>'
-            f"{heat}</figure>"
+        run_line = f"Training took {w.duration(run['hours'])}"
+        if run.get("cost") is not None:
+            run_line += f" and cost {w.money(run['cost'])}"
+            if run.get("estimated_cost") is not None:
+                run_line += f", against an estimate of {w.money(run['estimated_cost'])}"
+        run_line += "."
+    note = None
+    if calibration and not any(entry.get("fitted") for entry in calibration.values()):
+        note = (
+            "Its confidence wasn't calibrated: that needs at least 20 test "
+            f"{w.plural(noun)} per question."
         )
-    repo_link = ""
-    if adapter_repo:
-        url = f"https://huggingface.co/{adapter_repo}"
-        repo_link = (
-            f'<a class="ct-repo-link" href="{fragments.esc(url)}" target="_blank" '
-            f'rel="noopener">{fragments.esc(adapter_repo)}</a>'
-        )
+    state_columns = list(data.get("state_columns") or [])
     return ResultsView(
-        table,
-        f'<div class="ct-heatmaps">{"".join(figures)}</div>',
-        fragments.calibration_table(metrics.get("calibration", {})),
-        repo_link,
-        predictor_snippet(adapter_repo or "path/to/adapter", state_columns),
+        name=name,
+        noun=noun,
+        n=n,
+        headline=w.headline(
+            questions=len(questions),
+            exact_before=exact_before,
+            exact_after=exact_after,
+            n=n,
+            noun=noun,
+            mean_before=mean("b"),
+            mean_after=mean("a"),
+        ),
+        dots=dots,
+        dots_caption=caption,
+        questions=questions,
+        run_line=run_line,
+        repo=repo,
+        local_path=local_path,
+        snippet=predictor_snippet(repo or local_path or "path/to/adapter", state_columns),
+        calibration_note=note,
+        state_columns=state_columns,
     )
 
 
-def run_view_from(
+def job_results(
+    session: Session, services: Services, status: JobStatus, *, token: str
+) -> tuple[ResultsView | None, str | None]:
+    """A completed training job's results (read once per session), or why they can't be read."""
+    if status.stage != "COMPLETED" or not status.adapter_repo or status.kind != "train":
+        return None, None
+    files = session.results.get(status.id)
+    if files is None:
+        try:
+            files = services.pull_run_files(status.adapter_repo, token=token)
+        except _ERRORS as exc:
+            return None, f"The results aren't readable yet ({exc}); trying again."
+        session.results[status.id] = files
+    return (
+        results_view(
+            files.metrics,
+            files.config,
+            files.schema,
+            name=status.run or status.id,
+            repo=status.adapter_repo,
+        ),
+        None,
+    )
+
+
+# ---------------------------------------------------------------------------- starting a run
+
+
+@dataclass
+class PendingLaunch:
+    plan: Any  # hf_jobs.LaunchPlan
+    fingerprint: str  # the draft it was reviewed for
+
+
+@dataclass
+class ReadyView:
+    can_start: bool
+    error: str | None
+    model: str = ""
+    preset: str = ""
+    data_line: str = ""
+    split_line: str = ""
+    repo: str = ""
+    time: str = ""
+    cost: str = ""
+    cap_cost: str | None = None
+    cap_time: str = ""
+    first_build: bool = False
+    notes: list[str] = field(default_factory=list)
+
+
+def review_launch(
+    session: Session,
+    services: Services,
     *,
-    stage: str,
-    events: list[dict],
-    hours: float | None,
-    cost: float | None,
-    logs: list[str],
-    metrics: dict | None,
+    token: str,
     adapter_repo: str | None,
-    state_columns: list[str] | None,
-) -> RunView:
-    """The monitor for one run (an HF Job or a local run) from its metrics.jsonl events."""
-    running = stage not in TERMINAL
-    train = _latest(events, "train")
-    if train is None:
-        fraction, label = None, "Waiting for the first steps" if running else "No steps logged"
-    elif train.get("total_steps"):
-        fraction = train["step"] / train["total_steps"]
-        label = f"Step {train['step']} of {train['total_steps']}"
-    else:
-        fraction, label = None, f"Step {train['step']}"
-    if stage == "COMPLETED":
-        fraction = 1.0
-    eta = train.get("eta_s") if train else None
-    speed = train.get("tokens_per_sec") if train else None
-    stats = [
-        ("Time", "—" if hours is None else f"{hours:.2f} h"),
-        ("Cost so far", _money(cost)),
-        ("Projected cost", _money(train.get("projected_cost") if train else None)),
-        ("Speed", "—" if speed is None else f"{speed:,.0f} tokens/s"),
-    ]
-    if running:
-        stats.append(("Time left", _minutes(eta) if eta is not None else "—"))
-    losses = [(e["step"], e["loss"]) for e in events if e.get("event") == "train"]
-    evals = [e for e in events if e.get("event") == "eval"]
-    baseline = _latest(events, "baseline")
-    scored = ([baseline] if baseline else []) + evals  # each line starts at the baseline
-    eval_series = {
-        "mean macro-F1": [(e.get("step", 0), e["mean_macro_f1"]) for e in scored],
-        "exact match": [(e.get("step", 0), e["exact_match"]) for e in scored],
-    }
-    reference = {"baseline macro-F1": baseline["mean_macro_f1"]} if baseline else None
-    if logs:
-        log_html = f'<pre class="ct-logs">{fragments.esc(chr(10).join(logs[-LOG_TAIL:]))}</pre>'
-    else:
-        log_html = fragments.empty_state("No logs yet", "Logs appear once the job starts.")
-    return RunView(
-        badge=fragments.stage_badge(stage),
-        progress=fragments.progress(fraction, label),
-        stats=fragments.stat_tiles(stats),
-        loss_chart=charts.line_chart({"training loss": losses}),
-        eval_chart=charts.line_chart(eval_series, reference=reference),
-        logs=log_html,
-        can_cancel=running,
-        can_resume=stage in RESUMABLE,
-        polling=running,
-        results=results_view(metrics, adapter_repo, state_columns) if metrics else None,
-        notice=None,
-    )
-
-
-def no_run_view() -> RunView:
-    empty = fragments.empty_state(
-        "No run selected", "Launch a run, or pick one under Your runs, to follow it here."
-    )
-    return RunView("", empty, "", "", "", "", False, False, False, None, None)
-
-
-def _failed(session: Session, message: str, *, keep_polling: bool) -> RunView:
-    notice = fragments.callout("warning", message)
-    base = session.last_view if isinstance(session.last_view, RunView) else no_run_view()
-    return dataclasses.replace(base, notice=notice, polling=keep_polling)
-
-
-def _state_columns(session: Session) -> list[str] | None:
-    return list(session.draft.state_columns) if session.draft else None
-
-
-def job_view(
-    session: Session,
-    settings: Settings,
-    services: Services,
-    *,
-    oauth_token: str | None,
-    pasted: str | None,
-    with_logs: bool,
-) -> RunView:
-    """The selected job's stage, progress, charts, logs and (once it completes) results. A
-    failed poll keeps the last view and keeps polling."""
-    if not session.job_id:
-        return no_run_view()
+    delete_data: bool,
+    model: str,
+    preset: str,
+    flavor: str | None = None,
+) -> ReadyView:
+    """Check everything a launch needs and what it will cost. Uploads and starts nothing."""
+    session.pending = None
     try:
-        token = _token(settings, oauth_token, pasted)
-        status = services.job_status(session.job_id, token=token)
-        logs = list(services.job_logs(session.job_id, token=token)) if with_logs else []
-    except SignInRequired as exc:
-        return _failed(session, str(exc), keep_polling=False)
-    except _ERRORS as exc:
-        return _failed(
-            session, f"Could not reach Hugging Face ({exc}); trying again.", keep_polling=True
+        if session.draft is None:
+            raise ValueError("Load data on the first step first")
+        config_path = session.write_config()
+        try:
+            counter = services.counter(session.config())
+        except Exception:  # plan_launch retries and reports why it could not
+            counter = None
+        request = JobRequest(
+            flavor=flavor, keep_data=not delete_data, adapter_repo=adapter_repo or None
         )
-    metrics, notice = None, None
-    if status.stage == "COMPLETED" and status.adapter_repo:
-        metrics = session.results.get(status.id)
-        if metrics is None:
-            try:
-                metrics = services.pull_metrics(status.adapter_repo, token=token)
-                session.results[status.id] = metrics
-            except _ERRORS as exc:
-                notice = fragments.callout("warning", f"The results are not readable yet: {exc}")
-    view = run_view_from(
-        stage=status.stage,
-        events=status.progress,
-        hours=status.hours,
-        cost=status.cost,
-        logs=logs[-LOG_TAIL:],
-        metrics=metrics,
-        adapter_repo=status.adapter_repo,
-        state_columns=_state_columns(session),
-    )
-    if not with_logs and isinstance(session.last_view, RunView):
-        view.logs = session.last_view.logs
-    if notice is not None:
-        view.notice, view.polling = notice, True  # try the results again on the next poll
-    elif status.stage == "ERROR" and status.message:
-        view.notice = fragments.callout("error", f"The job failed: {status.message}")
-    session.last_view = view
-    return view
-
-
-def cancel_run(
-    session: Session,
-    settings: Settings,
-    services: Services,
-    *,
-    oauth_token: str | None,
-    pasted: str | None,
-) -> str:
-    if not session.job_id:
-        return fragments.callout("info", "Pick a run under Your runs first.")
-    try:
-        services.cancel_job(session.job_id, token=_token(settings, oauth_token, pasted))
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            plan = services.plan_launch(
+                config_path, request, token=token, counter=counter, prices=services.prices()
+            )
     except _ERRORS as exc:
-        return fragments.callout("error", f"Could not cancel {session.job_id}: {exc}")
-    return fragments.callout(
-        "info",
-        "Cancel requested. The job can take up to a minute to stop; "
-        "wait that long before resuming it. Its checkpoints are kept.",
+        return ReadyView(False, str(exc))
+    session.pending = PendingLaunch(plan, session.draft.fingerprint())
+    noun = w.noun_or_default(session.draft.row_noun)
+    report = session.report
+    rows = len(report.train) + len(report.eval) if report else 0
+    questions = len(session.draft.questions)
+    estimate = plan.estimate
+    return ReadyView(
+        can_start=True,
+        error=None,
+        model=model,
+        preset=preset,
+        data_line=f"{w.counted(rows, noun)} · {questions} question{'s' if questions != 1 else ''}",
+        split_line=(
+            f"{len(report.train):,} to learn from, {len(report.eval):,} set aside to test it"
+            if report
+            else ""
+        ),
+        repo=plan.adapter_repo,
+        time=w.minutes_range(estimate.hours_low, estimate.hours_high) if estimate else "",
+        cost=w.money_range(estimate.cost_low, estimate.cost_high) if estimate else "",
+        cap_cost=w.money(plan.max_cost) if plan.max_cost is not None else None,
+        cap_time=w.timeout_text(plan.timeout),
+        first_build=bool(plan.kernels and not plan.kernels_cached),
+        notes=[str(item.message) for item in caught],
     )
 
 
-def review_resume(
-    session: Session,
-    settings: Settings,
-    services: Services,
-    *,
-    oauth_token: str | None,
-    pasted: str | None,
-    timeout: str,
-) -> LaunchReview:
-    """What resuming the selected run costs at most. Starts nothing."""
-    timeout = (timeout or "").strip()
-    if not session.job_id:
-        return LaunchReview("", "Resume", False, timeout, "Pick a run under Your runs first.")
+def confirm_launch(
+    session: Session, services: Services, *, token: str
+) -> tuple[str | None, str | None]:
+    """Start the reviewed job; return its id, or why it did not start. A review is used once,
+    and only for the draft it reviewed."""
+    pending, session.pending = session.pending, None
+    if pending is None:
+        return None, "Nothing to start; check the details again."
+    if session.draft is None or pending.fingerprint != session.draft.fingerprint():
+        return None, "The settings changed after the check; check the details again."
     try:
-        quote = services.quote_resume(
-            session.job_id,
-            timeout=timeout or None,
-            token=_token(settings, oauth_token, pasted),
+        job = services.submit_launch(pending.plan, token=token)
+    except _ERRORS as exc:
+        return None, f"Training did not start: {exc}"
+    session.job_id = job.id
+    return job.id, None
+
+
+# ---------------------------------------------------------------------------- your models
+
+
+@dataclass
+class ModelRow:
+    id: str
+    name: str
+    kind: str
+    status: Status
+    label: str  # "Training", "Ready", "Predictions ready", ...
+    created: datetime | None
+
+
+_LABELS = {
+    ("train", "running"): "Training",
+    ("train", "done"): "Ready",
+    ("train", "stopped"): "Stopped",
+    ("train", "failed"): "Didn't finish",
+    ("predict", "running"): "Predicting",
+    ("predict", "done"): "Predictions ready",
+    ("predict", "stopped"): "Stopped",
+    ("predict", "failed"): "Didn't finish",
+}
+
+
+def _stage_of(info: Any) -> str:
+    stage = info.status.stage
+    return str(getattr(stage, "value", stage))
+
+
+def list_models(services: Services, *, token: str) -> tuple[list[ModelRow], str | None]:
+    """Every clef-tune run on the account, newest first."""
+    try:
+        jobs = services.list_jobs(token=token)
+    except _ERRORS as exc:
+        return [], f"Could not list your runs: {exc}"
+    rows = []
+    for info in jobs:
+        labels = info.labels or {}
+        kind = labels.get("kind") or "train"
+        status = _status(_stage_of(info))
+        rows.append(
+            ModelRow(
+                id=info.id,
+                name=labels.get("run") or info.id,
+                kind=kind,
+                status=status,
+                label=_LABELS[(kind, status)],
+                created=getattr(info, "created_at", None),
+            )
         )
-    except _ERRORS as exc:
-        return LaunchReview("", "Resume", False, timeout, str(exc))
-    ceiling = (
-        "Unknown (no price for this hardware)"
-        if quote.max_cost is None
-        else f"{_money(quote.max_cost)}, if it runs until the time limit"
-    )
-    facts = [
-        _fact("Hardware", quote.flavor or "—"),
-        _fact("Time limit", quote.timeout),
-        _fact("Most it can cost", ceiling),
-        _fact("Starts from", "Its newest complete checkpoint"),
-    ]
-    summary = f'<div class="ct-review"><dl class="ct-facts">{"".join(facts)}</dl></div>'
-    label = "Resume" if quote.max_cost is None else f"Resume for up to {_money(quote.max_cost)}"
-    return LaunchReview(summary, label, True, quote.timeout, None)
+    return rows, None
 
 
-def resume_run(
-    session: Session,
-    settings: Settings,
-    services: Services,
-    *,
-    oauth_token: str | None,
-    pasted: str | None,
-    timeout: str,
-) -> str:
-    if not session.job_id:
-        return fragments.callout("info", "Pick a run under Your runs first.")
+def model_detail(state: RunState, results: ResultsView | None) -> str:
+    """One line for a run in Your models."""
+    if state.status == "running":
+        return state.time_left or "Getting started"
+    if results is not None:
+        return w.plain(results.headline)
+    if state.status == "done" and state.kind == "predict":
+        return f"Took {w.duration(state.hours or 0)} · {state.spent}"
+    if state.status == "stopped":
+        return f"Stopped after {w.duration(state.hours or 0)} · {state.spent}"
+    if state.status == "failed":
+        return state.message or "It stopped with an error."
+    return ""
+
+
+# ---------------------------------------------------------------------------- managing runs
+
+
+def stop_run(services: Services, job_id: str, *, token: str) -> str | None:
     try:
-        job = services.resume_job(
-            session.job_id,
-            timeout=(timeout or "").strip() or None,
-            token=_token(settings, oauth_token, pasted),
-        )
+        services.cancel_job(job_id, token=token)
     except _ERRORS as exc:
-        return fragments.callout("error", f"Could not resume {session.job_id}: {exc}")
-    session.job_id, session.last_view = job.id, None
-    return fragments.callout(
-        "success", f"Resumed as job {job.id}.", link=("Open it on Hugging Face", job.url)
+        return f"Could not stop it: {exc}"
+    return None
+
+
+@dataclass
+class ResumeView:
+    can_resume: bool
+    error: str | None
+    cap_cost: str | None = None
+    cap_time: str = ""
+    hardware: str = ""
+
+
+def review_resume(services: Services, job_id: str, *, token: str) -> ResumeView:
+    try:
+        quote = services.quote_resume(job_id, token=token)
+    except _ERRORS as exc:
+        return ResumeView(False, str(exc))
+    return ResumeView(
+        True,
+        None,
+        w.money(quote.max_cost) if quote.max_cost is not None else None,
+        w.timeout_text(quote.timeout),
+        hardware(quote.flavor),
     )
+
+
+def resume_run(services: Services, job_id: str, *, token: str) -> tuple[str | None, str | None]:
+    try:
+        job = services.resume_job(job_id, token=token)
+    except _ERRORS as exc:
+        return None, f"Could not try again: {exc}"
+    return job.id, None
+
+
+def delete_files(services: Services, job_id: str, *, token: str) -> tuple[int, str | None]:
+    try:
+        return len(services.delete_job_files(job_id, token=token)), None
+    except _ERRORS as exc:
+        return 0, f"Could not delete the files: {exc}"

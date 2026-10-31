@@ -610,3 +610,16 @@ def test_quote_resume_refuses_what_resume_refuses():
     api = FakeApi(job_info=job("RUNNING"))
     with pytest.raises(LaunchError, match="only failed or canceled"):
         hf_jobs.quote_resume("job123", api=api, token=TOKEN)
+
+
+def test_status_carries_the_kind_price_and_time_limit():
+    status = job_status("job123", api=FakeApi(job_info=job()), token=TOKEN, now=NOW)
+    assert status.kind == "train" and status.price_per_hour == 0.8
+    assert status.timeout == "1h" and status.started_at is not None
+    predicting = job(
+        labels={"tool": "clef-tune", "run": "r", "timeout": "30m", "kind": "predict"},
+        command=["bash", "-c", "clef-tune predict me/model /work/input/a.csv"],
+    )
+    status = job_status("job123", api=FakeApi(job_info=predicting), token=TOKEN, now=NOW)
+    assert status.kind == "predict" and status.adapter_repo == "me/model"
+    assert status.timeout == "30m"

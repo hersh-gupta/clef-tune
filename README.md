@@ -75,27 +75,31 @@ From Python, set `HF_TOKEN` before starting the interpreter, or pass it directly
 
 ## Web UI
 
-The web UI takes you from a CSV to a trained adapter without writing YAML: upload your data,
-check the proposed questions, see the checks and the cost estimate, then launch on Hugging Face
-Jobs and follow the run to its results.
+The web UI is for people who have never fine-tuned a model: upload a spreadsheet of examples
+with the expected outputs filled in, say what each column is for, turn each expected output into
+a plain question, pick how much training, and start. It shows the time and the most a run can
+cost before anything starts, runs on Hugging Face Jobs (so you can close the page and come back
+to "Your models"), and reports the results in plain words. A finished model can then predict a
+new spreadsheet, which you download with its answers, confidence and review marks filled in.
 
 ```bash
 uv pip install "clef-tune[ui] @ git+https://github.com/hersh-gupta/clef-tune"
 clef-tune ui
 ```
 
-It opens on <http://localhost:7860> (`--port` to change it, `--share` for a public link).
-"Load the example" walks through 200 synthetic support tickets. Launching uses your
-Hugging Face login (`hf auth login`) or a token you paste in; it is used for that browser
-session only. The "Train locally" tab appears when this machine has a CUDA GPU.
+It opens on <http://localhost:7860> (`--port` and `--host` to change that). Three samples (support
+tickets, claim triage, server logs) let you look around without your own data. Locally, the UI
+uses this machine's Hugging Face login (`hf auth login`); "Train on this computer's GPU" appears
+when the machine has a CUDA GPU. Files can be CSV, TSV, Excel (.xlsx), JSONL, or a zip with images.
 
 ### Deploy the web UI as a Hugging Face Space
 
-The Space runs the same UI for many visitors. Each visitor signs in with Hugging Face and
-launches jobs on their own account and credits; the Space never uses its own token for them.
+The Space (a Docker Space) runs the same UI for many visitors. Each visitor signs in with Hugging
+Face and runs jobs on their own account and credits; the Space never uses its own token for them.
 
 1. Push your commits: the Space installs clef-tune from GitHub at an exact commit.
-2. Write the Space files, with `requirements.txt` pinned to that commit:
+2. Write the Space files (`README.md`, `Dockerfile`, `app.py`), with `requirements.txt` pinned to
+   that commit:
 
    ```bash
    python scripts/prepare_space.py build/space
@@ -107,10 +111,11 @@ launches jobs on their own account and credits; the Space never uses its own tok
    hf upload you/clef-tune build/space . --repo-type space
    ```
 
-Sign-in asks visitors for repo and Jobs access. Hugging Face has no sign-in permission for
-the storage bucket a launch uploads to, so if launching fails with a permission error, paste a
-token with `job.write` and `repo.write` in the Hugging Face Jobs tab. Uploads are capped at
-`CLEF_TUNE_MAX_UPLOAD_MB` (default 200), and the Train locally tab is never shown on a Space.
+Sign-in asks visitors for repo and Jobs access. If a launch fails with a permission error (sign-in
+may not reach the storage bucket a launch uploads to), the Train step offers to use a pasted token
+with `job.write` and `repo.write` for that browser session only. Uploads are capped at
+`CLEF_TUNE_MAX_UPLOAD_MB` (default 200), and training on the machine's own GPU is never offered
+on a Space.
 
 ## Quickstart (CLI)
 
@@ -163,7 +168,7 @@ python -c "import causal_conv1d"   # if this fails: pip uninstall -y causal-conv
 clef-tune validate cfg.yaml --bundle out/bundle      # normalized data + self-contained config
 clef-tune train out/bundle/config.yaml               # resumes automatically from checkpoints
 accelerate launch -m clef_tune train cfg.yaml        # multi-GPU DDP
-clef-tune predict out/<run_name>/final new.csv -o preds.jsonl  # or preds.csv; --no-calibration
+clef-tune predict out/<run_name>/final new.csv -o preds.csv  # .xlsx/.jsonl; --review-below 0.7
 clef-tune eval out/<run_name>/final labeled.csv --output metrics.json
 clef-tune export out/<run_name>/final --merge -o merged          # Cloudflare's release layout
 ```
@@ -171,8 +176,11 @@ clef-tune export out/<run_name>/final --merge -o merged          # Cloudflare's 
 `train` accepts `--restart` (ignore checkpoints), `--push-to-hub REPO` and
 `--delete-bundle-on-success`. The adapter is written to `<output.dir>/final`; `output.dir`
 defaults to `out/<run_name>` next to the config, so a bundle's run lands in
-`out/bundle/out/<run_name>/final`. `eval` prints per-question metrics, exact match,
-confusion matrices and ECE before and after calibration.
+`out/bundle/out/<run_name>/final`. `predict` keeps the file's own columns and adds, for each
+question, the answer and its confidence (0–1), then a `review` column marking rows where any
+answer is less sure than `--review-below`; `--probabilities` adds every answer's probability,
+and `.jsonl` output keeps Clef's SystemOne answers. `eval` prints per-question metrics, exact
+match, confusion matrices and ECE before and after calibration.
 Exit codes: 0 ok, 1 training/data/Hub failure, 2 invalid config or arguments.
 
 ### Docker

@@ -1,0 +1,16 @@
+{% if need_signin %}
+<div class="signin">
+  <span class="avatar" aria-hidden="true">?</span>
+  <span>Sign in to predict<small>Predicting runs and is billed under your own Hugging Face account.</small></span>
+  <a class="btn primary end" href="{{ login_url(request.url.path.rsplit('/', 1)[0]) }}" target="_top">Sign in with Hugging Face</a>
+</div>
+{% elif error %}
+<p class="error-box" role="alert">{{ error }}</p>
+{% else %}
+<div class="est swap-in"><span class="big"><small>Time</small>About {{ est.time }}</span><span class="big"><small>Cost</small>{{ est.cost }}</span></div>
+<p class="fine">Runs on Hugging Face on {{ est.hardware }}{% if est.cap_cost %} and never costs more than <b>{{ est.cap_cost }}</b>{% endif %}.</p>
+<form class="start" action="/predict/{{ job_id }}/start" method="post">
+  <button class="btn primary" type="submit">Start predicting</button>
+  <small>You can leave while it runs.</small>
+</form>
+{% endif %}

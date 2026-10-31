@@ -54,3 +54,8 @@ class Services:
     quote_resume: Callable[..., hf_jobs.ResumeQuote] = hf_jobs.quote_resume
     resume_job: Callable[..., Any] = hf_jobs.resume_job
     pull_metrics: Callable[..., dict] = hub.pull_metrics
+    pull_run_files: Callable[..., hub.RunFiles] = hub.pull_run_files
+    plan_prediction: Callable[..., hf_jobs.PredictionPlan] = hf_jobs.plan_prediction
+    submit_prediction: Callable[..., Any] = hf_jobs.submit_prediction
+    download_predictions: Callable[..., Any] = hf_jobs.download_predictions
+    delete_job_files: Callable[..., list[str]] = hf_jobs.delete_job_files

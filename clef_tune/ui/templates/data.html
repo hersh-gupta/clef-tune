@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block title %}Your data · clef-tune{% endblock %}
+{% block steps %}{{ m.step_bar(steps) }}{% endblock %}
+{% block main %}
+<h1 class="title in">Your data</h1>
+<div class="rule in"></div>
+<p class="lede in">Upload a spreadsheet of examples with the expected outputs filled in, from past work or labeled just for this. The closer they are to what the model will see in real use, the better it learns.</p>
+{% if page.error %}<p class="error-box" role="alert">{{ page.error }}</p>{% endif %}
+{% if not page.has_data %}
+<div class="in" style="--i:1">{{ m.drop("/data/upload", page.max_mb) }}</div>
+<div class="samples-line in" style="--i:2">No data yet? Try a sample:
+  {%- for name, label in page.samples %}
+  <form action="/data/sample" method="post"><input type="hidden" name="name" value="{{ name }}"><button class="linkbtn" type="submit">{{ label }}</button></form>{% if not loop.last %} ·{% endif %}
+  {%- endfor %}
+</div>
+{% else %}
+<div class="filebar in" style="--i:1">
+  {{ m.file_glyph() }}
+  <span><span class="fn">{{ page.file_name }}</span><br><span class="fm">{{ "{:,}".format(page.rows) }} rows · {{ page.columns }} columns</span></span>
+  <form class="replace" action="/data/upload" method="post" enctype="multipart/form-data">
+    <label class="linkbtn">Replace<input class="sr-only" type="file" name="file" accept=".csv,.tsv,.xlsx,.jsonl,.ndjson,.zip" onchange="this.form.submit()"></label>
+  </form>
+</div>
+<form class="noun-line editable in" style="--i:2" data-post data-autosubmit="input" data-debounce="500" action="/data/noun">
+  <label for="noun">Each row is one</label>
+  <input class="word" id="noun" name="noun" value="{{ page.noun }}" placeholder="example" spellcheck="false" autocomplete="off" data-autosize aria-describedby="noun-help">
+  <span class="pen" aria-hidden="true">✎</span>
+  <span id="noun-mark" class="guess">{% if page.noun_guessed %}Guessed from the file name{% endif %}</span>
+  <span id="noun-help" class="sr-only">Used in sentences like "right on 24 of 30 tickets". Leave it empty to say "example".</span>
+</form>
+<div id="data-body">{% include "_data_body.html" %}</div>
+{% endif %}
+{% endblock %}

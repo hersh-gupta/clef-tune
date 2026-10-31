@@ -7,6 +7,7 @@ numbers for JSONL.
 from __future__ import annotations
 
 import csv
+import datetime
 import difflib
 import io
 import json
@@ -23,6 +24,7 @@ from clef_tune.schema import Question, Schema, SchemaError
 
 TABLE_DELIMITERS = {".csv": ",", ".tsv": "\t"}
 JSONL_SUFFIXES = {".jsonl", ".ndjson"}
+EXCEL_SUFFIXES = {".xlsx"}
 MAX_LISTED_ROWS = 20
 URL_PREFIXES = ("http://", "https://")
 CSV_FIELD_LIMIT = 2**31 - 1  # the largest value a C long holds on every platform
@@ -91,7 +93,11 @@ def read_rows(path: Path) -> tuple[list[Row], list[str], list[Issue]]:
         return _read_table(path, TABLE_DELIMITERS[suffix])
     if suffix in JSONL_SUFFIXES:
         return _read_jsonl(path)
-    raise DataError(f"{path.name}: unsupported file type {suffix!r} (use .csv, .tsv or .jsonl)")
+    if suffix in EXCEL_SUFFIXES:
+        return _read_excel(path)
+    raise DataError(
+        f"{path.name}: unsupported file type {suffix!r} (use .csv, .tsv, .xlsx or .jsonl)"
+    )
 
 
 def _decode(path: Path) -> tuple[str, list[Issue]]:
@@ -107,14 +113,21 @@ def _read_table(path: Path, delimiter: str) -> tuple[list[Row], list[str], list[
     text, issues = _decode(path)
     csv.field_size_limit(CSV_FIELD_LIMIT)  # the 128 KB default rejects long documents
     records = list(csv.reader(io.StringIO(text, newline=""), delimiter=delimiter))
+    rows, header, table_issues = _table_rows(records, path.name)
+    return rows, header, issues + table_issues
+
+
+def _table_rows(records: list[list[str]], name: str) -> tuple[list[Row], list[str], list[Issue]]:
+    """Rows of a table whose first record is the header; numbers are spreadsheet row numbers."""
+    issues: list[Issue] = []
     if not records or not any(cell.strip() for cell in records[0]):
-        raise DataError(f"{path.name}: no header row")
+        raise DataError(f"{name}: no header row")
     header = [cell.strip() for cell in records[0]]
-    duplicates = sorted({name for name in header if header.count(name) > 1})
+    duplicates = sorted({column for column in header if header.count(column) > 1})
     if duplicates:
-        raise DataError(f"{path.name}: duplicate column names {duplicates}")
+        raise DataError(f"{name}: duplicate column names {duplicates}")
     if "" in header:
-        raise DataError(f"{path.name}: column {header.index('') + 1} has no name")
+        raise DataError(f"{name}: column {header.index('') + 1} has no name")
     rows: list[Row] = []
     bad_width: list[int] = []
     for number, values in enumerate(records[1:], start=2):
@@ -127,6 +140,41 @@ def _read_table(path: Path, delimiter: str) -> tuple[list[Row], list[str], list[
     if bad_width:
         issues.append(Issue("error", f"rows must have {len(header)} fields", bad_width))
     return rows, header, issues
+
+
+def _excel_cell(value: Any) -> str:
+    """A cell as the text a CSV export would hold: whole numbers without ".0", dates as ISO."""
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    if isinstance(value, datetime.datetime) and value.time() == datetime.time():
+        return value.date().isoformat()
+    if isinstance(value, datetime.date | datetime.time):
+        return value.isoformat()
+    return str(value)
+
+
+def _read_excel(path: Path) -> tuple[list[Row], list[str], list[Issue]]:
+    """The first sheet of an .xlsx workbook, read like a CSV: the first row is the header."""
+    from openpyxl import load_workbook
+
+    try:
+        book = load_workbook(path, read_only=True, data_only=True)
+    except Exception as exc:  # not a zip, or not a workbook
+        raise DataError(f"{path.name}: not a readable Excel workbook ({exc})") from exc
+    try:
+        sheet = book.worksheets[0].iter_rows(values_only=True)
+        cells = [[_excel_cell(value) for value in row] for row in sheet]
+    finally:
+        book.close()
+    width = max((len(row) for row in cells), default=0)
+    cells = [row + [""] * (width - len(row)) for row in cells]
+    while width and all(not row[width - 1].strip() for row in cells):
+        width -= 1  # Excel often reports formatted but empty columns at the right
+    return _table_rows([row[:width] for row in cells], path.name)
 
 
 def _read_jsonl(path: Path) -> tuple[list[Row], list[str], list[Issue]]:

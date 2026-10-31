@@ -1,0 +1,25 @@
+run_name: claims-triage
+model:
+  id: Cloudflare/clef-flash
+data:
+  train: claims_triage.csv
+  eval_fraction: 0.15
+  id_column: claim_id
+  state_columns: [claim_type, amount, policy_years, description]
+  row_noun: claim
+schema:
+  questions:
+    reviewer:
+      type: choice
+      instructions: Which team should review this claim?
+      criteria:
+        standard: Routine claims with clear evidence
+        fraud review: Claims with warning signs of fraud
+        medical review: Claims involving an injury
+    risk:
+      type: score
+      instructions: How risky is this claim?
+      criteria: [Low risk, Medium risk, High risk]
+    pay_in_full:
+      type: noul
+      instructions: Should this claim be paid in full?

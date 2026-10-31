@@ -1,0 +1,44 @@
+{%- set e = page.selected %}
+{%- if e %}
+{%- set ask_index = (page.items | map(attribute="id") | list).index(e.id) + 1 %}
+<form data-post data-autosubmit="input" data-debounce="700" action="/questions/{{ e.id | urlencode }}/ask">
+  <span class="label" id="ask-label">Asked as
+    <span class="info-tip">
+      <button type="button" aria-label="How this question is used" aria-describedby="ask-tip">?</button>
+      <span class="tip" role="tooltip" id="ask-tip">This sentence becomes part of the <b>prompt</b>, the text the model reads. It reads it with every example while it's being tuned, and again each time it makes a prediction later. Ask one clear question about a single row of your data.</span>
+    </span>
+  </span>
+  <textarea class="ask-box" id="ask-box" name="ask" aria-labelledby="ask-label" spellcheck="true" data-mirror="#ask-{{ ask_index }}" data-fallback="{{ e.id }}" placeholder="Ask one clear question about a single row">{{ e.ask }}</textarea>
+  <div class="askmeta"><span>From the column <b>{{ e.column }}</b></span><span>{{ e.counted }}</span></div>
+</form>
+<span class="label">Type of answer</span>
+<form class="kinds" data-post action="/questions/{{ e.id | urlencode }}/type" aria-label="Type of answer">
+  {%- for key, name, small in kinds %}
+  <button type="submit" name="kind" value="{{ key }}" class="{{ 'on' if key == e.kind }}" aria-pressed="{{ 'true' if key == e.kind else 'false' }}">{{ name }}<small>{{ small }}</small></button>
+  {%- endfor %}
+</form>
+<div class="answers" role="table" aria-label="Answers">
+  <div class="head" role="columnheader">Answer</div><div class="head" role="columnheader">What it means</div><div class="head" role="columnheader" style="text-align: right">In your data</div>
+  {%- for a in e.answers %}
+  <div class="val" role="cell">
+    {%- if e.kind == "score" %}
+    <form class="ord" data-post action="/questions/{{ e.id | urlencode }}/move">
+      <input type="hidden" name="option" value="{{ a.id }}">
+      <button type="submit" name="offset" value="-1" aria-label="Move {{ a.id }} lower on the scale">▲</button>
+      <button type="submit" name="offset" value="1" aria-label="Move {{ a.id }} higher on the scale">▼</button>
+    </form>
+    {%- endif %}
+    {{ a.id }}
+  </div>
+  <div role="cell">
+    <form data-post data-autosubmit="input" data-debounce="700" action="/questions/{{ e.id | urlencode }}/describe">
+      <input type="hidden" name="option" value="{{ a.id }}">
+      <input class="desc-in" id="desc-{{ loop.index }}" name="description" value="{{ a.description }}" placeholder="Optional: what this answer means" aria-label="What {{ a.id }} means" autocomplete="off">
+    </form>
+  </div>
+  <div class="n" role="cell">{{ "{:,}".format(a.count) }} {{ noun if a.count == 1 else plural(noun) }}<span class="bar"><b style="width: {{ (a.bar * 100) | round | int }}%"></b></span></div>
+  {%- endfor %}
+</div>
+{% if e.hint %}<p class="hint">{{ e.hint }}</p>{% endif %}
+<div id="editor-flags" aria-live="polite">{% for f in e.flags %}<p class="flag">{{ f }}</p>{% endfor %}</div>
+{%- endif %}

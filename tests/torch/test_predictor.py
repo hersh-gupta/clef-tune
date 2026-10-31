@@ -43,8 +43,25 @@ def test_predict_file_writes_jsonl_and_csv(adapter, tmp_path):
     assert predict_file(predictor, tmp_path / "in.csv", tmp_path / "out.jsonl") == 3
     assert len((tmp_path / "out.jsonl").read_text(encoding="utf-8").splitlines()) == 3
     predict_file(predictor, tmp_path / "in.csv", tmp_path / "out.csv")
-    header = (tmp_path / "out.csv").read_text(encoding="utf-8").splitlines()[0].split(",")
-    assert header[:5] == ["id", "outage", "outage.p.true", "outage.p.false", "department"]
+    header = (tmp_path / "out.csv").read_text(encoding="utf-8-sig").splitlines()[0].split(",")
+    assert header == [
+        "id",
+        "subject",
+        "body",
+        "outage",
+        "outage_confidence",
+        "department",
+        "department_confidence",
+        "review",
+    ]
+    predict_file(
+        predictor, tmp_path / "in.csv", tmp_path / "all.xlsx", probabilities=True, review_below=1.0
+    )
+    from openpyxl import load_workbook
+
+    sheet = load_workbook(tmp_path / "all.xlsx").active
+    names = [cell.value for cell in sheet[1]]
+    assert "outage.p.true" in names and sheet.cell(2, names.index("review") + 1).value == "yes"
 
 
 def test_image_rows_predict(adapter, tmp_path):

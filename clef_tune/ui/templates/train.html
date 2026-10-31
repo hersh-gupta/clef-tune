@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block title %}Train · clef-tune{% endblock %}
+{% block steps %}{{ m.step_bar(steps) }}{% endblock %}
+{% block main %}
+<h1 class="title in">Ready to train</h1>
+<div class="rule in"></div>
+<p class="lede in">Check the details. Training starts on Hugging Face's cloud when you press Start, and you can leave while it runs.</p>
+{% if error %}<p class="error-box" role="alert">{{ error }}</p>{% endif %}
+<div id="review" class="in" style="--i:1" data-load="/train/review"><p class="muted">Checking the details with Hugging Face…</p></div>
+{% endblock %}

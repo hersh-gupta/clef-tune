@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block title %}Predict with {{ page.name }} · clef-tune{% endblock %}
+{% block main %}
+<p class="crumb in"><a href="/runs/{{ page.job_id }}">{{ page.name }}</a> · Predict</p>
+<h1 class="title in">Predict with {{ page.name }}</h1>
+<div class="rule in"></div>
+<p class="lede in">Upload new {{ plural(page.noun) }}. The model reads the same columns it learned from and fills in its answers. Expected outputs aren't needed.</p>
+{% if page.error %}<p class="error-box" role="alert">{{ page.error }}</p>{% endif %}
+{% if not page.has_file %}
+<div class="in" style="--i:1">{{ m.drop("/predict/" ~ page.job_id ~ "/upload", max_mb) }}</div>
+{% else %}
+<div id="predict-body">{% include "_predict_body.html" %}</div>
+{% endif %}
+{% endblock %}

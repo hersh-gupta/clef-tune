@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Your models · clef-tune{% endblock %}
+{% block main %}
+<h1 class="title in">Your models</h1>
+<div class="rule in"></div>
+<p class="lede in">Everything you've trained, and every spreadsheet you've predicted, newest first.</p>
+{% if need_signin %}
+<div class="in" style="--i:1">
+  <p class="empty">Sign in with Hugging Face to see the models on your account.</p>
+  <a class="btn primary" href="{{ login_url('/models') }}" target="_top">Sign in with Hugging Face</a>
+</div>
+{% elif error %}
+<p class="error-box" role="alert">{{ error }}</p>
+{% else %}
+  {% if local %}
+  <ul class="mlist in" style="--i:1">
+    <li><a href="/runs/local"><span class="mt"><span class="mn">{{ local.name }}</span><small>On this computer · {{ local.time_left or local.spent }}</small></span><span class="ms s-{{ local.status }}">{{ local_label }}</span><span class="chv" aria-hidden="true">›</span></a></li>
+  </ul>
+  {% endif %}
+  {% if rows %}
+  <ul class="mlist in" style="--i:1">
+    {%- for r in rows %}
+    <li><a href="/runs/{{ r.id }}"><span class="mt"><span class="mn">{{ r.name }}</span><small id="line-{{ r.id }}"{% if loop.index <= 8 %} data-load="/models/{{ r.id }}/line"{% endif %}>{{ r.created | day }}</small></span><span class="ms s-{{ r.status }}">{{ r.label }}</span><span class="chv" aria-hidden="true">›</span></a></li>
+    {%- endfor %}
+  </ul>
+  {% elif not local %}
+  <p class="empty in" style="--i:1">Nothing here yet. Your first model will appear here as soon as it starts training.</p>
+  {% endif %}
+{% endif %}
+<p class="in" style="--i:2; margin-top: 22px"><a class="btn" href="/data">Train a new model</a></p>
+{% endblock %}

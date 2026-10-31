@@ -12,6 +12,7 @@ requires-python = ">=3.11"
 dependencies = [
   "huggingface_hub>=1.33,<2",
   "numpy>=2.0",
+  "openpyxl>=3.1",
   "pillow>=10.0",
   "pydantic>=2.11",
   "pyyaml>=6.0",
@@ -21,7 +22,14 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-ui = ["gradio[oauth]>=6.30,<7"]
+ui = [
+  "fastapi>=0.115",
+  "huggingface_hub[oauth]>=1.33,<2",
+  "itsdangerous>=2.2",
+  "jinja2>=3.1",
+  "python-multipart>=0.0.9",
+  "uvicorn>=0.30",
+]
 train = [
   "torch>=2.11,<2.12",
   "torchvision>=0.26,<0.27",
@@ -50,10 +58,14 @@ version-file = "clef_tune/_version.py"
 [tool.hatch.build.targets.wheel]
 packages = ["clef_tune"]
 
-# The UI's "Load example" needs the example inside the wheel (a Space installs the wheel).
+# The UI's samples must be inside the wheel (a Space installs the wheel).
 [tool.hatch.build.targets.wheel.force-include]
 "examples/support_tickets.csv" = "clef_tune/_examples/support_tickets.csv"
 "examples/support_tickets.yaml" = "clef_tune/_examples/support_tickets.yaml"
+"examples/claims_triage.csv" = "clef_tune/_examples/claims_triage.csv"
+"examples/claims_triage.yaml" = "clef_tune/_examples/claims_triage.yaml"
+"examples/server_logs.csv" = "clef_tune/_examples/server_logs.csv"
+"examples/server_logs.yaml" = "clef_tune/_examples/server_logs.yaml"
 
 [tool.ruff]
 line-length = 100
@@ -64,7 +76,11 @@ extend-exclude = ["docs", "tests/torch/fixtures"]
 select = ["E", "F", "I", "B", "UP"]
 
 [tool.ruff.lint.flake8-bugbear]
-extend-immutable-calls = ["clef_tune.launch.hf_jobs.JobRequest"]  # a frozen dataclass
+extend-immutable-calls = [
+  "clef_tune.launch.hf_jobs.JobRequest",  # a frozen dataclass
+  "fastapi.File",  # FastAPI reads request parameters from these defaults
+  "fastapi.Form",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

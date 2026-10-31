@@ -1,10 +1,10 @@
-"""Event handlers for the Data, Schema, Validate and Configure steps. Plain functions over a
-Session that return small views of HTML and lists; ui/app.py maps them onto components."""
+"""What the Data, What to predict and Settings steps change: plain functions over a Session.
+They return an error message (or None) and never build HTML; ui/views.py turns a Session into
+what the pages show."""
 
 from __future__ import annotations
 
 import json
-import math
 import shutil
 from collections import Counter
 from dataclasses import dataclass
@@ -18,49 +18,38 @@ from clef_tune.bundle import write_bundle, zip_bundle
 from clef_tune.card import CALIBRATION_CAVEAT, WEIGHTING_NOTE
 from clef_tune.config import PRESETS, Config
 from clef_tune.data import Issue
-from clef_tune.estimate import estimate_hf_flavors, model_spec, recommend, workload_from
+from clef_tune.estimate import estimate_hf_flavors, model_spec, workload_from
 from clef_tune.labels import LabelError, parse_label
-from clef_tune.prompt import prompt_pieces
-from clef_tune.schema import Question, Schema, SchemaError
-from clef_tune.ui import charts, fragments
+from clef_tune.schema import Question, SchemaError
 from clef_tune.ui.services import Services
 from clef_tune.ui.session import (
     OptionDraft,
     QuestionDraft,
     Session,
     UploadError,
-    load_example,
+    load_sample,
     load_upload,
 )
 from clef_tune.ui.settings import Settings
 from clef_tune.validation import ValidationReport, validate
 
-STEPS = ("Data", "Validate", "Configure", "Launch")
-PREVIEW_PAGE = 50
 CELL_CHARS = 200
-UNKNOWN_SHOWN = 8
 SAMPLE_VALUES = 3
 SAMPLE_CHARS = 80
-# What a column can be for (flat files): the label shown, and the role it sets.
+# What a column can be for (flat files): the role it sets, its name, and what it means.
 ROLE_CHOICES = (
-    ("State: Clef reads it", "state"),
-    ("Question: Clef answers it", "question"),
-    ("ID", "id"),
-    ("Image", "image"),
-    ("Skip", "skip"),
+    ("state", "Model reads it", "Text or numbers the model reads for each row."),
+    (
+        "question",
+        "Expected output",
+        "What the model learns to predict. Each one becomes a question.",
+    ),
+    ("image", "Image", "A picture the model looks at, given as a file name or link."),
+    ("id", "Row ID", "Names each row, so predictions can be matched back to it."),
+    ("skip", "Ignore", "Left out completely."),
 )
-ROLES = tuple(role for _, role in ROLE_CHOICES)
-MODELS = {"Cloudflare/clef-flash": "Clef-Flash · 9B", "Cloudflare/clef": "Clef · 27B"}
-PRESET_LABELS = {"quick": "Quick test", "balanced": "Balanced", "thorough": "Thorough"}
-PRESET_HELP = {
-    "quick": "Trains only the decision head for one epoch on prompts up to 2048 tokens. "
-    "The cheapest way to check everything works end to end.",
-    "balanced": "Trains LoRA adapters (rank 16) and the head for three epochs. "
-    "A good first real run.",
-    "thorough": "Trains LoRA adapters (rank 32) and the head for up to five epochs, "
-    "stopping early once the eval score stops improving.",
-}
-StepState = Literal["todo", "done", "warning", "error"]
+ROLES = tuple(role for role, _, _ in ROLE_CHOICES)
+MODELS = {"Cloudflare/clef-flash": "Clef-Flash", "Cloudflare/clef": "Clef"}
 _MISSING = object()
 
 
@@ -80,16 +69,6 @@ def error_text(exc: Exception) -> str:
 
 
 # ---------------------------------------------------------------------------- data step
-
-
-@dataclass
-class DataView:
-    summary: str  # the file bar, or an empty state before any data
-    headers: list[str]
-    rows: list[list[str]]
-    page: int
-    page_label: str
-    error: str | None
 
 
 def _cell(value: Any) -> str:
@@ -176,70 +155,26 @@ def set_role(session: Session, column: str, role: str) -> str | None:
     return None
 
 
-def data_view(session: Session, page: int = 0, error: str | None = None) -> DataView:
-    table = session.table
-    if table is None:
-        empty = fragments.empty_state(
-            "No data yet",
-            "Upload a CSV, TSV or JSONL file (or a zip with your images), "
-            "or load the example to look around.",
-        )
-        return DataView(empty, [], [], 0, "", error)
-    total = len(table.rows)
-    pages = max(1, math.ceil(total / PREVIEW_PAGE))
-    page = min(max(page, 0), pages - 1)
-    start = page * PREVIEW_PAGE
-    chunk = table.rows[start : start + PREVIEW_PAGE]
-    rows = [[_cell(row.get(column)) for column in table.columns] for row in chunk]
-    label = f"Rows {start + 1}–{start + len(chunk)} of {total:,}" if total else "No rows"
-    columns = len(table.columns)
-    summary = (
-        '<div class="ct-filebar"><span class="ct-file-icon" aria-hidden="true">▤</span>'
-        f'<span class="ct-file-name">{fragments.esc(table.path.name)}</span>'
-        f'<span class="ct-file-meta">{total:,} rows · {columns} column'
-        f"{'s' if columns != 1 else ''}</span></div>"
-    )
-    return DataView(summary, list(table.columns), rows, page, label, error)
-
-
-def upload(session: Session, path: str | None, settings: Settings) -> DataView:
-    if not path:
-        return data_view(session)
+def upload(session: Session, path: str | Path, settings: Settings) -> str | None:
+    """Use an uploaded file; return why it cannot be used, or None."""
     try:
         load_upload(session, Path(path), settings)
     except (UploadError, OSError) as exc:
-        return data_view(session, error=f"Could not use {Path(path).name}: {exc}")
-    return data_view(session)
+        return f"Could not use {Path(path).name}: {exc}"
+    return None
 
 
-def example(session: Session) -> DataView:
-    load_example(session)
-    return data_view(session)
+def sample(session: Session, name: str = "support_tickets") -> None:
+    load_sample(session, name)
+
+
+def set_noun(session: Session, noun: str) -> None:
+    """What one row is; an empty word means "example"."""
+    if session.draft is not None:
+        session.draft.row_noun = noun.strip()[:40] or None
 
 
 # ---------------------------------------------------------------------------- schema step
-
-
-@dataclass
-class QuestionCard:
-    id: str
-    column: str
-    type: str
-    instructions: str
-    options: list[list[Any]]  # [option id, description, label count]
-    unknown: str  # a callout listing values that are not options, or ""
-
-
-@dataclass
-class SchemaView:
-    columns: list[str]
-    id_column: str | None
-    state_columns: list[str]
-    image_columns: list[str]
-    free_columns: list[str]  # columns that can become a question
-    cards: list[QuestionCard]
-    preview: str
-    error: str | None
 
 
 def option_counts(
@@ -266,89 +201,6 @@ def option_counts(
             key = id_for.get(label.top(), label.top())
             counts[key] = counts.get(key, 0) + 1
     return counts, dict(unknown)
-
-
-def _unknown_callout(unknown: dict[str, int]) -> str:
-    if not unknown:
-        return ""
-    ordered = sorted(unknown.items(), key=lambda item: (-item[1], item[0]))
-    shown = ", ".join(f"{value} ({count})" for value, count in ordered[:UNKNOWN_SHOWN])
-    more = f" and {len(ordered) - UNKNOWN_SHOWN} more" if len(ordered) > UNKNOWN_SHOWN else ""
-    rows = sum(unknown.values())
-    return fragments.callout(
-        "warning",
-        f"{rows:,} rows have a value that is not an option: {shown}{more}. "
-        "Add them as options, or fix them in your data.",
-    )
-
-
-def _draft_schema(session: Session) -> Schema:
-    questions = {q.id: q.to_clef() for q in session.draft.questions}
-    return Schema.from_dict({"questions": questions})
-
-
-def _row_state(session: Session, row: dict[str, Any]) -> tuple[Any, int]:
-    draft = session.draft
-    if draft.native:
-        images = row.get("images") or []
-        return row.get("state"), len(images) if isinstance(images, list) else 1
-    values = {column: row.get(column) for column in draft.state_columns}
-    state = values[draft.state_columns[0]] if len(draft.state_columns) == 1 else values
-    images = sum(1 for column in draft.image_columns if str(row.get(column) or "").strip())
-    return state, images
-
-
-def _preview(session: Session, row_index: int) -> str:
-    rows = session.table.rows
-    if not rows:
-        return fragments.empty_state("No rows to preview", "The file has a header but no rows.")
-    try:
-        schema = _draft_schema(session)
-    except SchemaError as exc:
-        return fragments.callout("error", f"Fix the questions to see the prompt: {exc}")
-    row = rows[min(max(row_index, 0), len(rows) - 1)]
-    state, images = _row_state(session, row)
-    return fragments.prompt_preview(prompt_pieces(state, schema.questions, images))
-
-
-def schema_view(session: Session, preview_row: int = 0) -> SchemaView:
-    table, draft = session.table, session.draft
-    if table is None or draft is None:
-        empty = fragments.empty_state("No data yet", "Load data on the Data step first.")
-        return SchemaView([], None, [], [], [], [], empty, None)
-    cards = []
-    for question in draft.questions:
-        counts, unknown = option_counts(session, question)
-        options = [[o.id, o.description, counts.get(o.id, 0)] for o in question.options]
-        cards.append(
-            QuestionCard(
-                question.id,
-                question.column,
-                question.type,
-                question.instructions,
-                options,
-                _unknown_callout(unknown),
-            )
-        )
-    used = {q.column for q in draft.questions} | {draft.id_column}
-    free = [column for column in table.columns if column not in used]
-    if draft.native:
-        free = [qid for qid in _native_label_keys(session) if qid not in used]
-    error = None
-    try:
-        session.config()
-    except ValueError as exc:
-        error = error_text(exc)
-    return SchemaView(
-        list(table.columns),
-        draft.id_column,
-        list(draft.state_columns),
-        list(draft.image_columns),
-        free,
-        cards,
-        _preview(session, preview_row),
-        error,
-    )
 
 
 def _native_label_keys(session: Session) -> list[str]:
@@ -379,6 +231,30 @@ def add_question(session: Session, column: str) -> str | None:
 
 def remove_question(session: Session, qid: str) -> None:
     session.draft.questions = [q for q in session.draft.questions if q.id != qid]
+
+
+def describe_option(session: Session, qid: str, option_id: str, description: str) -> str | None:
+    question = session.draft.question(qid) if session.draft else None
+    if question is None:
+        return f"There is no question {qid}"
+    option = next((o for o in question.options if o.id == option_id), None)
+    if option is None:
+        return f"{qid} has no answer {option_id}"
+    option.description = description.strip()
+    return None
+
+
+def move_option(session: Session, qid: str, option_id: str, offset: int) -> None:
+    """Move a scale's answer up or down (its order is the scale's order)."""
+    question = session.draft.question(qid) if session.draft else None
+    if question is None:
+        return
+    ids = [o.id for o in question.options]
+    if option_id not in ids:
+        return
+    k = ids.index(option_id)
+    j = min(max(k + offset, 0), len(ids) - 1)
+    question.options.insert(j, question.options.pop(k))
 
 
 def _options_from_rows(rows: list[list[Any]]) -> tuple[list[OptionDraft], str | None]:
@@ -452,57 +328,6 @@ def refresh(session: Session, services: Services) -> None:
     if report.tokens is not None and spec is not None:
         workload = workload_from(config, report.tokens)
         session.estimates = estimate_hf_flavors(spec, workload, services.prices())
-
-
-@dataclass
-class ValidateView:
-    tiles: str
-    issues: str
-    distributions: str
-    histogram: str
-    ok: bool
-
-
-def validate_view(session: Session) -> ValidateView:
-    report = session.report
-    if report is None:
-        empty = fragments.empty_state(
-            "Not checked yet", "Load data and set up your questions; the checks run on their own."
-        )
-        return ValidateView("", empty, "", "", False)
-    tiles = [
-        ("Train rows", f"{len(report.train):,}"),
-        ("Eval rows", f"{len(report.eval):,}"),
-        ("Questions", str(len(report.questions))),
-        ("Errors", str(len(report.errors))),
-        ("Warnings", str(len(report.warnings))),
-    ]
-    histogram = ""
-    tokens = report.tokens
-    if tokens is not None:
-        tiles += [
-            ("Median prompt", f"{tokens.p50:,} tokens"),
-            ("95th percentile", f"{tokens.p95:,} tokens"),
-            ("Longest prompt", f"{tokens.max:,} tokens"),
-        ]
-        try:
-            cutoff = session.config().train.max_length
-        except ValueError:
-            cutoff = None
-        histogram = charts.histogram(tokens.train_lengths + tokens.eval_lengths, cutoff=cutoff)
-    sections = [
-        f'<section class="ct-dist"><h4>{fragments.esc(qid)}</h4>'
-        f"{charts.bar_chart(stats.train_counts, missing=stats.train_missing)}</section>"
-        for qid, stats in report.questions.items()
-    ]
-    distributions = f'<div class="ct-dists">{"".join(sections)}</div>' if sections else ""
-    return ValidateView(
-        fragments.stat_tiles(tiles),
-        fragments.issue_list(report.issues),
-        distributions,
-        histogram,
-        report.ok,
-    )
 
 
 # ---------------------------------------------------------------------------- configure step
@@ -625,11 +450,11 @@ ADVANCED_FIELDS: tuple[FieldSpec, ...] = (
 # Config fields the Configure step leaves to other steps or to the launcher.
 EXCLUDED_FIELDS = frozenset(
     {
-        "run_name",  # its own textbox on the Configure step
-        "model.id",  # the header's model picker
+        "run_name",  # the Settings step's name row
+        "model.id",  # the Settings step's model row
         "model.revision",  # pinned in code
         "model.local_path",  # set by the launcher on HF Jobs
-        "schema",  # the Schema step
+        "schema",  # the What to predict step
         "schema_file",
         "data.train",  # the uploaded file
         "data.eval",
@@ -637,21 +462,13 @@ EXCLUDED_FIELDS = frozenset(
         "data.state_columns",
         "data.label_columns",
         "data.image_columns",
+        "data.row_noun",  # the Data step's "Each row is one ..."
         "output.dir",  # set by the launcher
-        "output.push_to_hub",  # the Launch step's adapter repo
+        "output.push_to_hub",  # the Train step's adapter repo
         "output.report_to",  # jobs get no tracker credentials
     }
 )
 _FIELDS = {spec.path: spec for spec in ADVANCED_FIELDS}
-
-
-@dataclass
-class ConfigureView:
-    preset: str
-    values: dict[str, Any]
-    question_weights: list[list[Any]]
-    estimates: str
-    error: str | None
 
 
 def _get(config: Config, path: str) -> Any:
@@ -727,26 +544,6 @@ def set_preset(session: Session, preset: str) -> None:
         draft.overrides.pop(path, None)
 
 
-def configure_view(session: Session) -> ConfigureView:
-    draft = session.draft
-    if draft is None:
-        return ConfigureView("balanced", {}, [], estimate_view(session), None)
-    try:
-        config = session.config()
-    except ValueError as exc:
-        return ConfigureView(draft.preset, {}, [], estimate_view(session), error_text(exc))
-    values = {spec.path: _get(config, spec.path) for spec in ADVANCED_FIELDS}
-    weights = [[q.id, config.train.question_weights.get(q.id, 1.0)] for q in draft.questions]
-    return ConfigureView(draft.preset, values, weights, estimate_view(session), None)
-
-
-def estimate_view(session: Session) -> str:
-    recommended = recommend(session.estimates)
-    return fragments.estimate_table(
-        session.estimates, recommended.flavor if recommended is not None else None
-    )
-
-
 def set_model(session: Session, model_id: str) -> None:
     if model_id not in MODELS:
         raise ValueError(f"unknown model {model_id!r}")
@@ -767,46 +564,6 @@ def set_run_name(session: Session, name: str) -> str | None:
             "starting with a letter or digit"
         )
     return None
-
-
-# ---------------------------------------------------------------------------- sidebar, bundle
-
-
-def step_states(session: Session) -> list[StepState]:
-    """Data, Validate, Configure, Launch: each todo, done, warning or error."""
-    states: list[StepState] = ["todo"] * len(STEPS)
-    if session.table is not None and session.draft is not None:
-        try:
-            session.config()
-            states[0] = "done"
-        except ValueError:
-            states[0] = "error"
-    report = session.report
-    if report is not None:
-        states[1] = "error" if report.errors else "warning" if report.warnings else "done"
-    if session.reached > 2 and states[0] == "done":
-        states[2] = "done"
-    if session.job_id or session.local_folder:
-        states[3] = "done"
-    return states
-
-
-def sidebar_estimate(session: Session) -> str:
-    row = recommend(session.estimates)
-    if row is None:
-        body = (
-            "Load data to see what a run costs."
-            if session.table is None
-            else "Fix the errors on the Validate step to see what a run costs."
-        )
-        return fragments.empty_state("No estimate yet", body)
-    cost = "—" if row.cost_low is None else f"${row.cost_low:,.2f}–${row.cost_high:,.2f}"
-    return (
-        '<div class="ct-side-estimate"><div class="ct-side-label">Estimated cost</div>'
-        f'<div class="ct-side-cost">{cost}</div>'
-        f'<div class="ct-side-time">{row.hours_low:.1f}–{row.hours_high:.1f} h on '
-        f"{fragments.esc(row.flavor)}</div></div>"
-    )
 
 
 def bundle(session: Session) -> Path:

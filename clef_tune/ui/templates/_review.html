@@ -1,0 +1,56 @@
+{% import "macros.html" as m %}
+{% if need_signin %}
+<div class="srows">
+  <div class="srow"><span class="sk">Model</span><span class="sv">{{ model }} · {{ preset }}</span><a href="/settings">Change</a></div>
+</div>
+{% if settings_estimate %}{{ m.estimate(settings_estimate) }}{% endif %}
+<div class="signin">
+  <span class="avatar" aria-hidden="true">?</span>
+  <span>Sign in to train<small>Training runs and is billed under your own Hugging Face account.</small></span>
+  <a class="btn primary end" href="{{ login_url('/train') }}" target="_top">Sign in with Hugging Face</a>
+</div>
+<div class="start"><button class="btn primary" type="button" disabled>Start training</button><small>Sign in first.</small></div>
+{% elif not ready.can_start %}
+<p class="error-box" role="alert">{{ ready.error }}</p>
+{% if "credits" in (ready.error or "") %}<p><a class="btn" href="https://huggingface.co/settings/billing" target="_blank" rel="noopener">Add credits on Hugging Face ↗</a></p>{% endif %}
+{% if space and "permission" in (ready.error or "") %}
+<form class="map" action="/train/token" method="post">
+  <label for="pasted-token">Sign-in can't reach everything a launch needs. Paste a <a href="https://huggingface.co/settings/tokens" target="_blank" rel="noopener">token</a> with job.write and repo.write; it's kept for this browser session only.</label>
+  <input id="pasted-token" type="password" name="token" autocomplete="off" spellcheck="false">
+  <button class="btn" type="submit">Use this token</button>
+</form>
+{% endif %}
+<p><a class="back" href="/settings">← Back to settings</a></p>
+{% else %}
+<div class="srows">
+  <div class="srow"><span class="sk">Model</span><span class="sv">{{ ready.model }} · {{ ready.preset }}</span><a href="/settings">Change</a></div>
+  <div class="srow"><span class="sk">Data</span><span class="sv">{{ ready.data_line }}<small>{{ ready.split_line }}</small></span><a href="/data">Change</a></div>
+  <div class="srow"><span class="sk">Saved as</span><span class="sv">{{ ready.repo }}<small>Private to your Hugging Face account</small></span><a href="/settings">Change</a></div>
+</div>
+<div class="est swap-in"><span class="big"><small>Time</small>About {{ ready.time }}</span><span class="big"><small>Cost</small>{{ ready.cost }}</span></div>
+<p class="fine">Billed to your Hugging Face account's prepaid credits{% if ready.cap_cost %}, and it never costs more than <b>{{ ready.cap_cost }}</b>: it stops itself after {{ ready.cap_time }}{% endif %}. <a href="https://huggingface.co/settings/billing" target="_blank" rel="noopener">Add credits</a></p>
+{% if ready.first_build %}<p class="fine">The first run on your account also prepares a faster training add-on once, which takes about 12 extra minutes.</p>{% endif %}
+{% for note in ready.notes %}<p class="notice">{{ note }}</p>{% endfor %}
+{% if user %}
+<div class="signin">
+  <span class="avatar" aria-hidden="true">{{ user[:1] }}</span>
+  <span>Signed in as <b>{{ user }}</b><small>Training runs and is billed under this account</small></span>
+  {% if space %}<a class="end" href="/oauth/huggingface/logout?_target_url=/train">Switch</a>{% endif %}
+</div>
+{% endif %}
+<form class="check-line" data-post data-autosubmit="change" action="/train/delete-data">
+  <input type="hidden" name="delete" value="">
+  <input id="delete-data" type="checkbox" name="delete" value="1"{% if delete_data %} checked{% endif %}>
+  <label for="delete-data">Delete my training data from Hugging Face when it finishes</label>
+</form>
+<form class="start" action="/train/start" method="post">
+  <button class="btn primary" type="submit">Start training</button>
+  <small>You pay only for the time it runs{% if ready.cap_cost %}, at most {{ ready.cap_cost }}{% endif %}.</small>
+</form>
+{% endif %}
+{% if local_training %}
+<form class="check-line" action="/train/local" method="post" style="margin-top: 18px">
+  <button class="linkbtn" type="submit">Train on this computer's GPU instead</button>
+</form>
+{% endif %}
+<p class="fine" style="margin-top: 22px"><a href="/train/bundle">Download the training bundle</a> to run <code>clef-tune train</code> somewhere else.</p>

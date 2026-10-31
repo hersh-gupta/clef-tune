@@ -1,0 +1,201 @@
+log_id,host,message,component,severity,act_now
+L0001,web-02,User jonas signed in,auth,0,no
+L0002,worker-01,Replication lag 277s on replica db-2,database,1,no
+L0003,web-02,GET /v1/orders slow: 3471 ms (budget 800 ms),api,1,no
+L0004,worker-01,"API gateway: all upstreams unhealthy, returning 503",api,3,yes
+L0005,worker-01,Token signing key could not be loaded; using the cached key,auth,2,yes
+L0006,web-02,GET /v1/orders 200 in 2475 ms,api,0,no
+L0007,edge-03,Charge req_80251 failed: processor timeout,payments,2,yes
+L0008,edge-03,User sofia signed in,auth,0,no
+L0009,db-1,Card network retry for charge req_40890,payments,1,no
+L0010,db-1,Card network retry for charge req_65615,payments,1,no
+L0011,worker-01,Card network retry for charge req_64197,payments,1,no
+L0012,edge-03,Disk full on db-1: could not extend file,database,3,yes
+L0013,worker-01,GET /v1/orders slow: 2461 ms (budget 800 ms),api,1,no
+L0014,db-1,Checkpoint complete: wrote 117 buffers,database,0,no
+L0015,web-02,"API gateway: all upstreams unhealthy, returning 503",api,3,yes
+L0016,worker-01,User sofia signed in,auth,0,no
+L0017,db-1,GET /v1/orders 200 in 1411 ms,api,0,no
+L0018,web-02,Deadlock detected on table orders; transaction rolled back,database,2,no
+L0019,worker-01,267 failed sign-in attempts for tom in 5 minutes,auth,1,no
+L0020,worker-01,Replication lag 184s on replica db-2,database,1,no
+L0021,db-1,Card network retry for charge req_15977,payments,1,no
+L0022,web-02,Payment processor unreachable for 10 minutes; every charge failing,payments,3,yes
+L0023,worker-01,Deadlock detected on table orders; transaction rolled back,database,2,no
+L0024,edge-03,Charge req_26813 captured: $457,payments,0,no
+L0025,edge-03,Charge req_48729 captured: $175,payments,0,no
+L0026,worker-01,Disk full on db-1: could not extend file,database,3,yes
+L0027,db-1,GET /v1/orders 200 in 3324 ms,api,0,no
+L0028,edge-03,Replication lag 285s on replica db-2,database,1,no
+L0029,edge-03,Disk full on db-1: could not extend file,database,3,yes
+L0030,edge-03,User amira signed in,auth,0,no
+L0031,worker-01,Token signing key could not be loaded; using the cached key,auth,2,yes
+L0032,web-02,GET /v1/orders 200 in 1303 ms,api,0,no
+L0033,worker-01,Replication lag 277s on replica db-2,database,1,no
+L0034,worker-01,Disk full on db-1: could not extend file,database,3,yes
+L0035,db-1,Replication lag 104s on replica db-2,database,1,no
+L0036,web-01,Checkpoint complete: wrote 496 buffers,database,0,no
+L0037,web-01,GET /v1/orders slow: 1298 ms (budget 800 ms),api,1,no
+L0038,web-01,Deadlock detected on table orders; transaction rolled back,database,2,no
+L0039,worker-01,Checkpoint complete: wrote 668 buffers,database,0,no
+L0040,web-01,Replication lag 166s on replica db-2,database,1,no
+L0041,edge-03,Payment processor unreachable for 10 minutes; every charge failing,payments,3,yes
+L0042,worker-01,Charge req_11667 captured: $482,payments,0,no
+L0043,worker-01,Deadlock detected on table orders; transaction rolled back,database,2,no
+L0044,web-02,Checkpoint complete: wrote 109 buffers,database,0,no
+L0045,edge-03,POST /v1/orders 500 Internal Server Error (request req_56701),api,2,no
+L0046,web-01,Charge req_68255 captured: $393,payments,0,no
+L0047,web-01,Deadlock detected on table orders; transaction rolled back,database,2,no
+L0048,web-02,Card network retry for charge req_83948,payments,1,no
+L0049,edge-03,GET /v1/orders 200 in 1369 ms,api,0,no
+L0050,edge-03,User jonas signed in,auth,0,no
+L0051,web-01,Card network retry for charge req_30854,payments,1,no
+L0052,db-1,Replication lag 214s on replica db-2,database,1,no
+L0053,web-02,Checkpoint complete: wrote 56 buffers,database,0,no
+L0054,worker-01,POST /v1/orders 500 Internal Server Error (request req_49957),api,2,no
+L0055,web-01,Payment processor unreachable for 10 minutes; every charge failing,payments,3,yes
+L0056,db-1,User amira signed in,auth,0,no
+L0057,db-1,GET /v1/orders 200 in 3706 ms,api,0,no
+L0058,web-01,Replication lag 6s on replica db-2,database,1,no
+L0059,web-02,726 failed sign-in attempts for tom in 5 minutes,auth,1,no
+L0060,worker-01,User li.wei signed in,auth,0,no
+L0061,edge-03,Checkpoint complete: wrote 579 buffers,database,0,no
+L0062,db-1,Charge req_63772 failed: processor timeout,payments,2,yes
+L0063,edge-03,GET /v1/orders slow: 1652 ms (budget 800 ms),api,1,no
+L0064,db-1,Replication lag 290s on replica db-2,database,1,no
+L0065,edge-03,Charge req_77161 captured: $802,payments,0,no
+L0066,worker-01,GET /v1/orders slow: 811 ms (budget 800 ms),api,1,no
+L0067,edge-03,Charge req_34992 captured: $873,payments,0,no
+L0068,db-1,Replication lag 295s on replica db-2,database,1,no
+L0069,web-01,Charge req_35073 captured: $44,payments,0,no
+L0070,edge-03,GET /v1/orders slow: 3005 ms (budget 800 ms),api,1,no
+L0071,db-1,Deadlock detected on table orders; transaction rolled back,database,2,no
+L0072,web-02,"API gateway: all upstreams unhealthy, returning 503",api,3,yes
+L0073,db-1,Deadlock detected on table orders; transaction rolled back,database,2,no
+L0074,web-02,GET /v1/orders slow: 210 ms (budget 800 ms),api,1,no
+L0075,web-02,Deadlock detected on table orders; transaction rolled back,database,2,no
+L0076,web-01,Payment processor unreachable for 10 minutes; every charge failing,payments,3,yes
+L0077,web-01,POST /v1/orders 500 Internal Server Error (request req_60814),api,2,no
+L0078,edge-03,GET /v1/orders slow: 881 ms (budget 800 ms),api,1,no
+L0079,web-01,Disk full on db-1: could not extend file,database,3,yes
+L0080,worker-01,Card network retry for charge req_62375,payments,1,no
+L0081,web-02,112 failed sign-in attempts for sofia in 5 minutes,auth,1,no
+L0082,edge-03,User li.wei signed in,auth,0,no
+L0083,db-1,POST /v1/orders 500 Internal Server Error (request req_86044),api,2,no
+L0084,web-01,POST /v1/orders 500 Internal Server Error (request req_23155),api,2,no
+L0085,web-02,POST /v1/orders 500 Internal Server Error (request req_24344),api,2,no
+L0086,web-01,Payment processor unreachable for 10 minutes; every charge failing,payments,3,yes
+L0087,web-01,84 failed sign-in attempts for sofia in 5 minutes,auth,1,no
+L0088,edge-03,Disk full on db-1: could not extend file,database,3,yes
+L0089,web-01,Token signing key could not be loaded; using the cached key,auth,2,yes
+L0090,web-01,Charge req_50082 captured: $13,payments,0,no
+L0091,edge-03,Card network retry for charge req_90236,payments,1,no
+L0092,web-01,User tom signed in,auth,0,no
+L0093,db-1,Token signing key could not be loaded; using the cached key,auth,2,yes
+L0094,edge-03,GET /v1/orders slow: 721 ms (budget 800 ms),api,1,no
+L0095,worker-01,Charge req_51206 captured: $230,payments,0,no
+L0096,web-01,Token signing key could not be loaded; using the cached key,auth,2,yes
+L0097,db-1,Deadlock detected on table orders; transaction rolled back,database,2,no
+L0098,db-1,Card network retry for charge req_51228,payments,1,no
+L0099,web-01,128 failed sign-in attempts for jonas in 5 minutes,auth,1,no
+L0100,web-02,Checkpoint complete: wrote 697 buffers,database,0,no
+L0101,db-1,Replication lag 172s on replica db-2,database,1,no
+L0102,worker-01,Card network retry for charge req_84384,payments,1,no
+L0103,edge-03,Card network retry for charge req_79654,payments,1,no
+L0104,web-02,GET /v1/orders slow: 1496 ms (budget 800 ms),api,1,no
+L0105,web-02,POST /v1/orders 500 Internal Server Error (request req_62179),api,2,no
+L0106,web-02,POST /v1/orders 500 Internal Server Error (request req_61903),api,2,no
+L0107,web-02,Card network retry for charge req_45444,payments,1,no
+L0108,worker-01,386 failed sign-in attempts for li.wei in 5 minutes,auth,1,no
+L0109,worker-01,Checkpoint complete: wrote 780 buffers,database,0,no
+L0110,db-1,Token signing key could not be loaded; using the cached key,auth,2,yes
+L0111,web-01,Card network retry for charge req_22883,payments,1,no
+L0112,web-02,GET /v1/orders 200 in 1737 ms,api,0,no
+L0113,edge-03,User amira signed in,auth,0,no
+L0114,worker-01,Charge req_68496 failed: processor timeout,payments,2,yes
+L0115,worker-01,Disk full on db-1: could not extend file,database,3,yes
+L0116,db-1,Charge req_35933 captured: $545,payments,0,no
+L0117,db-1,Token signing key could not be loaded; using the cached key,auth,2,yes
+L0118,edge-03,Deadlock detected on table orders; transaction rolled back,database,2,no
+L0119,edge-03,Replication lag 250s on replica db-2,database,1,no
+L0120,db-1,POST /v1/orders 500 Internal Server Error (request req_46492),api,2,no
+L0121,db-1,GET /v1/orders slow: 1289 ms (budget 800 ms),api,1,no
+L0122,web-01,GET /v1/orders 200 in 2037 ms,api,0,no
+L0123,worker-01,Checkpoint complete: wrote 754 buffers,database,0,no
+L0124,web-02,Charge req_11616 captured: $539,payments,0,no
+L0125,web-01,Checkpoint complete: wrote 352 buffers,database,0,no
+L0126,web-02,Auth service down: cannot verify any session,auth,3,yes
+L0127,web-01,81 failed sign-in attempts for jonas in 5 minutes,auth,1,no
+L0128,worker-01,Disk full on db-1: could not extend file,database,3,yes
+L0129,web-01,GET /v1/orders 200 in 2584 ms,api,0,no
+L0130,web-01,Card network retry for charge req_90708,payments,1,no
+L0131,worker-01,Checkpoint complete: wrote 181 buffers,database,0,no
+L0132,db-1,Card network retry for charge req_32171,payments,1,no
+L0133,web-02,Disk full on db-1: could not extend file,database,3,yes
+L0134,edge-03,Token signing key could not be loaded; using the cached key,auth,2,yes
+L0135,db-1,User tom signed in,auth,0,no
+L0136,web-02,Checkpoint complete: wrote 56 buffers,database,0,no
+L0137,db-1,GET /v1/orders 200 in 2567 ms,api,0,no
+L0138,web-01,Replication lag 273s on replica db-2,database,1,no
+L0139,edge-03,GET /v1/orders slow: 2851 ms (budget 800 ms),api,1,no
+L0140,web-01,User li.wei signed in,auth,0,no
+L0141,web-02,Token signing key could not be loaded; using the cached key,auth,2,yes
+L0142,db-1,Auth service down: cannot verify any session,auth,3,yes
+L0143,worker-01,Checkpoint complete: wrote 667 buffers,database,0,no
+L0144,edge-03,Card network retry for charge req_74141,payments,1,no
+L0145,db-1,Payment processor unreachable for 10 minutes; every charge failing,payments,3,yes
+L0146,edge-03,GET /v1/orders slow: 1788 ms (budget 800 ms),api,1,no
+L0147,edge-03,Checkpoint complete: wrote 562 buffers,database,0,no
+L0148,web-02,User jonas signed in,auth,0,no
+L0149,worker-01,Checkpoint complete: wrote 532 buffers,database,0,no
+L0150,worker-01,Card network retry for charge req_22892,payments,1,no
+L0151,edge-03,Checkpoint complete: wrote 351 buffers,database,0,no
+L0152,worker-01,GET /v1/orders 200 in 519 ms,api,0,no
+L0153,web-02,"API gateway: all upstreams unhealthy, returning 503",api,3,yes
+L0154,web-01,308 failed sign-in attempts for jonas in 5 minutes,auth,1,no
+L0155,web-02,GET /v1/orders 200 in 1872 ms,api,0,no
+L0156,web-02,Token signing key could not be loaded; using the cached key,auth,2,yes
+L0157,web-01,692 failed sign-in attempts for sofia in 5 minutes,auth,1,no
+L0158,edge-03,595 failed sign-in attempts for li.wei in 5 minutes,auth,1,no
+L0159,worker-01,GET /v1/orders 200 in 250 ms,api,0,no
+L0160,edge-03,Deadlock detected on table orders; transaction rolled back,database,2,no
+L0161,web-02,Auth service down: cannot verify any session,auth,3,yes
+L0162,edge-03,Deadlock detected on table orders; transaction rolled back,database,2,no
+L0163,worker-01,Disk full on db-1: could not extend file,database,3,yes
+L0164,web-01,Replication lag 76s on replica db-2,database,1,no
+L0165,web-02,User amira signed in,auth,0,no
+L0166,web-01,Replication lag 92s on replica db-2,database,1,no
+L0167,worker-01,Payment processor unreachable for 10 minutes; every charge failing,payments,3,yes
+L0168,db-1,Checkpoint complete: wrote 400 buffers,database,0,no
+L0169,web-02,Card network retry for charge req_79235,payments,1,no
+L0170,web-01,Deadlock detected on table orders; transaction rolled back,database,2,no
+L0171,edge-03,Replication lag 140s on replica db-2,database,1,no
+L0172,edge-03,Card network retry for charge req_16227,payments,1,no
+L0173,edge-03,773 failed sign-in attempts for sofia in 5 minutes,auth,1,no
+L0174,edge-03,Charge req_22459 failed: processor timeout,payments,2,yes
+L0175,web-01,Charge req_10790 captured: $628,payments,0,no
+L0176,web-02,Token signing key could not be loaded; using the cached key,auth,2,yes
+L0177,web-01,GET /v1/orders slow: 2377 ms (budget 800 ms),api,1,no
+L0178,web-01,Replication lag 202s on replica db-2,database,1,no
+L0179,web-02,Checkpoint complete: wrote 442 buffers,database,0,no
+L0180,edge-03,Checkpoint complete: wrote 118 buffers,database,0,no
+L0181,edge-03,GET /v1/orders 200 in 2551 ms,api,0,no
+L0182,db-1,Disk full on db-1: could not extend file,database,3,yes
+L0183,web-01,POST /v1/orders 500 Internal Server Error (request req_23399),api,2,no
+L0184,worker-01,Auth service down: cannot verify any session,auth,3,yes
+L0185,edge-03,Card network retry for charge req_24132,payments,1,no
+L0186,edge-03,Card network retry for charge req_58906,payments,1,no
+L0187,web-01,Auth service down: cannot verify any session,auth,3,yes
+L0188,web-02,356 failed sign-in attempts for amira in 5 minutes,auth,1,no
+L0189,web-01,Token signing key could not be loaded; using the cached key,auth,2,yes
+L0190,web-02,Card network retry for charge req_79267,payments,1,no
+L0191,web-01,753 failed sign-in attempts for sofia in 5 minutes,auth,1,no
+L0192,worker-01,User sofia signed in,auth,0,no
+L0193,db-1,Charge req_23047 failed: processor timeout,payments,2,yes
+L0194,worker-01,Token signing key could not be loaded; using the cached key,auth,2,yes
+L0195,web-02,358 failed sign-in attempts for sofia in 5 minutes,auth,1,no
+L0196,worker-01,Replication lag 291s on replica db-2,database,1,no
+L0197,edge-03,GET /v1/orders slow: 1142 ms (budget 800 ms),api,1,no
+L0198,edge-03,Disk full on db-1: could not extend file,database,3,yes
+L0199,worker-01,Disk full on db-1: could not extend file,database,3,yes
+L0200,web-02,Charge req_12641 failed: processor timeout,payments,2,yes

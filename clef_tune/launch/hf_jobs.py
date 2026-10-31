@@ -21,6 +21,7 @@ from clef_tune.estimate import (
     HF_FLAVORS,
     EstimateRow,
     estimate_hf_flavors,
+    estimate_prediction,
     fetch_hf_prices,
     model_spec,
     recommend,
@@ -32,9 +33,11 @@ from clef_tune.launch.job_script import (
     JOB_OUTPUT_DIR,
     KERNEL_MOUNT,
     MODEL_MOUNT,
+    PREDICTIONS_PATH,
     WORK_MOUNT,
     job_command,
     job_env,
+    predict_command,
 )
 from clef_tune.launch.source import Source, SourceError, pin_commit, resolve_source
 from clef_tune.prompt import TokenCounter, counter_for_config
@@ -43,7 +46,8 @@ from clef_tune.validation import ValidationReport, validate
 from clef_tune.yamlio import load_yaml_file
 
 TOOL_LABEL = {"tool": "clef-tune"}
-LABEL_KEYS = ("tool", "run", "timeout")
+LABEL_KEYS = ("tool", "run", "timeout", "kind")
+PREDICT_KIND = "predict"  # the "kind" label of a prediction job; training jobs have none
 RUNS_FOLDER = "clef-tune-runs"  # one folder per launch in the jobs-artifacts bucket
 KERNEL_CACHE_ROOT = "clef-tune-kernels"
 KERNEL_BUILD_MINUTES = 15  # causal-conv1d compiles in about 12 minutes on 8 vCPUs
@@ -232,7 +236,7 @@ class LaunchedJob:
     id: str
     url: str
     work_folder: str  # the run's folder in the jobs-artifacts bucket, mounted at /work
-    plan: LaunchPlan
+    plan: LaunchPlan | PredictionPlan
 
 
 def run_folder(run_name: str, now: datetime) -> str:
@@ -372,7 +376,12 @@ class JobStatus:
     hours: float | None
     cost: float | None
     progress: list[dict]  # the metrics.jsonl records so far
-    adapter_repo: str | None = None  # where the job pushes its adapter
+    adapter_repo: str | None = None  # where a training job pushes, or a prediction job reads
+    kind: str = "train"  # or "predict"
+    price_per_hour: float | None = None
+    timeout: str | None = None
+    started_at: datetime | None = None
+    created_at: datetime | None = None
 
     def latest(self, event: str) -> dict | None:
         return next((r for r in reversed(self.progress) if r.get("event") == event), None)
@@ -469,6 +478,7 @@ def job_status(
         price = _price(info)
         cost = hours * price if price is not None else None
     started = info.started_at is not None
+    kind = job_kind(info)
     return JobStatus(
         id=info.id,
         url=info.url,
@@ -478,8 +488,13 @@ def job_status(
         message=info.status.message,
         hours=hours,
         cost=cost,
-        progress=job_progress(info, api=api, token=token) if started else [],
-        adapter_repo=adapter_repo_of(info),
+        progress=job_progress(info, api=api, token=token) if started and kind == "train" else [],
+        adapter_repo=prediction_adapter_of(info) if kind == PREDICT_KIND else adapter_repo_of(info),
+        kind=kind,
+        price_per_hour=_price(info),
+        timeout=(info.labels or {}).get("timeout"),
+        started_at=info.started_at,
+        created_at=getattr(info, "created_at", None),
     )
 
 
@@ -628,4 +643,231 @@ def clean_job(job_id: str, *, api: HfApi | None = None, token: str | None = None
     paths = _leftovers(info, api=api, token=token)
     if paths:
         api.batch_bucket_files(_work_volume(info).source, delete=paths, token=token)
+    return paths
+
+
+# ---------------------------------------------------------------------------- predictions
+
+
+@dataclass(frozen=True)
+class PredictionPlan:
+    adapter_repo: str
+    base_model: str
+    revision: str
+    namespace: str
+    run_name: str
+    input_csv: Path
+    rows: int
+    review_below: float
+    source: Source
+    flavor: str
+    gpus: int
+    timeout: str
+    price_per_hour: float | None
+    estimate: EstimateRow | None
+    kernels: bool
+    kernels_cached: bool
+    keep_input: bool
+
+    @property
+    def max_cost(self) -> float | None:
+        if self.price_per_hour is None:
+            return None
+        return timeout_hours(self.timeout) * self.price_per_hour
+
+
+def plan_prediction(
+    adapter_repo: str,
+    input_csv: str | Path,
+    *,
+    config: Config,
+    tokens: int,
+    rows: int,
+    review_below: float = 0.7,
+    token: str | None = None,
+    keep_input: bool = False,
+    kernels: bool = True,
+    api: HfApi | None = None,
+    prices: dict[str, float] | None = None,
+    source: Source | None = None,
+) -> PredictionPlan:
+    """What predicting a checked CSV with an adapter needs and costs. `config` is the
+    adapter's training config. Uploads nothing and starts nothing."""
+    try:
+        source = source or pin_commit(resolve_source(None))
+    except SourceError as exc:
+        raise LaunchError(str(exc)) from exc
+    api = api or HfApi()
+    token = token or get_token()
+    if token is None:
+        raise LaunchError("no Hugging Face token: run `hf auth login` or set HF_TOKEN")
+    try:
+        namespace = api.whoami(token=token)["name"]
+    except Exception as exc:
+        raise LaunchError(f"cannot check the Hugging Face token: {exc}") from exc
+    spec = model_spec(config.model.id)
+    live = prices if prices is not None else fetch_hf_prices()
+    row = estimate_prediction(spec, config, tokens, live) if spec is not None else None
+    if row is None:
+        raise LaunchError(f"no HF Jobs flavor can predict with {config.model.id}")
+    cached = kernels and _kernel_wheel_cached(api, namespace, token)
+    build = KERNEL_BUILD_MINUTES if kernels and not cached else 0
+    return PredictionPlan(
+        adapter_repo=adapter_repo,
+        base_model=config.model.id,
+        revision=config.model.resolved_revision(),
+        namespace=namespace,
+        run_name=f"{adapter_repo.split('/')[-1]}-predict",
+        input_csv=Path(input_csv),
+        rows=rows,
+        review_below=review_below,
+        source=source,
+        flavor=row.flavor,
+        gpus=HF_FLAVORS[row.flavor].count,
+        timeout=suggest_timeout(row, extra_minutes=build),
+        price_per_hour=live.get(row.flavor, HF_FLAVORS[row.flavor].price_per_hour),
+        estimate=row,
+        kernels=kernels,
+        kernels_cached=cached,
+        keep_input=keep_input,
+    )
+
+
+def _safe_name(name: str) -> str:
+    return re.sub(r"[^A-Za-z0-9._-]+", "-", name).strip("-") or "input.csv"
+
+
+def submit_prediction(
+    plan: PredictionPlan,
+    *,
+    api: HfApi | None = None,
+    token: str | None = None,
+    now: datetime | None = None,
+) -> LaunchedJob:
+    """Upload the checked CSV to a fresh run folder and start the prediction job."""
+    api = api or HfApi()
+    token = token or get_token()
+    if token is None:
+        raise LaunchError("no Hugging Face token: run `hf auth login` or set HF_TOKEN")
+    folder = run_folder(plan.run_name, now or datetime.now(UTC))
+    bucket = jobs_bucket(plan.namespace)
+    sync = {"read_only": False, "namespace": plan.namespace, "token": token}
+    name = _safe_name(plan.input_csv.name)
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            try:
+                stage = Path(tmp) / "stage"
+                (stage / "input").mkdir(parents=True)
+                (stage / "input" / name).write_bytes(plan.input_csv.read_bytes())
+                volumes = [
+                    api.sync_job_volume(stage, WORK_MOUNT, remote_name=folder, **sync),
+                    Volume(
+                        type="model",
+                        source=plan.base_model,
+                        mount_path=MODEL_MOUNT,
+                        revision=plan.revision,
+                    ),
+                ]
+                if plan.kernels:
+                    empty = Path(tmp) / "kernels"
+                    empty.mkdir()
+                    volumes.append(
+                        api.sync_job_volume(
+                            empty, KERNEL_MOUNT, remote_name=kernel_cache_folder(), **sync
+                        )
+                    )
+            except Exception as exc:
+                raise LaunchError(
+                    f"could not upload the file to {bucket}: {exc}{_scope_advice(exc)}"
+                ) from exc
+        info = start_job(
+            api,
+            image=BASE_IMAGE,
+            command=predict_command(
+                plan.source,
+                adapter_repo=plan.adapter_repo,
+                input_name=name,
+                review_below=plan.review_below,
+                keep_input=plan.keep_input,
+                kernels=plan.kernels,
+            ),
+            env=job_env(
+                plan.source,
+                price_per_hour=plan.price_per_hour,
+                estimated_hours=plan.estimate.hours if plan.estimate else None,
+            ),
+            secrets={"HF_TOKEN": token},
+            flavor=plan.flavor,
+            timeout=plan.timeout,
+            labels={
+                **TOOL_LABEL,
+                "run": plan.run_name,
+                "timeout": plan.timeout,
+                "kind": PREDICT_KIND,
+            },
+            volumes=volumes,
+            token=token,
+        )
+    except LaunchError:
+        _remove_folder(api, bucket, folder, token)
+        raise
+    return LaunchedJob(id=info.id, url=info.url, work_folder=folder, plan=plan)
+
+
+def job_kind(info: JobInfo) -> str:
+    """ "predict" for a prediction job, "train" for a training job."""
+    return (info.labels or {}).get("kind") or "train"
+
+
+def prediction_adapter_of(info: JobInfo) -> str | None:
+    """The adapter a prediction job predicts with: the word after `clef-tune predict`."""
+    for part in info.command or []:
+        for line in str(part).splitlines():
+            try:
+                words = shlex.split(line)
+            except ValueError:
+                continue
+            for k in range(len(words) - 2):
+                if words[k] == "clef-tune" and words[k + 1] == "predict":
+                    return words[k + 2]
+    return None
+
+
+def download_predictions(
+    job_id: str, out: str | Path, *, api: HfApi | None = None, token: str | None = None
+) -> Path:
+    """Download a prediction job's output CSV (it stays in the bucket)."""
+    api = api or HfApi()
+    info = api.inspect_job(job_id=job_id, token=token)
+    work = _work_volume(info)
+    out = Path(out)
+    if work is not None:
+        output = PREDICTIONS_PATH.removeprefix(WORK_MOUNT + "/")
+        remote = "/".join(part for part in (work.path, output) if part)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        api.download_bucket_files(
+            work.source, [(remote, out)], raise_on_missing_files=False, token=token
+        )
+    if not out.exists():
+        raise LaunchError(f"{job_id} has no predictions to download")
+    return out
+
+
+def delete_job_files(
+    job_id: str, *, api: HfApi | None = None, token: str | None = None
+) -> list[str]:
+    """Delete everything a finished run stored in its bucket folder; return the paths."""
+    api = api or HfApi()
+    info = api.inspect_job(job_id=job_id, token=token)
+    stage = _stage(info)
+    if stage in ("RUNNING", "SCHEDULING"):
+        raise LaunchError(f"{job_id} is still {stage.lower()}; stop it first")
+    work = _work_volume(info)
+    if work is None or not work.path:
+        return []
+    root = work.path.rstrip("/") + "/"
+    files = api.list_bucket_tree(work.source, work.path, recursive=True, token=token)
+    paths = sorted(f.path for f in files if f.type == "file" and f.path.startswith(root))
+    if paths:
+        api.batch_bucket_files(work.source, delete=paths, token=token)
     return paths

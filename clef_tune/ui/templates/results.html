@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block title %}{{ view.name }} is ready · clef-tune{% endblock %}
+{% block main %}
+<p class="crumb in"><a href="/models">Your models</a> · {{ view.name }}</p>
+<div class="hero-line in">
+  <svg class="tick" viewBox="0 0 30 30" aria-hidden="true"><circle cx="15" cy="15" r="14"/><path d="M9.5 15.5l4 4 7-8"/></svg>
+  <h1 class="title" style="margin: 0">{{ view.name }} is ready</h1>
+</div>
+<div class="rule in"></div>
+<p class="lede in">We tested it on {{ view.n }} of your {{ plural(view.noun) }} that it never saw during training, before and after.</p>
+<div class="headline in" style="--i:1">
+  <p class="big-sentence">{{ m.phrase(view.headline) }}</p>
+  {% if view.dots %}
+  {%- set before, after, total = view.dots %}
+  <div class="dots">
+    <span class="dl">Before</span><div class="dg before">{% for k in range(total) %}<i class="{{ 'y' if k < before }}" style="--k: {{ k }}"></i>{% endfor %}</div>
+    <span class="dl">After</span><div class="dg after">{% for k in range(total) %}<i class="{{ 'y' if k < after }}" style="--k: {{ k }}"></i>{% endfor %}</div>
+    <span class="dn">{{ view.dots_caption }}</span>
+  </div>
+  {% endif %}
+</div>
+<p class="label in" style="--i:2; margin-top: 18px">Question by question</p>
+{%- for q in view.questions %}
+<section class="qres in" style="--i:{{ loop.index + 2 }}">
+  <h2 class="qq">{{ q.ask }}</h2><span class="qid">{{ q.id }}</span>
+  <div class="dumb" aria-hidden="true">
+    <span class="axis"></span>
+    <span class="span" style="left: {{ [q.before_pct, q.after_pct] | min }}%; width: {{ (q.after_pct - q.before_pct) | abs }}%"></span>
+    <span class="lab b" style="left: {{ q.before_pct }}%">{{ q.before_pct }}%</span><span class="lab a" style="left: {{ q.after_pct }}%">{{ q.after_pct }}%</span>
+    <span class="pt b" style="left: {{ q.before_pct }}%"></span><span class="pt a" style="left: {{ q.after_pct }}%; --from: {{ q.before_pct }}%"></span>
+  </div>
+  <div class="score"><span>Before: right {{ q.before_right }} of {{ q.n }}</span><span>After: <b>right {{ q.after_right }} of {{ q.n }}</b></span></div>
+  <p class="summary"><span>{{ m.phrase(q.summary) }}</span></p>
+  <details class="more">
+    <summary>See the details</summary>
+    <table class="cm">
+      <tr><th></th>{% for name in q.names %}<th scope="col">{{ name }}</th>{% endfor %}</tr>
+      {%- for row in q.matrix %}
+      {%- set i = loop.index0 %}
+      <tr><th class="rowh" scope="row">{{ q.names[i] }}</th>{% for v in row %}<td class="{{ 'zero' if v == 0 else ('hit' if loop.index0 == i else 'miss') }}">{{ v }}</td>{% endfor %}</tr>
+      {%- endfor %}
+    </table>
+    <p class="cmcap">Rows are the expected output and columns are the model's answer. Green is a match, tan is a mistake.</p>
+    {% if q.tech %}<p class="tech">{{ q.tech }}</p>{% endif %}
+  </details>
+</section>
+{%- endfor %}
+{% if view.calibration_note %}<p class="fine">{{ view.calibration_note }}</p>{% endif %}
+{% if view.run_line %}<p class="runline">{{ view.run_line }}</p>{% endif %}
+<div class="next">
+  <p class="label">What's next</p>
+  {% if view.repo %}
+  <a class="btn primary" href="https://huggingface.co/{{ view.repo }}" target="_blank" rel="noopener">Open on Hugging Face ↗</a>
+  <p class="repo">Saved privately to <b>{{ view.repo }}</b></p>
+  {% elif view.local_path %}
+  <p class="repo">Saved on this computer in <b>{{ view.local_path }}</b></p>
+  {% endif %}
+  {% if view.repo %}
+  <a class="nextrow" href="/predict/{{ job_id }}"><span class="nt">Predict a new spreadsheet<small>Upload new {{ plural(view.noun) }} and get them back with the model's answers filled in.</small></span><span class="chv" aria-hidden="true">›</span></a>
+  {% endif %}
+  <a class="nextrow" href="/data"><span class="nt">Train again with changes<small>Go back to any step. Your data and questions are kept.</small></span><span class="chv" aria-hidden="true">›</span></a>
+  <details class="more" style="margin-top: 14px">
+    <summary>For developers</summary>
+    <p class="fine">Load this model in Python:</p>
+    <pre class="snippet">{{ view.snippet }}</pre>
+    <p class="fine">Or predict a file from the command line:</p>
+    <pre class="snippet">clef-tune predict {{ view.repo or view.local_path }} new.csv -o predictions.csv</pre>
+  </details>
+</div>
+{% endblock %}

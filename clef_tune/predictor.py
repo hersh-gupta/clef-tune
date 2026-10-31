@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import csv
 import json
 from collections.abc import Iterable
 from pathlib import Path
@@ -14,11 +13,17 @@ from transformers import AutoProcessor
 from clef_tune.adapter import AdapterInfo, read_adapter
 from clef_tune.calibration import softmax
 from clef_tune.clef_code import adapter_base_dir, load_clef_code
-from clef_tune.data import Record, load_file
+from clef_tune.data import Record, load_file, read_rows
 from clef_tune.encoding import TrainItem, prepare_items
 from clef_tune.evaluation import predict_logits
 from clef_tune.hub import pull_adapter
 from clef_tune.model import compute_dtype, default_device, load_backbone, load_head
+from clef_tune.predictions import (
+    DEFAULT_REVIEW_BELOW,
+    prediction_table,
+    records_to_answers,
+    write_table,
+)
 from clef_tune.schema import QUESTION_TYPES, Schema
 
 Rows = Iterable[dict[str, Any]]
@@ -174,43 +179,47 @@ class Predictor:
 
 
 def predict_file(
-    predictor: Predictor, data_path: str | Path, out_path: str | Path, *, calibrated: bool = True
+    predictor: Predictor,
+    data_path: str | Path,
+    out_path: str | Path,
+    *,
+    calibrated: bool = True,
+    review_below: float = DEFAULT_REVIEW_BELOW,
+    probabilities: bool = False,
 ) -> int:
+    """Predict a file. JSONL output holds SystemOne answers; CSV and Excel output keep the
+    file's own columns and add each question's answer, its confidence and a review mark (any
+    answer less sure than `review_below`), plus every answer's probability if asked."""
     out = Path(out_path)
     suffix = out.suffix.lower()
-    if suffix not in {".jsonl", ".csv"}:
-        raise ValueError(f"unsupported output type {suffix!r} (use .jsonl or .csv)")
-    result = load_file(predictor.info.config, str(Path(data_path).resolve()), for_prediction=True)
+    if suffix not in {".jsonl", ".csv", ".xlsx"}:
+        raise ValueError(f"unsupported output type {suffix!r} (use .jsonl, .csv or .xlsx)")
+    path = Path(data_path).resolve()
+    result = load_file(predictor.info.config, str(path), for_prediction=True)
     errors = [issue for issue in result.issues if issue.level == "error"]
     if errors:
         raise ValueError("cannot predict:\n" + "\n".join(str(issue) for issue in errors))
     records = result.records
     _, logits = predictor._run(records)
-    probabilities = predictor._probabilities(records, logits, calibrated)
+    probs = predictor._probabilities(records, logits, calibrated)
     out.parent.mkdir(parents=True, exist_ok=True)
     if suffix == ".jsonl":
         with out.open("w", encoding="utf-8", newline="\n") as handle:
-            for prediction in predictor._answers(records, probabilities):
+            for prediction in predictor._answers(records, probs):
                 handle.write(json.dumps(prediction, ensure_ascii=False) + "\n")
         return len(records)
     options: dict[str, list[str]] = {}
     for record in records:
         for qid, question in record.questions.items():
             options.setdefault(qid, question.option_ids())
-    header = ["id"]
-    for qid, option_ids in options.items():
-        header += [qid, *(f"{qid}.p.{option}" for option in option_ids)]
-    with out.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.writer(handle)
-        writer.writerow(header)
-        for record, per_question in zip(records, probabilities, strict=True):
-            line: list[Any] = [record.id]
-            for qid, option_ids in options.items():
-                probs = per_question.get(qid)
-                if probs is None:
-                    line += [""] * (1 + len(option_ids))
-                else:
-                    line.append(max(option_ids, key=lambda option: probs[option]))
-                    line += [probs[option] for option in option_ids]
-            writer.writerow(line)
+    rows, columns, _ = read_rows(path)
+    header, table = prediction_table(
+        columns,
+        rows,
+        records_to_answers(records, probs),
+        options,
+        review_below=review_below,
+        probabilities=probabilities,
+    )
+    write_table(header, table, out)
     return len(records)

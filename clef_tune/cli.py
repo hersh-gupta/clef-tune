@@ -281,7 +281,7 @@ def _looks_like_path(value: str) -> bool:
     )
 
 
-def _load_predictor(adapter: str):
+def _load_predictor(adapter: str, base_model: Path | None = None):
     path = Path(adapter).expanduser()
     if not path.is_dir() and _looks_like_path(adapter):
         raise _fail(f"adapter directory not found: {escape(str(path))}")
@@ -290,6 +290,8 @@ def _load_predictor(adapter: str):
 
     source = str(path) if path.is_dir() else adapter
     try:
+        if base_model is not None:
+            return Predictor.load(source, base_model_path=base_model)
         return Predictor.load(source)
     except (HubError, ClefCodeError, OSError, ValueError) as exc:
         where = "" if path.is_dir() else f" (no local directory {adapter!r}; tried the Hub)"
@@ -391,17 +393,39 @@ def evaluate(
 def predict(
     adapter: AdapterArg,
     data: DataArg,
-    output: Annotated[Path, typer.Option("-o", "--output", help="Output .jsonl or .csv file.")],
+    output: Annotated[
+        Path, typer.Option("-o", "--output", help="Output .jsonl, .csv or .xlsx file.")
+    ],
     no_calibration: NoCalibrationOpt = False,
+    review_below: Annotated[
+        float,
+        typer.Option(
+            min=0.0, max=1.0, help="Mark a row for review when any answer is less sure than this."
+        ),
+    ] = 0.7,
+    probabilities: Annotated[
+        bool, typer.Option("--probabilities", help="Also add every answer's probability.")
+    ] = False,
+    base_model: Annotated[
+        Path | None,
+        typer.Option(help="A local copy of the base model (default: the adapter's own)."),
+    ] = None,
 ) -> None:
     """Predict answers for a data file."""
     from clef_tune.hub import HubError
 
-    predictor = _load_predictor(adapter)
+    predictor = _load_predictor(adapter, base_model=base_model)
     from clef_tune.predictor import predict_file
 
     try:
-        count = predict_file(predictor, data, output, calibrated=not no_calibration)
+        count = predict_file(
+            predictor,
+            data,
+            output,
+            calibrated=not no_calibration,
+            review_below=review_below,
+            probabilities=probabilities,
+        )
     except (ValueError, OSError, ClefCodeError, HubError) as exc:
         raise _fail(escape(str(exc))) from exc
     console.print(f"Wrote {count} predictions to {escape(str(output))}")
@@ -433,21 +457,21 @@ def export(
 
 @app.command()
 def ui(
-    share: Annotated[
-        bool, typer.Option("--share", help="Also serve it on a public gradio.live link.")
-    ] = False,
     port: Annotated[int | None, typer.Option(help="Port to serve on; default 7860.")] = None,
+    host: Annotated[
+        str, typer.Option(help="Address to listen on; 0.0.0.0 serves your whole network.")
+    ] = "127.0.0.1",
 ) -> None:
-    """Open the web UI: data, schema, checks, settings, launch and results."""
+    """Open the web UI: your data, what to predict, settings, training and results."""
     try:
-        from clef_tune.ui import app as ui_app
+        from clef_tune.ui import server
     except ImportError as exc:
         raise _fail(
             "The web UI needs the ui extra: "
             'uv pip install "clef-tune[ui] @ git+https://github.com/hersh-gupta/clef-tune" '
             f"({escape(str(exc))})"
         ) from exc
-    ui_app.launch(share=share, port=port)
+    server.launch(host=host, port=port)
 
 
 @contextmanager

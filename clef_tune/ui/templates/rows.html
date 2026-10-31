@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}All rows · clef-tune{% endblock %}
+{% block main %}
+<p class="crumb"><a href="/data">Your data</a> · All rows</p>
+<h1 class="title">{{ rows.file_name }}</h1>
+<div class="rule"></div>
+<div class="tbl">
+  <table class="grid">
+    <thead><tr>{% for name in rows.headers %}<th scope="col">{{ name }}</th>{% endfor %}</tr></thead>
+    <tbody>{% for row in rows.rows %}<tr>{% for cell in row %}<td title="{{ cell }}">{{ cell }}</td>{% endfor %}</tr>{% endfor %}</tbody>
+  </table>
+</div>
+<div class="tblfoot">
+  <span>{{ rows.label }}</span>
+  <span>
+    {% if rows.page > 0 %}<a href="/data/rows?page={{ rows.page - 1 }}">‹ Previous</a>{% endif %}
+    {% if rows.page + 1 < rows.pages %} <a href="/data/rows?page={{ rows.page + 1 }}">Next ›</a>{% endif %}
+  </span>
+</div>
+{% endblock %}

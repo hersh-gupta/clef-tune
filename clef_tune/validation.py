@@ -219,7 +219,7 @@ def _check_images(report: ValidationReport) -> None:
         report.issues.append(Issue("warning", message, remote))
 
 
-def _media_tokens(record: Record) -> int:
+def media_tokens(record: Record) -> int:
     from PIL import Image
 
     sizes: list[tuple[int, int]] = []
@@ -239,7 +239,7 @@ def _token_stats(report: ValidationReport, config: Config, counter: TokenCounter
     max_length = config.train.max_length
     counting = RecordTokenCounter(counter, max_length)
     records = report.train + report.eval
-    counts = counting.count_records([(r.state, r.questions, _media_tokens(r)) for r in records])
+    counts = counting.count_records([(r.state, r.questions, media_tokens(r)) for r in records])
     too_long = [r.source_row for r, c in zip(records, counts, strict=True) if c.schema_too_long]
     if too_long:
         worst = max(c.fixed for c in counts)

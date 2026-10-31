@@ -1,6 +1,6 @@
 """Train on this machine from the UI (never on a Space). Training runs as `clef-tune train` in
 a subprocess: Accelerate's state is one per process, and the UI must not import torch. The
-processes live here, not in the Session, which Gradio deep-copies."""
+processes live here, not in the Session."""
 
 from __future__ import annotations
 
@@ -16,13 +16,14 @@ from typing import IO
 
 from clef_tune.bundle import write_bundle
 from clef_tune.config import load_config
-from clef_tune.launch.hf_jobs import METRICS_LOG
-from clef_tune.ui import fragments
-from clef_tune.ui.runs import LOG_TAIL, RunView, no_run_view, run_view_from
+from clef_tune.launch.hf_jobs import METRICS_LOG, JobStatus
+from clef_tune.ui.runs import ResultsView, RunState, results_view, run_state
 from clef_tune.ui.session import Session
+from clef_tune.yamlio import load_yaml_file
 
 FINAL_DIR = "final"  # where clef_tune.train writes the adapter (train.py imports torch)
 LOG_FILE = "train.log"
+LOCAL_ID = "local"  # the run id the pages use for this machine's run
 
 
 class LocalRunError(RuntimeError):
@@ -129,35 +130,39 @@ def _events(path: Path) -> list[dict]:
     return events
 
 
-def _log_tail(path: Path) -> list[str]:
-    if not path.exists():
-        return []
-    return path.read_text(encoding="utf-8", errors="replace").splitlines()[-LOG_TAIL:]
-
-
-def local_view(session: Session) -> RunView:
+def local_state(
+    session: Session, *, model: str = "the model", noun: str = "example"
+) -> tuple[RunState | None, ResultsView | None]:
+    """This session's local run, as a run state, and its results once it finished."""
     run = RUNS.get(Path(session.local_folder).resolve()) if session.local_folder else None
     if run is None:
-        return no_run_view()
+        return None, None
     stage = run.stage()
-    metrics_path = run.output_dir / FINAL_DIR / "metrics.json"
-    metrics = None
-    if stage == "COMPLETED" and metrics_path.exists():
-        metrics = json.loads(metrics_path.read_text(encoding="utf-8"))
-    view = run_view_from(
+    status = JobStatus(
+        id=LOCAL_ID,
+        url="",
+        run=session.draft.run_name if session.draft else "local",
+        flavor=None,
         stage=stage,
-        events=_events(run.output_dir / METRICS_LOG),
+        message=None if stage != "ERROR" else f"see {run.log_path}",
         hours=run.hours(),
         cost=None,
-        logs=_log_tail(run.log_path),
-        metrics=metrics,
-        adapter_repo=None,
-        state_columns=list(session.draft.state_columns) if session.draft else None,
+        progress=_events(run.output_dir / METRICS_LOG),
     )
-    if metrics is not None:
-        adapter = run.output_dir / FINAL_DIR
-        view.results.repo_link = f'<code class="ct-path">{fragments.esc(adapter)}</code>'
-        view.results.snippet = view.results.snippet.replace(
-            '"path/to/adapter"', json.dumps(str(adapter))
-        )
-    return view
+    state = run_state(status, model=model, noun=noun)
+    state.stages[0].detail = "This computer's GPU"
+    state.can_resume = stage in ("ERROR", "CANCELED")
+    adapter = run.output_dir / FINAL_DIR
+    metrics_path = adapter / "metrics.json"
+    if stage != "COMPLETED" or not metrics_path.exists():
+        return state, None
+    config_path = adapter / "train_config.yaml"
+    config = load_yaml_file(config_path) if config_path.exists() else {}
+    results = results_view(
+        json.loads(metrics_path.read_text(encoding="utf-8")),
+        config,
+        None,
+        name=status.run or "local",
+        local_path=str(adapter),
+    )
+    return state, results

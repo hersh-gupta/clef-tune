@@ -6,6 +6,7 @@ data:
   eval_fraction: 0.15
   id_column: ticket_id
   state_columns: [subject, body, customer_tier]
+  row_noun: ticket
 schema:
   questions:
     department:

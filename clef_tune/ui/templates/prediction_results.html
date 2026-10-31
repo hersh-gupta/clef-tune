@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block title %}Predictions ready · clef-tune{% endblock %}
+{% block main %}
+<p class="crumb in"><a href="/models">Your models</a> · {{ state.name }}</p>
+<div class="hero-line in">
+  <svg class="tick" viewBox="0 0 30 30" aria-hidden="true"><circle cx="15" cy="15" r="14"/><path d="M9.5 15.5l4 4 7-8"/></svg>
+  <h1 class="title" style="margin: 0">{{ "{:,}".format(result.rows) }} {{ result.noun if result.rows == 1 else plural(result.noun) }} predicted</h1>
+</div>
+<div class="rule in"></div>
+<p class="lede in">{% if state.hours %}Took {{ took }}{% endif %}{% if state.cost is not none %} and cost {{ state.spent }}{% endif %}.</p>
+<div class="dl in" style="--i:1">
+  <a class="btn primary" href="/runs/{{ state.id }}/download.csv" download>Download spreadsheet ↓</a>
+  <a class="btn" href="/runs/{{ state.id }}/download.xlsx" download>Download as Excel</a>
+</div>
+{% if result.review %}
+<p class="flagged in" style="--i:2"><span>{{ "{:,}".format(result.review) }} {{ result.noun if result.review == 1 else plural(result.noun) }} {{ "is" if result.review == 1 else "are" }} marked for review<small>The model was less than {{ result.threshold }}% sure of at least one answer. Filter on the "review" column to find them.</small></span></p>
+{% endif %}
+{% for line in result.matches %}<p class="fine">{{ line }}</p>{% endfor %}
+<h2 class="section-title in" style="--i:3">A first look</h2>
+<div class="tbl cards-on-phone in" style="--i:3">
+  <table class="grid">
+    <thead><tr>{% for name in result.header %}<th class="{{ 'added' if name in result.added }}" scope="col">{{ name }}</th>{% endfor %}</tr></thead>
+    <tbody>
+      {%- for row in result.preview %}
+      {%- set r = loop.index0 %}
+      <tr>{% for cell in row %}{% set name = result.header[loop.index0] %}<td class="{{ 'added' if name in result.added }}{{ ' flag' if name == 'review' }}">{% if name.endswith('_confidence') and cell %}<span class="pc{{ ' low' if (r, name) in result.low }}">{{ (cell | float * 100) | round | int }}%</span>{% else %}{{ cell }}{% endif %}</td>{% endfor %}</tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+</div>
+<p class="tblfoot cards-on-phone"><span>Your columns are kept as they are. The green columns are added: each answer, how sure the model is, and a review mark.</span></p>
+<div class="pcards">
+  {%- for row in result.preview %}
+  <div class="pcard">
+    <div class="ps">{{ row[:result.title_columns] | reject("equalto", "") | join(" · ") }}</div>
+    {%- for cell in row %}{% set name = result.header[loop.index0] %}
+    {%- if name in result.added and cell %}<div class="pa"><span>{{ name }}</span><span>{% if name.endswith('_confidence') %}{{ (cell | float * 100) | round | int }}%{% else %}{{ cell }}{% endif %}</span></div>{% endif %}
+    {%- endfor %}
+  </div>
+  {%- endfor %}
+</div>
+<h2 class="section-title in" style="--i:4">What it answered</h2>
+{%- for bar in result.shares %}
+<div class="dq in" style="--i:5">
+  <div class="qq">{{ bar.ask }}</div>
+  <div class="stack" aria-hidden="true">{% for answer, pct in bar.parts %}<i style="width: {{ pct }}%"></i>{% endfor %}</div>
+  <ul class="legend">{% for answer, pct in bar.parts %}<li>{{ answer }} <b>{{ pct }}%</b></li>{% endfor %}</ul>
+</div>
+{%- endfor %}
+<div class="acts" style="margin-top: 24px">
+  <button class="linkbtn quiet" type="button" data-toggle="#delete-confirm">Delete this spreadsheet from your storage</button>
+</div>
+<form id="delete-confirm" class="confirm" data-post action="/runs/{{ state.id }}/delete-files" hidden>
+  Delete the spreadsheet and the uploaded file from your Hugging Face storage? You won't be able to download it again.<br>
+  <button class="btn danger" type="submit">Delete files</button><button class="btn" type="button" data-toggle="#delete-confirm">Keep them</button>
+</form>
+<p id="delete-result" class="fine" aria-live="polite"></p>
+{% endblock %}

@@ -66,6 +66,14 @@ class DataConfig(_Section):
     state_columns: list[str] | None = None  # None: every column not used for id/labels/images
     label_columns: dict[str, str] = Field(default_factory=dict)
     image_columns: list[str] = Field(default_factory=list)
+    row_noun: str | None = Field(None, max_length=40)  # what one row is, for the web UI's wording
+
+    @field_validator("row_noun", mode="before")
+    @classmethod
+    def _blank_noun_is_none(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return value.strip() or None
+        return value
 
 
 class LoraConfig(_Section):
@@ -223,6 +231,7 @@ def config_hash(config: Config, files: Iterable[str | Path] = ()) -> str:
     payload.pop("schema_file", None)
     payload["model"]["revision"] = config.model.resolved_revision()
     payload["model"].pop("local_path", None)
+    payload["data"].pop("row_noun", None)  # wording only
     schema = config.get_schema()
     payload["schema"] = schema.to_dict() if schema else None
     payload["files"] = sorted(file_digest(path) for path in files)

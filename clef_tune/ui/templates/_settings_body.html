@@ -1,0 +1,71 @@
+{% import "macros.html" as m %}
+{% if page.error %}<p class="error-box" role="alert">{{ page.error }}</p>{% endif %}
+<div class="srows">
+  <form class="srow" data-post data-autosubmit="input" data-debounce="800" action="/settings/name">
+    <label class="sk" for="name-in">Name</label>
+    <input class="sinput" id="name-in" name="name" value="{{ page.name }}" autocomplete="off" spellcheck="false" aria-describedby="name-note">
+  </form>
+  <div class="srow-menu">
+    <button type="button" class="srow click" data-menu="#menu-model" aria-haspopup="true" aria-expanded="false">
+      <span class="sk">Model</span><span class="sv">{{ page.model.name }}<small>{{ page.model.description }}</small></span><span class="chv" aria-hidden="true">›</span>
+    </button>
+    <form class="menu" id="menu-model" data-post action="/settings/model" role="menu" aria-label="Model" hidden>
+      {%- for c in page.models %}
+      <button class="opt{{ ' on' if c.key == page.model.key }}" type="submit" name="model" value="{{ c.key }}" role="menuitemradio" aria-checked="{{ 'true' if c.key == page.model.key else 'false' }}"><span class="ot"><b>{{ c.name }}</b><small>{{ c.description }}</small></span><span class="rad"></span></button>
+      {%- endfor %}
+    </form>
+  </div>
+  <div class="srow-menu">
+    <button type="button" class="srow click" data-menu="#menu-preset" aria-haspopup="true" aria-expanded="false">
+      <span class="sk">Training</span><span class="sv">{{ page.preset.name }}<small>{{ page.preset.description }}</small></span><span class="chv" aria-hidden="true">›</span>
+    </button>
+    <form class="menu" id="menu-preset" data-post action="/settings/preset" role="menu" aria-label="How much training" hidden>
+      {%- for c in page.presets %}
+      <button class="opt{{ ' on' if c.key == page.preset.key }}" type="submit" name="preset" value="{{ c.key }}" role="menuitemradio" aria-checked="{{ 'true' if c.key == page.preset.key else 'false' }}"><span class="ot"><b>{{ c.name }}{% if c.recommended %}<span class="recd">● Recommended</span>{% endif %}</b><small>{{ c.description }}</small>{% if c.extra %}<span class="oc">{{ c.extra }}</span>{% endif %}</span><span class="rad"></span></button>
+      {%- endfor %}
+    </form>
+  </div>
+</div>
+<p class="meta" id="name-note">Saved to your Hugging Face account as <b>{{ page.repo }}</b></p>
+{% if field_error %}<p class="error-box" role="alert">{{ field_error }}</p>{% endif %}
+{% if page.estimate %}
+{%- set est = page.estimate %}
+{{ m.estimate(est) }}
+<p class="fine">Runs on Hugging Face's cloud on {{ est.hardware }}, billed to your Hugging Face account.{% if est.cap_cost %} The run stops itself after <b>{{ est.cap_time }}</b>, so it can never cost more than <b>{{ est.cap_cost }}</b>.{% endif %}</p>
+<p class="holdout">We'll set aside {{ est.test_rows }} of your {{ "{:,}".format(est.total_rows) }} {{ plural(page.noun) }} and test the model on them before and after training, so you can see how much it improved.</p>
+{% else %}
+<p class="fine">{{ page.estimate_note }}</p>
+{% endif %}
+<details class="adv"{% if field_error or page.flavor %} open{% endif %}>
+  <summary>Advanced settings <span>For people who know fine-tuning</span></summary>
+  {% if page.flavors %}
+  <form class="setting" data-post data-autosubmit="change" action="/settings/flavor">
+    <label class="sl" for="flavor-in">Hardware<code>flavor</code></label>
+    <select id="flavor-in" name="flavor">
+      <option value="">Cheapest that fits</option>
+      {%- for f in page.flavors %}
+      <option value="{{ f.flavor }}"{% if f.flavor == page.flavor %} selected{% endif %}{% if not f.fits %} disabled{% endif %}>{{ f.hardware }} · {{ f.time }} · {{ f.cost }}{% if not f.fits %} (too small){% endif %}</option>
+      {%- endfor %}
+    </select>
+    <span class="sd">Picked for the lowest cost that fits. Each choice shows its time and cost for this data.</span>
+  </form>
+  {% endif %}
+  {%- for row in page.advanced %}
+  <form class="setting" data-post data-autosubmit="change" action="/settings/field">
+    <input type="hidden" name="path" value="{{ row.path }}">
+    <label class="sl" for="f-{{ loop.index }}">{{ row.label }}<code>{{ row.code }}</code></label>
+    {%- if row.kind == "choice" %}
+    <select id="f-{{ loop.index }}" name="value">{% for c in row.choices %}<option value="{{ c }}"{% if c == row.value %} selected{% endif %}>{{ c }}</option>{% endfor %}</select>
+    {%- elif row.kind == "bool" %}
+    <span><input type="hidden" name="value" value=""><input id="f-{{ loop.index }}" type="checkbox" name="value" value="1"{% if row.value %} checked{% endif %}></span>
+    {%- else %}
+    <input id="f-{{ loop.index }}" name="value" value="{{ '' if row.value is none else row.value }}" inputmode="decimal" autocomplete="off">
+    {%- endif %}
+    <span class="sd">{{ row.help }}</span>
+  </form>
+  {%- endfor %}
+</details>
+<div class="foot sticky">
+  <a class="back" href="/questions">← Back</a>
+  <a class="btn" href="/train">Continue</a>
+</div>

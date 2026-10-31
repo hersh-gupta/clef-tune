@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block title %}{{ title }} · clef-tune{% endblock %}
+{% block main %}
+<p class="crumb in"><a href="/models">Your models</a> · {{ state.name }}</p>
+<h1 class="title in">{{ title }}</h1>
+<div class="rule in"></div>
+<div id="run-status" class="in" style="--i:1"{% if state.status == "running" %} data-poll="/runs/{{ state.id }}/status" data-every="{{ poll_seconds }}"{% endif %}>
+  {% include "_run_status.html" %}
+</div>
+{% if state.status == "running" %}
+<p class="safe in" style="--i:2"><span>You can close this page. It keeps going {% if state.id == "local" %}on this computer{% else %}on Hugging Face{% endif %}, and you'll find it under <b>Your models</b> when you come back.</span></p>
+<div class="acts in" style="--i:3">
+  <button class="switch" type="button" data-notify="{{ state.id }}" data-name="{{ state.name }}" aria-pressed="false"><span class="sw" aria-hidden="true"></span>Notify me when it's done<span class="switch-note muted small" hidden> (this browser can't show notifications)</span></button>
+  {% if state.can_stop %}<button class="linkbtn quiet" type="button" data-toggle="#stop-confirm">Stop {{ "training" if state.kind == "train" else "predicting" }}</button>{% endif %}
+</div>
+<form id="stop-confirm" class="confirm" action="/runs/{{ state.id }}/stop" method="post" hidden>
+  Stop now? You'll pay for the time so far ({{ state.spent }}) and won't get {{ "a model" if state.kind == "train" else "the spreadsheet" }}.<br>
+  <button class="btn danger" type="submit">Stop</button><button class="btn" type="button" data-toggle="#stop-confirm">Keep going</button>
+</form>
+{% else %}
+<div class="acts">
+  {% if state.can_resume %}
+  <div id="resume" data-load="/runs/{{ state.id }}/resume"><p class="muted small">Checking what trying again would cost…</p></div>
+  {% endif %}
+  {% if state.id != "local" %}
+  <button class="linkbtn quiet" type="button" data-toggle="#delete-confirm">Delete this run's files</button>
+  {% endif %}
+</div>
+<form id="delete-confirm" class="confirm" data-post action="/runs/{{ state.id }}/delete-files" hidden>
+  Delete everything this run stored in your Hugging Face storage? This can't be undone.<br>
+  <button class="btn danger" type="submit">Delete files</button><button class="btn" type="button" data-toggle="#delete-confirm">Keep them</button>
+</form>
+<p id="delete-result" class="fine" aria-live="polite"></p>
+{% endif %}
+{% endblock %}

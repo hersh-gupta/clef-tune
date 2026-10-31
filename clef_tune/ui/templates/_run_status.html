@@ -1,0 +1,18 @@
+{% import "macros.html" as m %}
+{% if notice %}<p class="notice">{{ notice }}</p>{% endif %}
+{%- set pct = (state.fraction * 100) | round(1) %}
+{% if state.status == "running" %}
+<div class="left">{{ state.time_left or "Getting started" }}</div>
+{% if state.eta_seconds %}<div class="eta">Should be ready around <span data-eta-seconds="{{ state.eta_seconds | int }}">soon</span></div>{% else %}<div class="eta">Usually {{ usual }}</div>{% endif %}
+{% endif %}
+<div class="progress" role="progressbar" aria-label="Progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ pct | int }}"><span class="fill" style="width: {{ pct }}%"></span>{% if state.status == "running" %}<span class="head" style="left: {{ pct }}%"></span>{% endif %}</div>
+<div class="progcap"><span>{{ state.spent }} so far</span>{% if state.cap %}<span>at most {{ state.cap }}</span>{% endif %}</div>
+{{ m.stages(state) }}
+{% if state.message %}<p class="error-box" role="alert">{{ state.message }}{% if state.url %} <a href="{{ state.url }}" target="_blank" rel="noopener">Open it on Hugging Face ↗</a>{% endif %}</p>{% endif %}
+{% if loss_points %}
+<details class="curve">
+  <summary>Live training curve</summary>
+  <svg viewBox="0 0 600 90" preserveAspectRatio="none" aria-label="Training loss over steps"><polyline fill="none" stroke="var(--sage)" stroke-width="1.5" vector-effect="non-scaling-stroke" points="{{ loss_points }}"/></svg>
+  <p>Training loss, where lower is better. For people who know fine-tuning.</p>
+</details>
+{% endif %}

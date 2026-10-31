@@ -1,0 +1,201 @@
+claim_id,claim_type,amount,policy_years,description,reviewer,risk,pay_in_full
+C0001,property,35000,4,Kitchen fire damaged the cabinets and the ceiling.,standard,2,no
+C0002,property,1500,7,Storm took off part of the roof; water damage in the attic.,standard,0,yes
+C0003,injury,2400,7,Slipped on a wet floor in a shop and hurt a wrist.,medical review,0,yes
+C0004,vehicle,4000,7,Rear-ended at a traffic light on Main Street; bumper and trunk damaged.,standard,0,yes
+C0005,vehicle,4000,7,Car stolen from outside the office on Tuesday morning.,standard,0,yes
+C0006,vehicle,22000,12,Scraped a pillar in a parking garage; door panel dented.,standard,2,no
+C0007,vehicle,35000,2,Rear-ended at a traffic light on Harbour Road; bumper and trunk damaged.,standard,2,no
+C0008,vehicle,14000,0,Rear-ended at a traffic light on Elm Avenue; bumper and trunk damaged.,standard,1,yes
+C0009,injury,800,4,Slipped on a wet floor in a shop and hurt a wrist.,medical review,0,yes
+C0010,vehicle,4000,12,Car stolen from outside the office on Monday.,standard,0,yes
+C0011,vehicle,1500,1,Rear-ended at a traffic light on Harbour Road; bumper and trunk damaged. Asks for payment to a new bank account.,fraud review,2,no
+C0012,vehicle,22000,1,Rear-ended at a traffic light on Main Street; bumper and trunk damaged.,standard,2,no
+C0013,property,2400,4,Storm took off part of the roof; water damage in the attic.,standard,0,yes
+C0014,property,800,2,Burst pipe flooded the kitchen floor on Tuesday morning.,standard,0,yes
+C0015,injury,1500,0,Neck pain after a low-speed collision on Main Street.,medical review,1,yes
+C0016,injury,6500,4,Twisted an ankle on a broken step outside the rented flat. The policy started three weeks before the incident.,fraud review,2,no
+C0017,vehicle,9000,7,Rear-ended at a traffic light on the ring road; bumper and trunk damaged. The policy started three weeks before the incident.,fraud review,2,no
+C0018,property,2400,2,Kitchen fire damaged the cabinets and the ceiling.,standard,0,yes
+C0019,injury,35000,1,Twisted an ankle on a broken step outside the rented flat.,medical review,2,no
+C0020,property,1500,0,Kitchen fire damaged the cabinets and the ceiling.,standard,1,yes
+C0021,vehicle,22000,2,Scraped a pillar in a parking garage; door panel dented.,standard,2,no
+C0022,property,1500,2,Burst pipe flooded the kitchen floor on Friday night.,standard,0,yes
+C0023,vehicle,22000,1,Hail damage to the roof and windshield after the storm on Monday.,standard,2,no
+C0024,vehicle,2400,0,Hail damage to the roof and windshield after the storm on the weekend.,standard,1,yes
+C0025,vehicle,800,4,Car stolen from outside the office on Friday night.,standard,0,yes
+C0026,injury,1500,4,Neck pain after a low-speed collision on Main Street.,medical review,0,yes
+C0027,vehicle,1500,4,Scraped a pillar in a parking garage; door panel dented.,standard,0,yes
+C0028,property,22000,0,Burst pipe flooded the kitchen floor on the weekend.,standard,2,no
+C0029,injury,14000,4,Cut a hand on broken glass during the break-in.,medical review,1,yes
+C0030,property,6500,4,Burst pipe flooded the kitchen floor on Monday.,standard,1,yes
+C0031,property,35000,0,Kitchen fire damaged the cabinets and the ceiling.,standard,2,no
+C0032,property,4000,12,Burst pipe flooded the kitchen floor on Monday.,standard,0,yes
+C0033,vehicle,2400,12,Car stolen from outside the office on Monday.,standard,0,yes
+C0034,property,4000,2,Storm took off part of the roof; water damage in the attic.,standard,0,yes
+C0035,vehicle,4000,1,Scraped a pillar in a parking garage; door panel dented.,standard,0,yes
+C0036,vehicle,800,12,Scraped a pillar in a parking garage; door panel dented. The policy started three weeks before the incident.,fraud review,2,no
+C0037,vehicle,6500,1,Scraped a pillar in a parking garage; door panel dented.,standard,1,yes
+C0038,injury,22000,2,Cut a hand on broken glass during the break-in.,medical review,2,no
+C0039,vehicle,6500,7,Rear-ended at a traffic light on Harbour Road; bumper and trunk damaged.,standard,1,yes
+C0040,vehicle,800,2,Rear-ended at a traffic light on the ring road; bumper and trunk damaged.,standard,0,yes
+C0041,vehicle,35000,12,Hail damage to the roof and windshield after the storm on Monday.,standard,2,no
+C0042,property,22000,2,Break-in through the back door; laptop and TV taken.,standard,2,no
+C0043,vehicle,9000,7,Rear-ended at a traffic light on Elm Avenue; bumper and trunk damaged. The policy started three weeks before the incident.,fraud review,2,no
+C0044,property,2400,4,Storm took off part of the roof; water damage in the attic. Asks for payment to a new bank account.,fraud review,2,no
+C0045,property,4000,0,Burst pipe flooded the kitchen floor on the weekend.,standard,1,yes
+C0046,property,1500,2,Burst pipe flooded the kitchen floor on Friday night.,standard,0,yes
+C0047,property,1500,0,Break-in through the back door; laptop and TV taken.,standard,1,yes
+C0048,vehicle,4000,0,Car stolen from outside the office on Tuesday morning.,standard,1,yes
+C0049,vehicle,2400,4,Rear-ended at a traffic light on the ring road; bumper and trunk damaged.,standard,0,yes
+C0050,vehicle,22000,7,Car stolen from outside the office on Monday.,standard,2,no
+C0051,property,4000,2,Storm took off part of the roof; water damage in the attic.,standard,0,yes
+C0052,injury,1500,7,Neck pain after a low-speed collision on Elm Avenue.,medical review,0,yes
+C0053,vehicle,14000,7,Car stolen from outside the office on Monday.,standard,1,yes
+C0054,injury,1500,7,Slipped on a wet floor in a shop and hurt a wrist.,medical review,0,yes
+C0055,property,2400,2,Kitchen fire damaged the cabinets and the ceiling.,standard,0,yes
+C0056,vehicle,800,2,Car stolen from outside the office on Monday.,standard,0,yes
+C0057,vehicle,6500,2,"Rear-ended at a traffic light on Main Street; bumper and trunk damaged. Paid in cash, receipt lost.",fraud review,2,no
+C0058,property,1500,7,Storm took off part of the roof; water damage in the attic.,standard,0,yes
+C0059,property,14000,7,Storm took off part of the roof; water damage in the attic.,standard,1,yes
+C0060,property,2400,1,Storm took off part of the roof; water damage in the attic.,standard,0,yes
+C0061,injury,4000,1,Neck pain after a low-speed collision on the ring road.,medical review,0,yes
+C0062,property,2400,12,Storm took off part of the roof; water damage in the attic.,standard,0,yes
+C0063,vehicle,14000,7,Car stolen from outside the office on Tuesday morning.,standard,1,yes
+C0064,property,800,0,Storm took off part of the roof; water damage in the attic.,standard,1,yes
+C0065,vehicle,9000,7,Scraped a pillar in a parking garage; door panel dented.,standard,1,yes
+C0066,injury,35000,7,"Twisted an ankle on a broken step outside the rented flat. Paid in cash, receipt lost.",fraud review,2,no
+C0067,property,4000,1,Kitchen fire damaged the cabinets and the ceiling.,standard,0,yes
+C0068,injury,1500,0,Neck pain after a low-speed collision on Main Street. Asks for payment to a new bank account.,fraud review,2,no
+C0069,vehicle,9000,0,Car stolen from outside the office on the weekend.,standard,1,yes
+C0070,property,9000,12,Burst pipe flooded the kitchen floor on Friday night.,standard,1,yes
+C0071,vehicle,800,2,Hail damage to the roof and windshield after the storm on Monday.,standard,0,yes
+C0072,injury,6500,2,Cut a hand on broken glass during the break-in.,medical review,1,yes
+C0073,injury,35000,12,Twisted an ankle on a broken step outside the rented flat.,medical review,2,no
+C0074,vehicle,2400,0,Car stolen from outside the office on Tuesday morning.,standard,1,yes
+C0075,property,800,1,Break-in through the back door; laptop and TV taken. The policy started three weeks before the incident.,fraud review,2,no
+C0076,vehicle,2400,7,Scraped a pillar in a parking garage; door panel dented.,standard,0,yes
+C0077,vehicle,800,0,Car stolen from outside the office on Monday.,standard,1,yes
+C0078,property,800,1,Storm took off part of the roof; water damage in the attic.,standard,0,yes
+C0079,property,9000,7,Burst pipe flooded the kitchen floor on the weekend.,standard,1,yes
+C0080,property,1500,7,Kitchen fire damaged the cabinets and the ceiling.,standard,0,yes
+C0081,property,2400,4,Burst pipe flooded the kitchen floor on Friday night.,standard,0,yes
+C0082,property,35000,4,Burst pipe flooded the kitchen floor on Tuesday morning.,standard,2,no
+C0083,property,35000,2,Break-in through the back door; laptop and TV taken.,standard,2,no
+C0084,property,800,12,Break-in through the back door; laptop and TV taken.,standard,0,yes
+C0085,vehicle,800,7,Car stolen from outside the office on the weekend.,standard,0,yes
+C0086,injury,22000,2,Neck pain after a low-speed collision on Main Street.,medical review,2,no
+C0087,injury,22000,1,Twisted an ankle on a broken step outside the rented flat.,medical review,2,no
+C0088,injury,22000,0,Twisted an ankle on a broken step outside the rented flat.,medical review,2,no
+C0089,vehicle,2400,12,Rear-ended at a traffic light on Harbour Road; bumper and trunk damaged. Asks for payment to a new bank account.,fraud review,2,no
+C0090,vehicle,35000,1,Scraped a pillar in a parking garage; door panel dented.,standard,2,no
+C0091,injury,35000,7,Twisted an ankle on a broken step outside the rented flat. The policy started three weeks before the incident.,fraud review,2,no
+C0092,injury,4000,1,Neck pain after a low-speed collision on Harbour Road.,medical review,0,yes
+C0093,injury,14000,0,Twisted an ankle on a broken step outside the rented flat. The policy started three weeks before the incident.,fraud review,2,no
+C0094,property,2400,7,"Burst pipe flooded the kitchen floor on the weekend. Paid in cash, receipt lost.",fraud review,2,no
+C0095,vehicle,9000,2,Scraped a pillar in a parking garage; door panel dented.,standard,1,yes
+C0096,property,4000,4,Storm took off part of the roof; water damage in the attic.,standard,0,yes
+C0097,vehicle,9000,2,Scraped a pillar in a parking garage; door panel dented.,standard,1,yes
+C0098,property,22000,2,Storm took off part of the roof; water damage in the attic.,standard,2,no
+C0099,vehicle,22000,2,Rear-ended at a traffic light on Elm Avenue; bumper and trunk damaged.,standard,2,no
+C0100,injury,1500,12,Slipped on a wet floor in a shop and hurt a wrist.,medical review,0,yes
+C0101,vehicle,9000,2,Scraped a pillar in a parking garage; door panel dented.,standard,1,yes
+C0102,injury,6500,4,Neck pain after a low-speed collision on Elm Avenue.,medical review,1,yes
+C0103,vehicle,9000,0,Car stolen from outside the office on Monday.,standard,1,yes
+C0104,vehicle,9000,4,Car stolen from outside the office on Friday night.,standard,1,yes
+C0105,property,6500,0,Storm took off part of the roof; water damage in the attic.,standard,1,yes
+C0106,vehicle,14000,0,Rear-ended at a traffic light on the ring road; bumper and trunk damaged.,standard,1,yes
+C0107,property,9000,0,"Break-in through the back door; laptop and TV taken. Paid in cash, receipt lost.",fraud review,2,no
+C0108,vehicle,4000,4,Hail damage to the roof and windshield after the storm on Tuesday morning.,standard,0,yes
+C0109,property,9000,12,Break-in through the back door; laptop and TV taken.,standard,1,yes
+C0110,vehicle,9000,0,Car stolen from outside the office on Monday.,standard,1,yes
+C0111,injury,800,0,Slipped on a wet floor in a shop and hurt a wrist.,medical review,1,yes
+C0112,vehicle,14000,12,Car stolen from outside the office on Friday night.,standard,1,yes
+C0113,vehicle,6500,0,Hail damage to the roof and windshield after the storm on Tuesday morning.,standard,1,yes
+C0114,property,2400,0,Burst pipe flooded the kitchen floor on Friday night.,standard,1,yes
+C0115,property,4000,1,Burst pipe flooded the kitchen floor on Monday.,standard,0,yes
+C0116,vehicle,6500,4,Hail damage to the roof and windshield after the storm on Friday night.,standard,1,yes
+C0117,vehicle,14000,2,Scraped a pillar in a parking garage; door panel dented.,standard,1,yes
+C0118,property,4000,1,Burst pipe flooded the kitchen floor on Friday night.,standard,0,yes
+C0119,injury,4000,0,Cut a hand on broken glass during the break-in.,medical review,1,yes
+C0120,injury,2400,4,Neck pain after a low-speed collision on Elm Avenue.,medical review,0,yes
+C0121,vehicle,35000,1,Scraped a pillar in a parking garage; door panel dented.,standard,2,no
+C0122,property,2400,0,Break-in through the back door; laptop and TV taken.,standard,1,yes
+C0123,vehicle,35000,0,Hail damage to the roof and windshield after the storm on Monday.,standard,2,no
+C0124,injury,14000,1,Cut a hand on broken glass during the break-in. No witnesses and no police report.,fraud review,2,no
+C0125,injury,35000,4,Slipped on a wet floor in a shop and hurt a wrist. Asks for payment to a new bank account.,fraud review,2,no
+C0126,vehicle,35000,2,Scraped a pillar in a parking garage; door panel dented.,standard,2,no
+C0127,injury,1500,12,Slipped on a wet floor in a shop and hurt a wrist.,medical review,0,yes
+C0128,vehicle,22000,1,Car stolen from outside the office on Tuesday morning. Asks for payment to a new bank account.,fraud review,2,no
+C0129,vehicle,4000,7,Rear-ended at a traffic light on Elm Avenue; bumper and trunk damaged.,standard,0,yes
+C0130,vehicle,35000,12,Car stolen from outside the office on the weekend.,standard,2,no
+C0131,vehicle,9000,2,Hail damage to the roof and windshield after the storm on Tuesday morning.,standard,1,yes
+C0132,injury,1500,0,Cut a hand on broken glass during the break-in.,medical review,1,yes
+C0133,vehicle,800,4,Rear-ended at a traffic light on the ring road; bumper and trunk damaged. Asks for payment to a new bank account.,fraud review,2,no
+C0134,property,14000,4,"Burst pipe flooded the kitchen floor on Friday night. Paid in cash, receipt lost.",fraud review,2,no
+C0135,property,2400,12,Break-in through the back door; laptop and TV taken.,standard,0,yes
+C0136,vehicle,9000,1,Scraped a pillar in a parking garage; door panel dented.,standard,1,yes
+C0137,property,6500,12,Burst pipe flooded the kitchen floor on the weekend.,standard,1,yes
+C0138,vehicle,1500,7,Car stolen from outside the office on the weekend.,standard,0,yes
+C0139,property,35000,7,Break-in through the back door; laptop and TV taken.,standard,2,no
+C0140,vehicle,4000,0,Hail damage to the roof and windshield after the storm on Monday.,standard,1,yes
+C0141,vehicle,9000,2,Car stolen from outside the office on the weekend.,standard,1,yes
+C0142,property,35000,7,Burst pipe flooded the kitchen floor on Friday night.,standard,2,no
+C0143,property,1500,0,Break-in through the back door; laptop and TV taken.,standard,1,yes
+C0144,vehicle,2400,7,Scraped a pillar in a parking garage; door panel dented.,standard,0,yes
+C0145,property,2400,2,Burst pipe flooded the kitchen floor on Monday.,standard,0,yes
+C0146,property,22000,0,Kitchen fire damaged the cabinets and the ceiling.,standard,2,no
+C0147,vehicle,6500,1,Car stolen from outside the office on Tuesday morning. No witnesses and no police report.,fraud review,2,no
+C0148,property,2400,4,Break-in through the back door; laptop and TV taken.,standard,0,yes
+C0149,injury,14000,2,Slipped on a wet floor in a shop and hurt a wrist.,medical review,1,yes
+C0150,property,35000,2,"Kitchen fire damaged the cabinets and the ceiling. Paid in cash, receipt lost.",fraud review,2,no
+C0151,property,800,2,Kitchen fire damaged the cabinets and the ceiling.,standard,0,yes
+C0152,property,6500,7,Kitchen fire damaged the cabinets and the ceiling.,standard,1,yes
+C0153,injury,14000,0,Twisted an ankle on a broken step outside the rented flat.,medical review,1,yes
+C0154,property,4000,0,Burst pipe flooded the kitchen floor on the weekend.,standard,1,yes
+C0155,injury,14000,7,Neck pain after a low-speed collision on Elm Avenue.,medical review,1,yes
+C0156,vehicle,800,2,Rear-ended at a traffic light on Main Street; bumper and trunk damaged. Asks for payment to a new bank account.,fraud review,2,no
+C0157,vehicle,22000,7,Scraped a pillar in a parking garage; door panel dented. Asks for payment to a new bank account.,fraud review,2,no
+C0158,vehicle,22000,2,Scraped a pillar in a parking garage; door panel dented.,standard,2,no
+C0159,vehicle,4000,2,Car stolen from outside the office on Tuesday morning.,standard,0,yes
+C0160,injury,9000,4,Slipped on a wet floor in a shop and hurt a wrist.,medical review,1,yes
+C0161,vehicle,800,12,Hail damage to the roof and windshield after the storm on Friday night.,standard,0,yes
+C0162,vehicle,2400,2,Scraped a pillar in a parking garage; door panel dented.,standard,0,yes
+C0163,property,1500,12,Kitchen fire damaged the cabinets and the ceiling. The policy started three weeks before the incident.,fraud review,2,no
+C0164,property,6500,2,Break-in through the back door; laptop and TV taken.,standard,1,yes
+C0165,vehicle,2400,12,Rear-ended at a traffic light on the ring road; bumper and trunk damaged.,standard,0,yes
+C0166,vehicle,22000,7,Hail damage to the roof and windshield after the storm on Tuesday morning.,standard,2,no
+C0167,vehicle,14000,7,Rear-ended at a traffic light on Main Street; bumper and trunk damaged.,standard,1,yes
+C0168,vehicle,2400,1,"Scraped a pillar in a parking garage; door panel dented. Paid in cash, receipt lost.",fraud review,2,no
+C0169,injury,800,1,Slipped on a wet floor in a shop and hurt a wrist. Asks for payment to a new bank account.,fraud review,2,no
+C0170,vehicle,35000,2,Scraped a pillar in a parking garage; door panel dented.,standard,2,no
+C0171,property,4000,12,Storm took off part of the roof; water damage in the attic.,standard,0,yes
+C0172,vehicle,4000,7,Scraped a pillar in a parking garage; door panel dented.,standard,0,yes
+C0173,property,800,7,Break-in through the back door; laptop and TV taken.,standard,0,yes
+C0174,vehicle,22000,4,Hail damage to the roof and windshield after the storm on Friday night.,standard,2,no
+C0175,property,35000,7,Break-in through the back door; laptop and TV taken. No witnesses and no police report.,fraud review,2,no
+C0176,property,800,12,Storm took off part of the roof; water damage in the attic.,standard,0,yes
+C0177,vehicle,35000,1,Scraped a pillar in a parking garage; door panel dented.,standard,2,no
+C0178,vehicle,22000,0,Hail damage to the roof and windshield after the storm on Tuesday morning.,standard,2,no
+C0179,vehicle,800,1,Car stolen from outside the office on Friday night.,standard,0,yes
+C0180,property,800,0,Storm took off part of the roof; water damage in the attic.,standard,1,yes
+C0181,vehicle,22000,4,Hail damage to the roof and windshield after the storm on Tuesday morning.,standard,2,no
+C0182,injury,35000,1,Slipped on a wet floor in a shop and hurt a wrist.,medical review,2,no
+C0183,vehicle,4000,0,Rear-ended at a traffic light on the ring road; bumper and trunk damaged.,standard,1,yes
+C0184,vehicle,14000,1,Rear-ended at a traffic light on Harbour Road; bumper and trunk damaged.,standard,1,yes
+C0185,vehicle,2400,7,Rear-ended at a traffic light on the ring road; bumper and trunk damaged.,standard,0,yes
+C0186,injury,22000,2,Cut a hand on broken glass during the break-in.,medical review,2,no
+C0187,property,14000,4,Kitchen fire damaged the cabinets and the ceiling.,standard,1,yes
+C0188,vehicle,35000,1,Scraped a pillar in a parking garage; door panel dented.,standard,2,no
+C0189,property,2400,12,"Kitchen fire damaged the cabinets and the ceiling. Paid in cash, receipt lost.",fraud review,2,no
+C0190,injury,1500,0,Neck pain after a low-speed collision on the ring road.,medical review,1,yes
+C0191,injury,14000,2,Cut a hand on broken glass during the break-in.,medical review,1,yes
+C0192,vehicle,22000,0,Rear-ended at a traffic light on Harbour Road; bumper and trunk damaged.,standard,2,no
+C0193,vehicle,14000,4,Hail damage to the roof and windshield after the storm on Friday night.,standard,1,yes
+C0194,property,14000,1,Storm took off part of the roof; water damage in the attic.,standard,1,yes
+C0195,injury,4000,0,Neck pain after a low-speed collision on Elm Avenue. The policy started three weeks before the incident.,fraud review,2,no
+C0196,vehicle,22000,7,"Scraped a pillar in a parking garage; door panel dented. Paid in cash, receipt lost.",fraud review,2,no
+C0197,vehicle,9000,12,Scraped a pillar in a parking garage; door panel dented.,standard,1,yes
+C0198,vehicle,1500,4,Scraped a pillar in a parking garage; door panel dented. Asks for payment to a new bank account.,fraud review,2,no
+C0199,property,6500,1,Kitchen fire damaged the cabinets and the ceiling.,standard,1,yes
+C0200,vehicle,9000,12,Car stolen from outside the office on Tuesday morning.,standard,1,yes

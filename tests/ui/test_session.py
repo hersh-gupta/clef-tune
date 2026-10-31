@@ -4,12 +4,14 @@ import zipfile
 import pytest
 
 from clef_tune.ui.session import (
+    SAMPLES,
     OptionDraft,
     QuestionDraft,
     Session,
     UploadError,
     extract_zip,
     load_example,
+    load_sample,
     load_upload,
     slug,
     sweep_stale,
@@ -121,7 +123,7 @@ def test_zips_that_expand_too_far_or_hold_the_wrong_files_are_refused(tmp_path):
             z.writestr("readme.txt", "hi")
             for name in names:
                 z.writestr(name, "id,x\n1,2\n")
-        with pytest.raises(UploadError, match="exactly one .csv, .tsv or .jsonl"):
+        with pytest.raises(UploadError, match="exactly one .csv, .tsv, .xlsx or .jsonl"):
             extract_zip(archive, tmp_path / f"d{len(names)}", max_bytes=10_000)
 
 
@@ -185,3 +187,49 @@ def test_the_fingerprint_changes_with_any_edit(session):
     before = session.draft.fingerprint()
     session.draft.questions[0].instructions = "Which team?"
     assert session.draft.fingerprint() != before
+
+
+def test_an_upload_guesses_its_row_noun(session, tmp_path):
+    load_upload(session, write_csv(tmp_path / "tickets.csv", ticket_rows(30)), LOCAL)
+    assert session.draft.row_noun == "ticket"
+    assert session.config().data.row_noun == "ticket"
+    load_upload(session, write_csv(tmp_path / "data.csv", ticket_rows(30)), LOCAL)
+    assert session.draft.row_noun is None and session.config().data.row_noun is None
+
+
+@pytest.mark.parametrize(
+    ("name", "noun", "first"),
+    [
+        ("support_tickets", "ticket", "department"),
+        ("claims_triage", "claim", "reviewer"),
+        ("server_logs", "log line", "component"),
+    ],
+)
+def test_each_sample_loads_with_its_noun(session, name, noun, first):
+    load_sample(session, name)
+    assert session.draft.row_noun == noun
+    assert session.draft.questions[0].id == first and len(session.draft.questions) == 3
+    assert len(session.table.rows) == 200 and name in SAMPLES
+
+
+def test_an_unknown_sample_is_refused(session):
+    with pytest.raises(ValueError, match="no sample"):
+        load_sample(session, "nope")
+
+
+def test_excel_uploads_and_zipped_excel_work(session, tmp_path):
+    from openpyxl import Workbook
+
+    book = Workbook()
+    rows = ticket_rows(30)
+    book.active.append(list(rows[0]))
+    for row in rows:
+        book.active.append(list(row.values()))
+    book.save(tmp_path / "claims.xlsx")
+    load_upload(session, tmp_path / "claims.xlsx", LOCAL)
+    assert len(session.table.rows) == 30 and session.draft.row_noun == "claim"
+    archive = tmp_path / "bundle.zip"
+    with zipfile.ZipFile(archive, "w") as z:
+        z.write(tmp_path / "claims.xlsx", "set/claims.xlsx")
+    load_upload(session, archive, LOCAL)
+    assert session.table.path.name == "claims.xlsx"

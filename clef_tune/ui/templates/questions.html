@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block title %}What to predict · clef-tune{% endblock %}
+{% block steps %}{{ m.step_bar(steps) }}{% endblock %}
+{% block main %}
+<h1 class="title in">What should the model learn to predict?</h1>
+<div class="rule in"></div>
+<p class="lede in">Each question below is something the model learns to predict from your examples.</p>
+<p class="rolesline in" style="--i:1">
+  {%- if page.reads %}Reads {% for c in page.reads %}<b>{{ c }}</b>{% if not loop.last %}, {% endif %}{% endfor %} · {% endif %}
+  {%- if page.ignores %}Ignores {% for c in page.ignores %}<b>{{ c }}</b>{% if not loop.last %}, {% endif %}{% endfor %} · {% endif %}
+  Predicts <b>{{ page.items | length }} question{{ "s" if page.items | length != 1 }}</b>
+  <a href="/data#columns" style="margin-left: 10px">Change columns</a>
+</p>
+{% if page.error %}<p class="error-box" role="alert">{{ page.error }}</p>{% endif %}
+{% if page.items %}
+<div class="split2 in" style="--i:2">
+  <ul class="qlist" aria-label="Questions">
+    {%- for it in page.items %}
+    <li><a href="/questions?q={{ it.id | urlencode }}" class="{{ 'on' if page.selected and it.id == page.selected.id }}"{% if page.selected and it.id == page.selected.id %} aria-current="true"{% endif %}><span class="num">{{ it.number }}</span><span class="nm">{{ it.id }}</span><span class="ask" id="ask-{{ loop.index }}">{{ it.ask }}</span></a></li>
+    {%- endfor %}
+  </ul>
+  <div>
+    {%- set ids = page.items | map(attribute="id") | list %}
+    {%- set k = ids.index(page.selected.id) %}
+    <nav class="qswitch" aria-label="Switch question">
+      {% if k > 0 %}<a href="/questions?q={{ ids[k - 1] | urlencode }}" aria-label="Previous question">‹</a>{% else %}<span></span>{% endif %}
+      <span class="cur">Question {{ k + 1 }} of {{ ids | length }}<b>{{ page.selected.id }}</b></span>
+      {% if k + 1 < ids | length %}<a href="/questions?q={{ ids[k + 1] | urlencode }}" aria-label="Next question">›</a>{% else %}<span></span>{% endif %}
+    </nav>
+    <div id="editor">{% include "_editor.html" %}</div>
+  </div>
+</div>
+{% else %}
+<p class="empty">No questions yet. Mark a column as an <a href="/data#columns">expected output</a> on the first step.</p>
+{% endif %}
+<div class="foot sticky">
+  <span class="summary-text">{{ page.items | length }} question{{ "s" if page.items | length != 1 }} · {{ "{:,}".format(page.rows) }} {{ plural(page.noun) }} ·
+    <button class="linkbtn" type="button" data-open-panel="#prompt-panel" data-panel-url="/questions/prompt">See what the model reads</button></span>
+  {% if page.blocking %}<button class="btn" type="button" disabled>Continue</button>{% else %}<a class="btn" href="/settings">Continue</a>{% endif %}
+</div>
+<div class="panel-wrap" id="prompt-panel">
+  <div class="scrim" data-close-panel></div>
+  <div class="panel" role="dialog" aria-modal="true" aria-label="What the model reads">
+    <button class="back" type="button" data-close-panel>← Close</button>
+    <h2 class="section-title">What the model reads</h2>
+    <p class="sub">The exact text for the first row: <span style="background: var(--oak-wash)">the row</span>, then each <b style="color: var(--sage-ink)">question</b> and its answers.</p>
+    <div id="prompt-body"><p class="muted">Loading…</p></div>
+  </div>
+</div>
+{% endblock %}

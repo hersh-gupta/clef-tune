@@ -139,3 +139,25 @@ def test_question_weights_must_be_finite_and_not_negative(weight):
         Config.model_validate({**data, "train": {"question_weights": {"department": weight}}})
     zero = Config.model_validate({**data, "train": {"question_weights": {"department": 0.0}}})
     assert zero.train.question_weights == {"department": 0.0}
+
+
+def test_row_noun_is_optional_and_trimmed(tmp_path):
+    assert load_config(write(tmp_path, MINIMAL)).data.row_noun is None
+    cfg = Config.model_validate(
+        {"run_name": "demo", "data": {"train": "t.csv", "row_noun": "  claim "}}
+    )
+    assert cfg.data.row_noun == "claim"
+    blank = Config.model_validate({"run_name": "demo", "data": {"train": "t.csv", "row_noun": " "}})
+    assert blank.data.row_noun is None
+    with pytest.raises(ValidationError):
+        Config.model_validate(
+            {"run_name": "demo", "data": {"train": "t.csv", "row_noun": "x" * 41}}
+        )
+
+
+def test_hash_ignores_the_row_noun(tmp_path):
+    cfg = load_config(write(tmp_path, MINIMAL))
+    named = Config.model_validate(
+        {**cfg.to_dict(), "data": {**cfg.to_dict()["data"], "row_noun": "ticket"}}
+    )
+    assert config_hash(named) == config_hash(cfg)

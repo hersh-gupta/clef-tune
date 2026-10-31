@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}clef-tune{% endblock %}</title>
+<script>try { if (localStorage.getItem("clef-tune-theme") === "dark") document.documentElement.dataset.theme = "dark"; } catch (e) {}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ asset('clef-tune.css') }}">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='3.5' y='3.5' width='9' height='9' transform='rotate(45 8 8)' fill='none' stroke='%235C7A64' stroke-width='1.6'/%3E%3C/svg%3E">
+<script src="{{ asset('clef-tune.js') }}" defer></script>
+</head>
+<body class="{% block body_class %}{% endblock %}">
+<div class="wrap">
+  <header class="top">
+    <a class="brand" href="/"><span class="mark" aria-hidden="true"></span><b>clef-tune</b></a>
+    <span class="right">
+      {% if user %}
+        <a href="/models">Your models</a><span class="who">{{ user }}</span>
+      {% elif space %}
+        <a href="{{ login_url(request.url.path) }}" target="_top">Sign in with Hugging Face</a>
+      {% else %}
+        <a href="/models">Your models</a>
+      {% endif %}
+      <button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch between light and dark"></button>
+    </span>
+  </header>
+  <div id="steps-slot">{% block steps %}{% endblock %}</div>
+  <p id="page-error" class="error-box" role="alert" hidden></p>
+  <main>{% block main %}{% endblock %}</main>
+</div>
+</body>
+</html>

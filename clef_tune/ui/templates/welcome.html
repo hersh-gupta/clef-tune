@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}clef-tune · Bespoke intelligence, owned by you{% endblock %}
+{% block main %}
+{% if returning %}
+<section class="wb">
+  <p class="kicker in">Welcome back</p>
+  <h1 class="in" style="--i:1">{{ greeting }}, <em>{{ user }}</em>.</h1>
+  <div class="rule in" style="--i:2"></div>
+</section>
+<p class="label in" style="--i:2">Your models</p>
+<ul class="mlist in" style="--i:3">
+  {%- for r in latest %}
+  <li><a href="/runs/{{ r.id }}"><span class="mt"><span class="mn">{{ r.name }}</span><small id="line-{{ r.id }}" data-load="/models/{{ r.id }}/line">{{ r.label }}</small></span><span class="ms s-{{ r.status }}">{{ r.label }}</span><span class="chv" aria-hidden="true">›</span></a></li>
+  {%- endfor %}
+</ul>
+<p class="note in" style="--i:4"><a href="/models">See all {{ total }} model{{ "s" if total != 1 }}</a></p>
+<p class="in" style="--i:5; margin-top: 28px"><a class="btn primary" href="/data">Train a new model</a></p>
+{% else %}
+<section class="hero">
+  <div>
+    <p class="kicker in">Fine-tuned decisions for everyone</p>
+    <h1 class="in" style="--i:1">Bespoke intelligence, <em>owned by you</em>.</h1>
+    <div class="rule in" style="--i:2"></div>
+    <p class="lede in" style="--i:2">Upload a spreadsheet of examples with the expected outputs filled in. clef-tune fine-tunes a decision model to predict them for new cases, and shows you how much better it got before you use it.</p>
+    <div class="in" style="--i:3"><a class="btn primary" href="/data">Start with your data</a></div>
+    <div class="samples in" style="--i:4">Or try a sample:
+      {%- for name, label, hint in samples %}
+      <form action="/data/sample" method="post"><input type="hidden" name="name" value="{{ name }}"><button class="linkbtn" type="submit" title="{{ hint }}">{{ label }}</button></form>{% if not loop.last %} ·{% endif %}
+      {%- endfor %}
+    </div>
+    {% if space %}<p class="note in" style="--i:5">No sign-in needed to look around. You'll sign in with Hugging Face when you're ready to train.</p>{% endif %}
+  </div>
+  <div class="ill in" style="--i:3">
+    <svg viewBox="0 0 300 200" role="img" aria-label="Your data trains your decision model, which gives answers">
+      <path class="ln" d="M92 100 H130"/><path class="ln" d="M170 100 H206"/>
+      <g class="sheetg"><rect x="20" y="52" width="72" height="96" rx="3"/>
+        <line x1="30" y1="72" x2="82" y2="72"/><line x1="30" y1="88" x2="74" y2="88"/><line x1="30" y1="104" x2="80" y2="104"/><line x1="30" y1="120" x2="70" y2="120"/>
+        <circle class="ok" cx="84" cy="88" r="2.4"/><circle class="ok" cx="84" cy="120" r="2.4"/></g>
+      <g transform="rotate(45 150 100)"><rect class="halo" x="136" y="86" width="28" height="28"/><rect class="dia" x="136" y="86" width="28" height="28"/></g>
+      <g class="outg">
+        <circle cx="214" cy="70" r="3"/><rect class="bg" x="224" y="67" width="60" height="6" rx="2"/><rect class="fg" x="224" y="67" width="54" height="6" rx="2" style="animation-delay:.6s"/>
+        <circle cx="214" cy="100" r="3"/><rect class="bg" x="224" y="97" width="60" height="6" rx="2"/><rect class="fg" x="224" y="97" width="38" height="6" rx="2" style="animation-delay:.75s"/>
+        <circle cx="214" cy="130" r="3"/><rect class="bg" x="224" y="127" width="60" height="6" rx="2"/><rect class="fg" x="224" y="127" width="49" height="6" rx="2" style="animation-delay:.9s"/></g>
+      <text x="56" y="170" text-anchor="middle">YOUR DATA</text><text x="150" y="170" text-anchor="middle">YOUR DECISION</text><text x="150" y="183" text-anchor="middle">MODEL</text><text x="254" y="170" text-anchor="middle">ANSWERS</text>
+    </svg>
+  </div>
+</section>
+<p class="label in" style="--i:5; margin-top: 30px">How it works</p>
+<div class="how in" style="--i:5">
+  <div><span>01</span><b>Your data</b><p>Upload examples from past work, or label some just for this.</p></div>
+  <div><span>02</span><b>What to predict</b><p>Say what each output column means, as a plain question.</p></div>
+  <div><span>03</span><b>Settings</b><p>Pick how much training. See the time and price first.</p></div>
+  <div><span>04</span><b>Train</b><p>It runs on Hugging Face. Leave, and come back to the results.</p></div>
+</div>
+<div class="facts in" style="--i:6">
+  <div><span><b>Pay only for what runs</b>Often under a dollar for a few hundred examples, billed by Hugging Face. You see the price before anything starts.</span></div>
+  <div><span><b>Your data stays yours</b>Training data and the finished model are stored privately in your own Hugging Face account.</span></div>
+  <div><span><b>See before you trust</b>Every model is tested on examples it never saw, before and after training.</span></div>
+</div>
+<p class="site-foot in" style="--i:7">Fine-tunes Cloudflare's open Clef decision models · Open source on <a href="https://github.com/hersh-gupta/clef-tune">GitHub</a> · MIT licence</p>
+{% endif %}
+{% endblock %}

@@ -237,3 +237,49 @@ def test_train_command_prints_only_on_the_main_process(monkeypatch, tmp_path):
     fake_training(monkeypatch, tmp_path, main_process=False)
     result = runner.invoke(cli.app, ["train", str(EXAMPLE)])
     assert result.exit_code == 0 and "Adapter written" not in result.output
+
+
+def test_predict_passes_the_review_threshold_probabilities_and_base_model(monkeypatch, tmp_path):
+    loaded, called = {}, {}
+
+    def load(path, **kwargs):
+        loaded.update(kwargs, path=path)
+        return "predictor"
+
+    def predict_file(predictor, data, output, **kwargs):
+        called.update(kwargs, output=output)
+        return 2
+
+    fake_predictor(monkeypatch, load=load, predict_file=predict_file)
+    data = write_csv(tmp_path / "in.csv", ticket_rows(2))
+    model = tmp_path / "model"
+    model.mkdir()
+    result = runner.invoke(
+        cli.app,
+        [
+            "predict",
+            "me/repo",
+            str(data),
+            "-o",
+            str(tmp_path / "p.xlsx"),
+            "--review-below",
+            "0.8",
+            "--probabilities",
+            "--base-model",
+            str(model),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert loaded["base_model_path"] == model and loaded["path"] == "me/repo"
+    assert called["review_below"] == 0.8 and called["probabilities"] is True
+    assert "Wrote 2 predictions" in result.output
+
+
+def test_the_ui_command_serves_the_web_app(monkeypatch):
+    from clef_tune.ui import server
+
+    served = {}
+    monkeypatch.setattr(server, "launch", lambda **kwargs: served.update(kwargs))
+    result = runner.invoke(cli.app, ["ui", "--port", "7861", "--host", "0.0.0.0"])
+    assert result.exit_code == 0, result.output
+    assert served == {"host": "0.0.0.0", "port": 7861}

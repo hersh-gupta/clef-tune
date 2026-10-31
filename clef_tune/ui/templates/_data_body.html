@@ -1,0 +1,64 @@
+{% import "macros.html" as m %}
+<h2 class="section-title">A first look</h2>
+<div class="tbl cards-on-phone">
+  <table class="grid">
+    <thead><tr>{% for name, role in page.headers %}<th class="r-{{ role }}" scope="col">{{ name }}</th>{% endfor %}</tr></thead>
+    <tbody>
+      {%- for row in page.preview %}
+      <tr>{% for cell in row %}<td class="r-{{ page.headers[loop.index0][1] }}" title="{{ cell }}">{{ cell }}</td>{% endfor %}</tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+</div>
+<div class="tblfoot cards-on-phone"><span>First {{ page.preview | length }} of {{ "{:,}".format(page.rows) }} rows</span><a href="/data/rows">See all rows</a></div>
+<div class="rowcard" id="rowcards">
+  {%- for row in page.preview %}
+  <div class="kvs" data-label="Row {{ loop.index }} of {{ '{:,}'.format(page.rows) }}"{% if not loop.first %} hidden{% endif %}>
+    {%- for cell in row %}
+    {%- set role = page.headers[loop.index0][1] %}
+    <div class="kv"><span class="k r-{{ role }}">{{ page.headers[loop.index0][0] }}</span><span class="v r-{{ role }}">{{ cell }}</span></div>
+    {%- endfor %}
+  </div>
+  {%- endfor %}
+</div>
+<div class="pager" data-pager="#rowcards">
+  <button type="button" data-page-row="-1" aria-label="Previous row">‹</button>
+  <span data-row-label>Row 1 of {{ "{:,}".format(page.rows) }}</span>
+  <button type="button" data-page-row="1" aria-label="Next row">›</button>
+</div>
+
+<h2 class="section-title" id="columns">What's in each column?</h2>
+<p class="sub">We've made a first guess. Click a tag to change it.</p>
+{% if page.native %}
+<p class="notice">In this JSONL file each row brings its own state and expected outputs, so the columns are set.</p>
+{% endif %}
+<ul class="cols">
+  {%- for col in page.column_rows %}
+  <li>
+    <div class="r">
+      <div><span class="col">{{ col.name }}</span><span class="eg">{{ col.samples }}</span></div>
+      <div class="pop-wrap">
+        <button type="button" class="tag chev r-{{ col.role }}" data-menu="#role-{{ loop.index }}" aria-haspopup="true" aria-expanded="false"{% if page.native %} disabled{% endif %}>{{ col.role_name }}<span class="sr-only">, the role of {{ col.name }}</span></button>
+        <form class="menu" id="role-{{ loop.index }}" data-post action="/data/role" role="menu" aria-label="What {{ col.name }} is for" hidden>
+          <input type="hidden" name="column" value="{{ col.name }}">
+          {%- for role, name, help in roles %}
+          <button class="opt{{ ' on' if role == col.role }}" type="submit" name="role" value="{{ role }}" role="menuitemradio" aria-checked="{{ 'true' if role == col.role else 'false' }}"><span class="ot"><b>{{ name }}</b><small>{{ help }}</small></span><span class="rad"></span></button>
+          {%- endfor %}
+        </form>
+      </div>
+    </div>
+    {%- for flag in col.flags %}<p class="flag">{{ flag }}</p>{% endfor %}
+  </li>
+  {%- endfor %}
+</ul>
+<div class="checks" aria-live="polite">
+  {{ m.checks(page.checks | selectattr("level", "ne", "warn")) }}
+  {%- if page.to_look_at %}
+  <div class="ch warn"><span>{{ page.to_look_at }} thing{{ "s" if page.to_look_at != 1 }} to look at
+    <small>{% for line in page.checks if line.level == "warn" %}{{ line.text }}{% if line.detail %}: {{ line.detail }}{% endif %} {% endfor %}{% if page.to_look_at > (page.checks | selectattr("level", "equalto", "warn") | list | length) %}See the notes under the columns above. {% endif %}{% if not page.blocking %}You can continue.{% endif %}</small></span></div>
+  {%- endif %}
+</div>
+<div class="foot sticky">
+  <span class="summary-text">{{ page.summary }}</span>
+  {% if page.blocking %}<button class="btn" type="button" disabled>Continue</button>{% else %}<a class="btn" href="/questions">Continue</a>{% endif %}
+</div>

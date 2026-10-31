@@ -1,0 +1,30 @@
+{% import "macros.html" as m %}
+<div class="filebar">
+  {{ m.file_glyph() }}
+  <span><span class="fn">{{ page.file_name }}</span><br><span class="fm">{{ "{:,}".format(page.rows) }} rows</span></span>
+  <form class="replace" action="/predict/{{ page.job_id }}/upload" method="post" enctype="multipart/form-data">
+    <label class="linkbtn">Replace<input class="sr-only" type="file" name="file" accept=".csv,.tsv,.xlsx,.jsonl,.ndjson,.zip" onchange="this.form.submit()"></label>
+  </form>
+</div>
+<div class="checks">{{ m.checks(page.checks) }}</div>
+{% if page.missing %}
+<form data-post action="/predict/{{ page.job_id }}/rename" style="margin-top: 10px">
+  {%- for name in page.missing %}
+  <div class="map">
+    <label for="map-{{ loop.index }}">The model reads <b>{{ name }}</b>. In your file it's</label>
+    <input type="hidden" name="to" value="{{ name }}">
+    <select id="map-{{ loop.index }}" name="from"><option value="">Choose a column</option>{% for c in page.columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}</select>
+  </div>
+  {%- endfor %}
+  <button class="btn" type="submit" style="margin-top: 8px">Use these columns</button>
+</form>
+{% else %}
+<form class="review-line editable" data-post data-autosubmit="input" data-debounce="500" action="/predict/{{ page.job_id }}/threshold">
+  <label for="threshold">Mark a row for review when the model is less than</label>
+  <input class="word" id="threshold" name="percent" value="{{ page.threshold }}" inputmode="numeric" autocomplete="off" aria-describedby="threshold-help"><span class="pen" aria-hidden="true">✎</span>% sure of an answer.
+  <small id="threshold-help">Its confidence was calibrated on your test {{ plural(page.noun) }}, so 70% sure means right about 70% of the time.</small>
+</form>
+{% endif %}
+{% if page.can_check_cost %}
+<div id="predict-estimate" data-load="/predict/{{ page.job_id }}/estimate"><p class="muted">Working out the time and cost…</p></div>
+{% endif %}

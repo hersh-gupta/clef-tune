@@ -1,66 +1,96 @@
-"""Opt-in end-to-end test in a real browser (marker `browser`): the example goes from upload
-to a reviewed launch and a completed run's results, against fake services. Needs Playwright's
-chromium (`uv run playwright install chromium`)."""
+"""Drive the web UI in a real browser (opt-in: pytest -m browser; needs Playwright's chromium).
+The app runs against the fake services, so nothing touches the Hub."""
 
-import socket
+import threading
+import time
 
 import pytest
 
-gr = pytest.importorskip("gradio")
-sync_api = pytest.importorskip("playwright.sync_api")
-
-from clef_tune.ui import app  # noqa: E402
-from clef_tune.ui.settings import Settings  # noqa: E402
-from tests.ui.fakes import fake_services  # noqa: E402
+from clef_tune.ui.server import create_app
+from clef_tune.ui.settings import Settings
+from tests.ui.fakes import fake_services
 
 pytestmark = pytest.mark.browser
-
-
-def free_port() -> int:
-    with socket.socket() as probe:
-        probe.bind(("127.0.0.1", 0))
-        return probe.getsockname()[1]
+playwright = pytest.importorskip("playwright.sync_api")
 
 
 @pytest.fixture(scope="module")
-def server():
-    settings = Settings(space=False, max_upload_mb=200, local_training=False)
-    url = app.launch(
-        port=free_port(), settings=settings, services=fake_services()[0], prevent_thread_lock=True
-    )
-    yield url
-    gr.close_all()
+def base_url(monkeypatch_module):
+    import socket
+
+    import uvicorn
+
+    monkeypatch_module.setenv("HF_TOKEN", "hf_machine")
+    app = create_app(Settings(False, 200, False), fake_services()[0], secret="browser")
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+    server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning"))
+    threading.Thread(target=server.run, daemon=True).start()
+    while not server.started:
+        time.sleep(0.05)
+    yield f"http://127.0.0.1:{port}"
+    server.should_exit = True
+
+
+@pytest.fixture(scope="module")
+def monkeypatch_module():
+    with pytest.MonkeyPatch.context() as patch:
+        yield patch
 
 
 @pytest.fixture
-def page(server):
-    with sync_api.sync_playwright() as playwright:
-        browser = playwright.chromium.launch()
-        page = browser.new_page(viewport={"width": 1440, "height": 900})
-        page.console_errors = []
-        page.on(
-            "console",
-            lambda message: message.type == "error" and page.console_errors.append(message.text),
-        )
-        page.goto(server)
-        yield page
+def page():
+    with playwright.sync_playwright() as p:
+        browser = p.chromium.launch()
+        yield browser.new_page(reduced_motion="reduce")
         browser.close()
 
 
-def test_the_example_goes_from_data_to_results(page):
-    expect = sync_api.expect
-    page.get_by_role("button", name="Try the example").click()
-    expect(page.locator("#ct-file-row")).to_contain_text("200 rows")
-    expect(page.locator("#ct-columns")).to_contain_text("customer_tier")
-    expect(page.locator("#ct-pills")).to_contain_text("urgency")
-    page.get_by_role("button", name="Next: Validate →").click()
-    expect(page.locator("#ct-validate")).to_contain_text("Train rows")
-    page.get_by_role("button", name="Next: Configure →").click()
-    expect(page.locator("#ct-configure")).to_contain_text("l4x1")
-    page.get_by_role("button", name="Next: Launch →").click()
-    page.get_by_label("Hugging Face token").fill("hf_test")
-    page.get_by_role("button", name="Review launch").click()
-    expect(page.locator("#ct-confirm")).to_contain_text("Launch for up to $")
-    page.locator("#ct-runs").get_by_test_id("cell-1-1").click()  # run-b
-    expect(page.locator("#ct-results svg").first).to_be_visible()
-    assert page.console_errors == []
+def no_sideways_scroll(page) -> bool:
+    return page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1")
+
+
+def test_a_sample_goes_from_data_to_results(page, base_url):
+    page.goto(f"{base_url}/data")
+    page.get_by_role("button", name="support tickets").click()
+    page.wait_for_url("**/data")
+    title = page.locator("h1").inner_text()
+    # A role change swaps the column list in place: the page itself is not reloaded.
+    page.evaluate("window.__kept = true")
+    page.locator(".cols .tag").nth(3).click()
+    page.locator(".menu:not([hidden]) button[value=skip]").click()
+    page.wait_for_function(
+        "document.querySelector('.foot .summary-text').textContent.includes('2 columns read')"
+    )
+    assert page.evaluate("window.__kept") is True and page.locator("h1").inner_text() == title
+    page.get_by_role("link", name="Continue").click()
+    page.wait_for_url("**/questions")
+    page.locator("#ask-box").fill("Which team owns this?")
+    page.wait_for_function(
+        "document.querySelector('#ask-1').textContent === 'Which team owns this?'"
+    )
+    page.get_by_role("link", name="Continue").click()
+    page.wait_for_url("**/settings")
+    assert "never cost more than" in page.locator("#settings-body").inner_text()
+    page.get_by_role("link", name="Continue").click()
+    page.wait_for_selector("#review .srows")
+    page.get_by_role("button", name="Start training").click()
+    page.wait_for_url("**/runs/job-new")
+    assert "Learning from your examples" in page.content() or "Starting" in page.content()
+    page.goto(f"{base_url}/runs/job-b")
+    assert "24 of 30" in page.locator(".big-sentence").inner_text()
+
+
+@pytest.mark.parametrize(
+    "path", ["/", "/data", "/questions", "/settings", "/runs/job-b", "/runs/job-p", "/models"]
+)
+def test_every_page_fits_a_phone(page, base_url, path):
+    page.set_viewport_size({"width": 360, "height": 740})
+    page.goto(f"{base_url}/data")
+    if not page.locator(".filebar").count():
+        page.get_by_role("button", name="support tickets").click()
+        page.wait_for_url("**/data")
+    page.goto(f"{base_url}{path}")
+    page.wait_for_load_state("networkidle")
+    assert no_sideways_scroll(page)

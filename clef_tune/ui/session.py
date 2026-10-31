@@ -1,6 +1,5 @@
 """One browser session's state: its private folder, the uploaded table, and the draft config the
-person edits step by step. Holds no tokens, locks or processes: Gradio deep-copies a fresh
-Session for every browser session."""
+person edits step by step. Holds no tokens or processes."""
 
 from __future__ import annotations
 
@@ -25,13 +24,19 @@ from clef_tune.data import DataError, Issue, read_rows
 from clef_tune.estimate import EstimateRow
 from clef_tune.labels import is_missing
 from clef_tune.ui.settings import Settings
+from clef_tune.ui.wording import guess_noun
 from clef_tune.validation import ValidationReport
 
 SESSIONS_ROOT = Path(tempfile.gettempdir()) / "clef-tune-ui"
 STALE_HOURS = 24
 UNZIP_FACTOR = 5  # a zip may expand to this many times the upload cap
 DEFAULT_MODEL = "Cloudflare/clef-flash"
-DATA_SUFFIXES = (".csv", ".tsv", ".jsonl", ".ndjson")
+DATA_SUFFIXES = (".csv", ".tsv", ".xlsx", ".jsonl", ".ndjson")
+SAMPLES = {  # the samples a visitor can try, by file stem
+    "support_tickets": "support tickets",
+    "claims_triage": "claim triage",
+    "server_logs": "server logs",
+}
 NOUL_IDS = ("true", "false")
 # Fields the example (or any loaded config) may set beyond the schema and the data columns.
 _TUNABLE_PREFIXES = ("train.", "eval.", "output.save_every", "data.eval_fraction")
@@ -116,6 +121,7 @@ class Draft:
     native: bool = False
     preset: str = "balanced"
     overrides: dict[str, Any] = field(default_factory=dict)  # dotted path -> value
+    row_noun: str | None = None  # what one row is ("ticket"); None means "example"
 
     def question(self, qid: str) -> QuestionDraft | None:
         return next((q for q in self.questions if q.id == qid), None)
@@ -133,6 +139,8 @@ class Draft:
                 data["label_columns"] = labels
             if self.image_columns:
                 data["image_columns"] = list(self.image_columns)
+        if self.row_noun and self.row_noun.strip():
+            data["row_noun"] = self.row_noun.strip()
         raw = {
             "run_name": self.run_name,
             "model": {"id": self.model_id},
@@ -187,8 +195,13 @@ class Session:
     job_id: str | None = None  # the run the monitor shows
     local_folder: str | None = None
     pending: Any = None  # a reviewed launch waiting for confirmation (ui.runs.PendingLaunch)
-    last_view: Any = None  # the monitor's last good view, kept through a failed poll
-    results: dict[str, dict] = field(default_factory=dict)  # job id -> metrics.json
+    last_states: dict[str, Any] = field(default_factory=dict)  # job id -> last RunState read
+    results: dict[str, Any] = field(default_factory=dict)  # job id -> its hub.RunFiles
+    prediction: Any = None  # the file being set up for prediction (ui.views.PredictionDraft)
+    flavor: str | None = None  # hardware chosen in Advanced settings; None picks the cheapest
+    delete_data: bool = True  # delete the training data from the bucket after a good run
+    flash: str | None = None  # a message for the page a form post redirects to
+    pasted_token: str | None = None  # a token pasted when sign-in lacks a permission
 
     def workdir(self) -> Path:
         if self.root is None:
@@ -252,7 +265,8 @@ def extract_zip(archive: Path, dest: Path, max_bytes: int) -> Path:
         ]
         if len(data) != 1:
             raise UploadError(
-                f"the zip must contain exactly one .csv, .tsv or .jsonl file (found {len(data)})"
+                "the zip must contain exactly one .csv, .tsv, .xlsx or .jsonl file "
+                f"(found {len(data)})"
             )
         for member, target in zip(members, targets, strict=True):
             if member.is_dir():
@@ -275,12 +289,13 @@ def _read_table(path: Path) -> Table:
 def _start(session: Session, table: Table, draft: Draft) -> None:
     session.table, session.draft = table, draft
     session.report, session.estimates = None, []
-    session.pending = session.last_view = session.job_id = None
+    session.pending = session.job_id = None
+    session.last_states = {}
     session.results = {}
     session.reached = 1
 
 
-def draft_from_proposal(proposal: Proposal, name: str) -> Draft:
+def draft_from_proposal(proposal: Proposal, name: str, filename: str | None = None) -> Draft:
     questions = [
         QuestionDraft(q.id, q.column, q.type, options=[OptionDraft(o) for o in q.options])
         for q in proposal.questions
@@ -291,6 +306,7 @@ def draft_from_proposal(proposal: Proposal, name: str) -> Draft:
         state_columns=list(proposal.state_columns),
         questions=questions,
         native=proposal.native,
+        row_noun=guess_noun(filename or name),
     )
 
 
@@ -329,14 +345,21 @@ def draft_from_config(config: Config) -> Draft:
         image_columns=list(config.data.image_columns),
         questions=questions,
         overrides=overrides,
+        row_noun=config.data.row_noun,
     )
 
 
-def example_files() -> tuple[Path, Path]:
-    """The support-tickets example: shipped in the wheel, or read from a checkout."""
+def sample_files(name: str) -> tuple[Path, Path]:
+    """A sample's data and config: shipped in the wheel, or read from a checkout."""
+    if name not in SAMPLES:
+        raise ValueError(f"there is no sample {name!r}")
     packaged = Path(str(resources.files("clef_tune") / "_examples"))
     folder = packaged if packaged.is_dir() else Path(clef_tune.__file__).parents[1] / "examples"
-    return folder / "support_tickets.csv", folder / "support_tickets.yaml"
+    return folder / f"{name}.csv", folder / f"{name}.yaml"
+
+
+def example_files() -> tuple[Path, Path]:
+    return sample_files("support_tickets")
 
 
 def load_upload(session: Session, upload: Path, settings: Settings) -> None:
@@ -364,11 +387,12 @@ def load_upload(session: Session, upload: Path, settings: Settings) -> None:
     shutil.rmtree(data_dir, ignore_errors=True)
     staging.rename(data_dir)
     table.path = data_dir / data_file.resolve().relative_to(staging.resolve())
-    _start(session, table, draft_from_proposal(propose(table.rows, table.columns), upload.stem))
+    proposal = propose(table.rows, table.columns)
+    _start(session, table, draft_from_proposal(proposal, upload.stem, upload.name))
 
 
-def load_example(session: Session) -> None:
-    csv_path, yaml_path = example_files()
+def load_sample(session: Session, name: str) -> None:
+    csv_path, yaml_path = sample_files(name)
     data_dir = session.workdir() / "data"
     shutil.rmtree(data_dir, ignore_errors=True)
     data_dir.mkdir(parents=True)
@@ -377,11 +401,15 @@ def load_example(session: Session) -> None:
     _start(session, _read_table(target), draft_from_config(load_config(yaml_path)))
 
 
+def load_example(session: Session) -> None:
+    load_sample(session, "support_tickets")
+
+
 def sweep_stale(
     root: Path = SESSIONS_ROOT, *, max_age_hours: float = STALE_HOURS, now: float | None = None
 ) -> int:
-    """Delete session folders untouched for max_age_hours: Gradio skips the cleanup callback
-    for sessions it evicts, and a restart forgets every session."""
+    """Delete session folders untouched for max_age_hours: a restart forgets every session, and
+    a closed tab never says goodbye."""
     if not root.is_dir():
         return 0
     now = time.time() if now is None else now

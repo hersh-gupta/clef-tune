@@ -1,6 +1,8 @@
 import json
 
-from clef_tune.data import Record, load_file, split_records
+import pytest
+
+from clef_tune.data import DataError, Record, load_file, read_rows, split_records
 from clef_tune.labels import Label
 from tests.helpers import make_config, ticket_rows, write_csv
 
@@ -295,3 +297,63 @@ def test_bad_labels_in_native_prediction_rows_are_warnings(tmp_path):
     assert len([i for i in result.issues if i.level == "warning"]) == 2
     # Training input keeps treating them as errors.
     assert len([i for i in load_file(cfg, "p.jsonl").issues if i.level == "error"]) == 2
+
+
+def _xlsx(path, rows):
+    from openpyxl import Workbook
+
+    book = Workbook()
+    sheet = book.active
+    for row in rows:
+        sheet.append(row)
+    book.create_sheet("notes").append(["ignored"])
+    book.save(path)
+    return path
+
+
+def test_excel_reads_the_first_sheet_like_a_csv(tmp_path):
+    import datetime
+
+    path = _xlsx(
+        tmp_path / "tickets.xlsx",
+        [
+            [" id", "text", "urgency", "score", "opened"],
+            ["T1", "Card declined", 2, 2.5, datetime.date(2026, 10, 30)],
+            [None, None, None, None, None],
+            ["T2", None, 0, 1.0, None],
+        ],
+    )
+    rows, columns, issues = read_rows(path)
+    assert columns == ["id", "text", "urgency", "score", "opened"]
+    assert rows == [
+        (
+            2,
+            {
+                "id": "T1",
+                "text": "Card declined",
+                "urgency": "2",
+                "score": "2.5",
+                "opened": "2026-10-30",
+            },
+        ),
+        (4, {"id": "T2", "text": "", "urgency": "0", "score": "1", "opened": ""}),
+    ]
+    assert issues == []
+
+
+def test_excel_without_a_header_is_an_error(tmp_path):
+    with pytest.raises(DataError, match="no header row"):
+        read_rows(_xlsx(tmp_path / "empty.xlsx", []))
+
+
+def test_a_broken_excel_file_is_a_data_error(tmp_path):
+    path = tmp_path / "broken.xlsx"
+    path.write_bytes(b"not a zip")
+    with pytest.raises(DataError, match="broken.xlsx"):
+        read_rows(path)
+
+
+def test_excel_drops_empty_trailing_columns(tmp_path):
+    path = _xlsx(tmp_path / "wide.xlsx", [["a", "b", None, None], ["1", "2", None, None]])
+    rows, columns, _ = read_rows(path)
+    assert columns == ["a", "b"] and rows == [(2, {"a": "1", "b": "2"})]

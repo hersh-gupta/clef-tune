@@ -1,0 +1,60 @@
+{% macro step_bar(items) -%}
+<ol class="steps in" aria-label="Steps">
+  {%- for s in items %}
+  <li class="{{ s.state }}">
+    {%- if s.state in ("done", "todo") -%}
+      <a href="{{ s.url }}"><span class="n">{{ s.number }}</span>{{ s.label }}</a>
+    {%- else -%}
+      <span class="step"{% if s.state == "now" %} aria-current="step"{% endif %}><span class="n{% if s.state == 'now' %} now-dot{% endif %}">{{ s.number }}</span>{{ s.label }}</span>
+    {%- endif -%}
+  </li>
+  {%- endfor %}
+</ol>
+{%- set current = items | selectattr("state", "equalto", "now") | first %}
+<div class="msteps in" aria-hidden="true">
+  <div class="segs">{% for s in items %}<i class="{{ 'on' if s.state in ('done', 'now') }}"></i>{% endfor %}</div>
+  {%- if current %}
+  <span class="cap"><span class="now-dot">Step {{ current.number | int }} of {{ items | length }}</span> · <b>{{ current.label }}</b></span>
+  {%- endif %}
+</div>
+{%- endmacro %}
+
+{% macro phrase(parts) -%}
+{%- for text, strong in parts -%}{% if strong %}<b>{{ text }}</b>{% else %}{{ text }}{% endif %}{%- endfor -%}
+{%- endmacro %}
+
+{% macro checks(lines) -%}
+{%- for line in lines %}
+<div class="ch {{ line.level }}"><span>{{ line.text }}{% if line.detail %}<small>{{ line.detail }}</small>{% endif %}</span></div>
+{%- endfor %}
+{%- endmacro %}
+
+{% macro estimate(est, short=False) -%}
+<div class="est swap-in">
+  <span class="big"><small>Time</small>{% if short %}{{ est.time_short }}{% else %}About {{ est.time }}{% endif %}</span>
+  <span class="big"><small>Cost</small>{{ est.cost }}</span>
+</div>
+{%- endmacro %}
+
+{% macro stages(state) -%}
+<ul class="stages" aria-live="polite">
+  {%- for s in state.stages %}
+  <li class="{{ s.state }}"><span>{{ s.label }}{% if s.detail %}<small>{{ s.detail }}</small>{% endif %}</span></li>
+  {%- endfor %}
+</ul>
+{%- endmacro %}
+
+{% macro file_glyph() -%}<span class="file-glyph" aria-hidden="true"></span>{%- endmacro %}
+
+{% macro drop(action, max_mb, accept=".csv,.tsv,.xlsx,.jsonl,.ndjson,.zip") -%}
+<form action="{{ action }}" method="post" enctype="multipart/form-data">
+  <label class="drop">
+    <span class="file-glyph" aria-hidden="true"></span>
+    <b class="wide">Drop a spreadsheet here, or <u>choose a file</u></b>
+    <span class="btn primary choose">Choose a file</span>
+    <small>CSV, Excel, JSONL, or a zip with images · up to {{ max_mb }} MB</small>
+    <input type="file" name="file" accept="{{ accept }}" required>
+  </label>
+  <noscript><button class="btn" type="submit">Upload</button></noscript>
+</form>
+{%- endmacro %}

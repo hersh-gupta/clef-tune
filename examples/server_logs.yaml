@@ -1,0 +1,26 @@
+run_name: server-logs
+model:
+  id: Cloudflare/clef-flash
+data:
+  train: server_logs.csv
+  eval_fraction: 0.15
+  id_column: log_id
+  state_columns: [host, message]
+  row_noun: log line
+schema:
+  questions:
+    component:
+      type: choice
+      instructions: Which part of the system is this log line about?
+      criteria:
+        api: The public API and its gateway
+        database: The databases and their replicas
+        auth: Sign-in, sessions and tokens
+        payments: Charges and the payment processor
+    severity:
+      type: score
+      instructions: How severe is this log line?
+      criteria: [Info, Warning, Error, Critical]
+    act_now:
+      type: noul
+      instructions: Does someone need to act on this now?
