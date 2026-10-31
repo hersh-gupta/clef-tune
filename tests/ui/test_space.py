@@ -2,6 +2,7 @@ from pathlib import Path
 
 import yaml
 
+from clef_tune.config import PINNED_REVISIONS
 from scripts.prepare_space import prepare
 
 SPACE = Path(__file__).resolve().parents[2] / "deploy" / "space"
@@ -19,6 +20,8 @@ def test_the_space_is_a_docker_app_with_hugging_face_sign_in():
     assert meta["hf_oauth"] is True
     assert {"read-repos", "write-repos", "manage-repos", "jobs"} <= set(meta["hf_oauth_scopes"])
     assert len(meta["short_description"]) <= 60  # the Hub refuses longer ones
+    # Listed under "Spaces using this model" on each model's page.
+    assert set(meta["models"]) == set(PINNED_REVISIONS)
     # The social thumbnail is the app's own cover, from GitHub so it shows while the Space sleeps.
     cover = Path(__file__).resolve().parents[2] / "clef_tune" / "ui" / "static" / "cover.png"
     assert meta["thumbnail"].endswith("/main/clef_tune/ui/static/cover.png") and cover.exists()

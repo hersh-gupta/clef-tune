@@ -1,5 +1,5 @@
 ---
-title: clef-tune
+title: Fine-tune a decision model on your data
 emoji: 🎼
 colorFrom: green
 colorTo: yellow
@@ -15,6 +15,15 @@ hf_oauth_scopes:
 pinned: false
 thumbnail: https://raw.githubusercontent.com/hersh-gupta/clef-tune/main/clef_tune/ui/static/cover.png
 short_description: Bespoke intelligence, owned by you. Tune decision models.
+models:
+  - Cloudflare/clef
+  - Cloudflare/clef-flash
+tags:
+  - fine-tuning
+  - lora
+  - no-code
+  - decision-model
+  - classification
 ---
 
 # clef-tune
