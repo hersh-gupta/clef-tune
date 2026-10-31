@@ -118,7 +118,7 @@ h1, h2, h3, h4 { font-weight: 300; letter-spacing: .02em; margin: 0; }
 /* ---------- data step ---------- */
 .drop { display: block; border: 1.5px dashed var(--oak); border-radius: 4px; padding: 44px 20px; text-align: center; transition: background-color .4s ease, border-color .4s ease; cursor: pointer; }
 .drop:hover, .drop.over { background: var(--oak-wash); border-color: var(--oak-ink); }
-.drop .file-glyph { width: 34px; height: 40px; margin: 0 auto 14px; animation: float 4s ease-in-out infinite; }
+.drop .file-glyph { display: block; width: 34px; height: 40px; margin: 0 auto 14px; animation: float 4s ease-in-out infinite; }
 .drop b { display: block; font-size: 16px; font-weight: 400; }
 .drop u { color: var(--sage-ink); text-decoration: none; border-bottom: 1px solid var(--sage); }
 .drop small { display: block; font-size: 12px; color: var(--muted); margin-top: 6px; }

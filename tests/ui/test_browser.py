@@ -128,6 +128,15 @@ def test_every_page_fits_a_phone(page, base_url, path):
     assert no_sideways_scroll(page)
 
 
+def test_on_a_phone_the_file_icon_sits_centered_above_the_choose_button(page, base_url):
+    page.set_viewport_size({"width": 390, "height": 844})
+    page.goto(f"{base_url}/data")
+    icon = page.locator(".drop .file-glyph").bounding_box()
+    button = page.locator(".drop .choose").bounding_box()
+    assert icon["y"] + icon["height"] <= button["y"]
+    assert abs((icon["x"] + icon["width"] / 2) - (button["x"] + button["width"] / 2)) < 2
+
+
 def test_a_tip_opens_on_hover_and_does_not_stick_open_after_a_click(page, base_url):
     page.goto(f"{base_url}/data")
     if not page.locator(".filebar").count():
