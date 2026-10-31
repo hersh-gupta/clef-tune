@@ -1,1 +1,3 @@
 tests/torch/fixtures/** -text
+# The samples are compared byte for byte with what scripts/make_samples.py writes.
+examples/*.csv text eol=lf

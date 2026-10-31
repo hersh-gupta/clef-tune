@@ -146,7 +146,8 @@ def write_sample(name: str, out_dir: Path = EXAMPLES) -> Path:
     out = Path(out_dir) / f"{name}.csv"
     out.parent.mkdir(parents=True, exist_ok=True)
     with open(out, "w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
+        # "\n" as git stores them (.gitattributes), so the files match on every platform.
+        writer = csv.DictWriter(handle, fieldnames=list(rows[0]), lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
     return out
