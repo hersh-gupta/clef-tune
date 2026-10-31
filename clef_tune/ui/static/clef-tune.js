@@ -338,7 +338,7 @@
   const elsewhere = framed() && !cookiesKept();
   const IN_APP = /LinkedInApp|FBAN|FBAV|FB_IAB|Instagram/; // in-app browsers that open no tabs
   function stuck(address) {
-    showError(`clef-tune can't work inside this in-app browser. Choose “Open in browser” from its menu, or go to ${address}.`);
+    showError(`clef-tune can't work inside this in-app browser. Open it in your phone's browser instead: choose “Open in browser” from the menu, or copy ${address} into your browser.`);
     const box = document.querySelector("#page-error");
     if (box) box.scrollIntoView({ block: "nearest" });
   }
