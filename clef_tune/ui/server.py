@@ -253,6 +253,12 @@ def _login_url(target: str = "/") -> str:
     return "/oauth/huggingface/login?" + urlencode({"_target_url": target})
 
 
+def _local_path(target: str) -> str:
+    """`target` if it is a page on this site, else the welcome page (no going elsewhere)."""
+    local = target.startswith("/") and not target.startswith("//") and "\\" not in target
+    return target if local else "/"
+
+
 def _day(value: datetime | None) -> str:
     return f"{value:%b} {value.day}" if value else ""
 
@@ -427,10 +433,10 @@ def create_app(
         return "/carry?" + urlencode({"code": store.carry_code(c.sid), "next": target})
 
     def sign_in(c: Ctx, target: str) -> str:
-        """Where a signed-out person goes to sign in: Hugging Face's sign-in on a Space, coming
-        back with their setup (carry_url). On this computer there is none, so back to the page,
-        which says how to log in."""
-        return _login_url(carry_url(c, target)) if settings.space else target
+        """Where a signed-out person goes to sign in: /signin on a Space, coming back with their
+        setup (carry_url). On this computer there is none, so back to the page, which says how
+        to log in."""
+        return "/signin?" + urlencode({"next": carry_url(c, target)}) if settings.space else target
 
     def lost(request: Request, c: Ctx) -> Response | None:
         """For an in-page edit whose setup is gone (a restart, a day idle, or signing out in
@@ -523,8 +529,20 @@ def create_app(
         browser session, then go on to the page it started from."""
         if settings.space and code:
             store.carry(code, session_id(request))
-        local_path = next.startswith("/") and not next.startswith("//") and "\\" not in next
-        return RedirectResponse(next if local_path else "/", status_code=303)
+        return RedirectResponse(_local_path(next), status_code=303)
+
+    @app.get("/signin")
+    def signin(request: Request, next: str = "/") -> Response:
+        """Hugging Face's sign-in, then `next`. It keeps each sign-in's state in the session
+        cookie until that sign-in finishes, and a browser keeps no cookie over 4 KB: a sign-in
+        started where one already is (the tab sign-in opens from Hugging Face's frame may be
+        signed in already), or after a few unfinished ones, never finishes. So someone signed in
+        goes straight on, and the unfinished ones are forgotten."""
+        if not settings.space or signed_in(request) is not None:
+            return RedirectResponse(_local_path(next), status_code=303)
+        for key in [key for key in request.session if key.startswith("_state_")]:
+            del request.session[key]
+        return RedirectResponse(_login_url(_local_path(next)), status_code=303)
 
     @app.post("/signout")
     def signout(request: Request) -> Response:

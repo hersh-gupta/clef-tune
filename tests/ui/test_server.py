@@ -1,5 +1,7 @@
 import asyncio
+import base64
 import dataclasses
+import hashlib
 import html
 import io
 import json
@@ -7,6 +9,7 @@ import re
 from datetime import datetime, timedelta
 from urllib.parse import quote
 
+import itsdangerous
 import pytest
 from fastapi.testclient import TestClient
 
@@ -401,7 +404,25 @@ def test_signing_out_on_a_space_forgets_the_visitor(monkeypatch, mocked_oauth):
 
 
 def sign_in_link(page: str) -> str:
-    return html.unescape(re.search(r'href="(/oauth/huggingface/login[^"]*)"', page)[1])
+    return html.unescape(re.search(r'href="(/signin\?[^"]*)"', page)[1])
+
+
+def space_secret() -> str:
+    """The key huggingface_hub signs a Space's session cookie with."""
+    from huggingface_hub import constants
+
+    return hashlib.sha256(((constants.OAUTH_CLIENT_SECRET or "") + "-v1").encode()).hexdigest()
+
+
+def space_cookie(data: dict) -> str:
+    signed = itsdangerous.TimestampSigner(space_secret()).sign(
+        base64.b64encode(json.dumps(data).encode())
+    )
+    return signed.decode()
+
+
+def read_space_cookie(value: str) -> dict:
+    return json.loads(base64.b64decode(itsdangerous.TimestampSigner(space_secret()).unsign(value)))
 
 
 def test_a_setup_follows_its_owner_into_the_sign_in_tab(monkeypatch, mocked_oauth):
@@ -423,6 +444,41 @@ def test_a_setup_follows_its_owner_into_the_sign_in_tab(monkeypatch, mocked_oaut
         # Moved, not copied, so signing out in the tab leaves nothing behind in the frame.
         assert frame.get("/train", follow_redirects=False).headers["location"] == "/data"
         assert later.get(link).url.path == "/data"  # the link works once
+
+
+def test_a_tab_already_signed_in_skips_hugging_face_s_sign_in(monkeypatch, mocked_oauth):
+    """Where the frame's cookies differ from a tab's, the tab may be signed in already. Starting
+    Hugging Face's sign-in there again went round in circles on the live Space (its state never
+    came back), so the tab goes straight back with the setup instead."""
+    monkeypatch.delenv("HF_TOKEN", raising=False)
+    app = create_app(SPACE, fake_services()[0])
+    with (
+        TestClient(app, base_url="https://testserver") as frame,
+        TestClient(app, base_url="https://testserver") as tab,
+    ):
+        tab.get("/oauth/huggingface/login?_target_url=/")  # signed in, in the tab only
+        sample(frame)
+        started = tab.get(sign_in_link(frame.get("/train/review").text), follow_redirects=False)
+        back = started.headers["location"]
+        assert back.startswith("/carry?")
+        assert tab.get(back).url.path == "/train"
+        assert "support_tickets.csv" in tab.get("/data").text
+
+
+def test_a_sign_in_starts_without_the_state_of_unfinished_ones(monkeypatch, mocked_oauth):
+    """Hugging Face's sign-in keeps each started sign-in's state in the session cookie until it
+    finishes. A few unfinished ones overflow the 4 KB a browser keeps of a cookie, and then no
+    sign-in can finish."""
+    monkeypatch.delenv("HF_TOKEN", raising=False)
+    expires = datetime.now().timestamp() + 3600
+    unfinished = {
+        f"_state_huggingface_{n}": {"data": {"url": "x" * 900}, "exp": expires} for n in range(4)
+    }
+    with TestClient(create_app(SPACE, fake_services()[0]), base_url="https://testserver") as c:
+        c.cookies.set("session", space_cookie({"clef_tune_sid": "f" * 32, **unfinished}))
+        started = c.get("/signin", params={"next": "/train"}, follow_redirects=False)
+        assert started.headers["location"] == "/oauth/huggingface/login?_target_url=%2Ftrain"
+        assert read_space_cookie(started.cookies["session"]) == {"clef_tune_sid": "f" * 32}
 
 
 def test_a_frame_with_nothing_set_up_carries_nothing_over_a_setup(monkeypatch, mocked_oauth):
@@ -459,6 +515,8 @@ def test_the_carry_back_from_sign_in_stays_on_this_site(monkeypatch, mocked_oaut
         for target in ("//evil.example/x", "https://evil.example/", "/\\evil.example", "train"):
             back = c.get("/carry", params={"code": "x", "next": target}, follow_redirects=False)
             assert back.headers["location"] == "/", target
+            started = c.get("/signin", params={"next": target}, follow_redirects=False)
+            assert started.headers["location"] == "/oauth/huggingface/login?_target_url=%2F"
         back = c.get("/carry", params={"code": "x", "next": "/runs/job-b"}, follow_redirects=False)
         assert back.headers["location"] == "/runs/job-b"
 
