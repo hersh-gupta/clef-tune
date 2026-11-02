@@ -208,6 +208,10 @@ class Session:
     flash: str | None = None  # a message for the page a form post redirects to
     pasted_token: str | None = None  # pasted for this browser session (see the module docstring)
 
+    def set_up(self) -> bool:
+        """Whether anything is set up here: data to train on, or a file to predict."""
+        return self.table is not None or self.prediction is not None
+
     def workdir(self) -> Path:
         if self.root is None:
             self.root = SESSIONS_ROOT / uuid.uuid4().hex

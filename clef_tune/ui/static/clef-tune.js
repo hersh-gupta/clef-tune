@@ -342,6 +342,14 @@
     const box = document.querySelector("#page-error");
     if (box) box.scrollIntoView({ block: "nearest" });
   }
+  // The own-tab link follows the address, which may have moved (data-nav). On a Space it goes
+  // by /carry, which brings the setup along to the new tab.
+  function ownTabUrl(link) {
+    const url = new URL(link.href);
+    if (url.pathname !== "/carry") return window.location.href;
+    url.searchParams.set("next", window.location.pathname + window.location.search);
+    return url.href;
+  }
   // Tabs are opened here rather than by the link itself, so a refused one is noticed.
   document.addEventListener("click", (event) => {
     const link = event.target.closest("a[href]");
@@ -350,8 +358,7 @@
     if (link.target !== "_blank" && link.target !== "_top" && !(own && elsewhere)) return;
     event.preventDefault();
     event.stopPropagation(); // not swapped in place (data-nav), which would stick no better
-    // The own-tab link follows the address, which may have moved (data-nav).
-    const url = link.matches("[data-own-tab]") ? window.location.href : link.href;
+    const url = link.matches("[data-own-tab]") ? ownTabUrl(link) : link.href;
     const tab = window.open(url, "_blank");
     if (!tab) stuck(own ? window.location.host : url);
     else if (!own) tab.opener = null;
@@ -470,7 +477,7 @@
     wire(document);
     const own = document.querySelector("[data-own-tab]");
     if (own && framed()) {
-      own.href = window.location.href;
+      own.href = ownTabUrl(own);
       own.hidden = false;
     }
     if (elsewhere && IN_APP.test(navigator.userAgent)) stuck(window.location.host);

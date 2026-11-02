@@ -1,7 +1,9 @@
 import asyncio
 import dataclasses
+import html
 import io
 import json
+import re
 from datetime import datetime, timedelta
 from urllib.parse import quote
 
@@ -396,6 +398,69 @@ def test_signing_out_on_a_space_forgets_the_visitor(monkeypatch, mocked_oauth):
         assert out.headers["location"] == "/oauth/huggingface/logout?_target_url=/"
         assert ">Sign in with Hugging Face<" in c.get(out.headers["location"]).text
         assert "Drop a spreadsheet here" in c.get("/data").text  # the setup went with them
+
+
+def sign_in_link(page: str) -> str:
+    return html.unescape(re.search(r'href="(/oauth/huggingface/login[^"]*)"', page)[1])
+
+
+def test_a_setup_follows_its_owner_into_the_sign_in_tab(monkeypatch, mocked_oauth):
+    """In Hugging Face's frame, sign-in opens a tab of its own, and browsers that keep a frame's
+    cookies apart from a tab's (Firefox, Brave) give that tab another session. The sign-in link
+    carries the setup there, once."""
+    monkeypatch.delenv("HF_TOKEN", raising=False)
+    app = create_app(SPACE, fake_services()[0])
+    with (
+        TestClient(app, base_url="https://testserver") as frame,
+        TestClient(app, base_url="https://testserver") as tab,
+        TestClient(app, base_url="https://testserver") as later,
+    ):
+        sample(frame)
+        link = sign_in_link(frame.get("/train/review").text)
+        landed = tab.get(link)
+        assert landed.url.path == "/train" and 'action="/signout"' in landed.text
+        assert "support_tickets.csv" in tab.get("/data").text
+        # Moved, not copied, so signing out in the tab leaves nothing behind in the frame.
+        assert frame.get("/train", follow_redirects=False).headers["location"] == "/data"
+        assert later.get(link).url.path == "/data"  # the link works once
+
+
+def test_a_frame_with_nothing_set_up_carries_nothing_over_a_setup(monkeypatch, mocked_oauth):
+    """Where the frame keeps no cookies (Safari), the work happens in the app's own tab, and the
+    frame's session is always empty: signing in from the frame must not replace that work."""
+    monkeypatch.delenv("HF_TOKEN", raising=False)
+    app = create_app(SPACE, fake_services()[0])
+    with (
+        TestClient(app, base_url="https://testserver") as frame,
+        TestClient(app, base_url="https://testserver") as tab,
+    ):
+        link = sign_in_link(frame.get("/").text)
+        sample(tab)
+        assert tab.get(link).url.path == "/" and "support_tickets.csv" in tab.get("/data").text
+
+
+def test_opening_its_own_tab_from_the_frame_brings_the_setup_along(monkeypatch, mocked_oauth):
+    monkeypatch.delenv("HF_TOKEN", raising=False)
+    app = create_app(SPACE, fake_services()[0])
+    with (
+        TestClient(app, base_url="https://testserver") as frame,
+        TestClient(app, base_url="https://testserver") as tab,
+    ):
+        sample(frame)
+        page = frame.get("/questions").text
+        own_tab = html.unescape(re.search(r'class="own-tab" href="([^"]*)"', page)[1])
+        landed = tab.get(own_tab)
+        assert landed.url.path == "/questions" and "Which team" in landed.text
+
+
+def test_the_carry_back_from_sign_in_stays_on_this_site(monkeypatch, mocked_oauth):
+    monkeypatch.delenv("HF_TOKEN", raising=False)
+    with TestClient(create_app(SPACE, fake_services()[0]), base_url="https://testserver") as c:
+        for target in ("//evil.example/x", "https://evil.example/", "/\\evil.example", "train"):
+            back = c.get("/carry", params={"code": "x", "next": target}, follow_redirects=False)
+            assert back.headers["location"] == "/", target
+        back = c.get("/carry", params={"code": "x", "next": "/runs/job-b"}, follow_redirects=False)
+        assert back.headers["location"] == "/runs/job-b"
 
 
 def test_a_pasted_token_is_the_fallback_when_sign_in_lacks_a_permission(monkeypatch, mocked_oauth):

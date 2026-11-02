@@ -1,6 +1,7 @@
 """Drive the web UI in a real browser (opt-in: pytest -m browser; needs Playwright's chromium).
 The app runs against the fake services, so nothing touches the Hub."""
 
+import re
 import threading
 import time
 
@@ -228,6 +229,22 @@ def test_sign_in_from_hugging_face_s_frame_opens_its_own_tab(page, space_url):
     with page.expect_popup() as popup:
         link.click()
     assert popup.value.url.startswith(space_url)
+
+
+def test_its_own_tab_opens_where_the_frame_is_with_the_setup(page, space_url):
+    frame = framed_like_a_space(page, f"{space_url}/")
+    frame.get_by_role("button", name="support tickets").click()
+    frame.locator(".filebar").wait_for()
+    frame.get_by_role("link", name="Continue").click()
+    frame.locator("#qlist a").nth(1).click()  # moves the address in place (data-nav)
+    playwright.expect(frame.locator("#ask-box")).to_have_value(re.compile("^How quickly"))
+    own_tab = frame.get_by_role("link", name="Open in its own tab")
+    assert "/carry?code=" in own_tab.get_attribute("href")  # brings the setup to other cookies
+    with page.expect_popup() as popup:
+        own_tab.click()
+    tab = popup.value
+    tab.wait_for_url("**/questions?q=urgency")
+    assert tab.locator("#ask-box").input_value().startswith("How quickly")
 
 
 def test_where_the_frame_keeps_cookies_a_sample_loads_in_place(page, space_url):

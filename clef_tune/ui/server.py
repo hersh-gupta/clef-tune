@@ -87,6 +87,7 @@ class SessionStore:
         self.sessions: dict[str, Session] = {}
         self.locks: dict[str, threading.Lock] = {}
         self.seen: dict[str, float] = {}
+        self.codes: dict[str, str] = {}  # a session's carry code (see carry_code)
         self.guard = threading.Lock()
 
     def get(self, sid: str) -> tuple[Session, threading.Lock]:
@@ -96,6 +97,7 @@ class SessionStore:
                 self.sessions.pop(old).close()
                 self.locks.pop(old, None)
                 self.seen.pop(old, None)
+                self.codes.pop(old, None)
             if sid not in self.sessions:
                 self.sessions[sid] = Session()
                 self.locks[sid] = threading.Lock()
@@ -108,8 +110,38 @@ class SessionStore:
             session = self.sessions.pop(sid, None)
             self.locks.pop(sid, None)
             self.seen.pop(sid, None)
+            self.codes.pop(sid, None)
         if session is not None:
             session.close()
+
+    def carry_code(self, sid: str) -> str:
+        """A secret that moves this session to whichever browser session brings it back (carry).
+        Sign-in and own-tab links carry it: inside Hugging Face's frame both open a tab of its
+        own, and some browsers (Firefox, Brave) keep a frame's cookies apart from a tab's."""
+        with self.guard:
+            if sid not in self.codes:
+                self.codes[sid] = secrets.token_urlsafe(16)
+            return self.codes[sid]
+
+    def carry(self, code: str, sid: str) -> None:
+        """Move the session `code` was made for to `sid`, replacing what `sid` had. Each code
+        works once. Moved rather than shared, so signing out leaves nothing behind. One with
+        nothing set up stays: in a frame that keeps no cookies (Safari) every session is empty,
+        and the work is in the tab it would replace."""
+        with self.guard:
+            old = next((s for s, c in self.codes.items() if secrets.compare_digest(c, code)), None)
+            if old is None:
+                return
+            del self.codes[old]
+            if old == sid or not self.sessions[old].set_up():  # same session, or nothing to bring
+                return
+            replaced = self.sessions.pop(sid, None)
+            self.codes.pop(sid, None)
+            self.sessions[sid] = self.sessions.pop(old)
+            self.locks[sid] = self.locks.pop(old)
+            self.seen[sid] = self.seen.pop(old)
+        if replaced is not None:
+            replaced.close()
 
 
 class AccountNames:
@@ -208,8 +240,9 @@ def checked_job_id(job_id: str) -> str:
 
 @dataclass
 class Ctx:
-    """What one request knows: its session (and lock), and who is signed in."""
+    """What one request knows: its session (id, and lock), and who is signed in."""
 
+    sid: str
     session: Session
     lock: threading.Lock
     token: str | None
@@ -316,7 +349,6 @@ def create_app(
         # Versioned by the file's own time, so browsers pick up a changed file straight away.
         asset=lambda name: f"/static/{name}?v={int((HERE / 'static' / name).stat().st_mtime)}",
         plural=w.plural,
-        login_url=_login_url,
     )
     templates.env.filters["day"] = _day
     store = SessionStore()
@@ -341,11 +373,15 @@ def create_app(
         request.session.pop("oauth_info", None)
         return None
 
-    def ctx(request: Request) -> Ctx:
+    def session_id(request: Request) -> str:
         sid = request.session.get(SESSION_KEY)
         if not sid:
             sid = uuid.uuid4().hex
             request.session[SESSION_KEY] = sid
+        return sid
+
+    def ctx(request: Request) -> Ctx:
+        sid = session_id(request)
         session, lock = store.get(sid)
         oauth, user = None, None
         if settings.space:
@@ -359,16 +395,23 @@ def create_app(
             token = None
         if token and (user is None or token != oauth):  # a pasted token shows its own account
             user = names.lookup(token, services.whoami)
-        return Ctx(session, lock, token, user)
+        return Ctx(sid, session, lock, token, user)
+
+    def page_context(c: Ctx) -> dict[str, Any]:
+        """What every template knows: who is signed in, and links that bring this setup along."""
+        return {
+            "user": c.user,
+            "space": settings.space,
+            "login_url": lambda target: sign_in(c, target),
+            "carry_url": lambda target: carry_url(c, target),
+        }
 
     def render(request: Request, c: Ctx, name: str, **context: Any) -> HTMLResponse:
-        return templates.TemplateResponse(
-            request, name, {"user": c.user, "space": settings.space, **context}
-        )
+        return templates.TemplateResponse(request, name, {**page_context(c), **context})
 
     def fragment(request: Request, c: Ctx, name: str, **context: Any) -> str:
         return templates.env.get_template(name).render(
-            request=request, user=c.user, space=settings.space, **context
+            {"request": request, **page_context(c), **context}
         )
 
     def go(request: Request, url: str) -> Response:
@@ -376,10 +419,18 @@ def create_app(
             return Response(status_code=204, headers={"X-Redirect": url})
         return RedirectResponse(url, status_code=303)
 
-    def sign_in(target: str) -> str:
-        """Where a signed-out person goes to sign in: Hugging Face's sign-in on a Space. On this
-        computer there is none, so back to the page, which says how to log in."""
-        return _login_url(target) if settings.space else target
+    def carry_url(c: Ctx, target: str) -> str:
+        """`target`, by way of /carry on a Space, so the setup comes along to a tab that the
+        browser gives other cookies (SessionStore.carry_code)."""
+        if not settings.space:
+            return target
+        return "/carry?" + urlencode({"code": store.carry_code(c.sid), "next": target})
+
+    def sign_in(c: Ctx, target: str) -> str:
+        """Where a signed-out person goes to sign in: Hugging Face's sign-in on a Space, coming
+        back with their setup (carry_url). On this computer there is none, so back to the page,
+        which says how to log in."""
+        return _login_url(carry_url(c, target)) if settings.space else target
 
     def lost(request: Request, c: Ctx) -> Response | None:
         """For an in-page edit whose setup is gone (a restart, a day idle, or signing out in
@@ -465,6 +516,15 @@ def create_app(
             greeting="Hello again",
             samples=samples,
         )
+
+    @app.get("/carry")
+    def carry(request: Request, code: str = "", next: str = "/") -> Response:
+        """Back from sign-in (sign_in): bring the setup this sign-in started from into this
+        browser session, then go on to the page it started from."""
+        if settings.space and code:
+            store.carry(code, session_id(request))
+        local_path = next.startswith("/") and not next.startswith("//") and "\\" not in next
+        return RedirectResponse(next if local_path else "/", status_code=303)
 
     @app.post("/signout")
     def signout(request: Request) -> Response:
@@ -902,7 +962,7 @@ def create_app(
     def train_start(request: Request) -> Response:
         c = ctx(request)
         if not c.token:
-            return go(request, sign_in("/train"))
+            return go(request, sign_in(c, "/train"))
         with c.lock:
             job_id, error = runs.confirm_launch(c.session, services, token=c.token)
             if error:
@@ -1139,7 +1199,7 @@ def create_app(
                         c.session.flash = str(exc)
                 return go(request, f"/runs/{job_id}")
             if not c.token:
-                return go(request, sign_in(f"/runs/{job_id}"))
+                return go(request, sign_in(c, f"/runs/{job_id}"))
             new_id, error = runs.resume_run(services, job_id, token=c.token)
         if error:
             return go(request, f"/runs/{job_id}")
@@ -1233,7 +1293,7 @@ def create_app(
     def use_prediction_upload(request: Request, job_id: str, upload: Any) -> Response:
         c = ctx(request)
         if not c.token:
-            return go(request, sign_in(f"/predict/{job_id}"))
+            return go(request, sign_in(c, f"/predict/{job_id}"))
         with c.lock:
             draft, error = prediction_draft(c, job_id)
             if draft is None:
@@ -1260,7 +1320,7 @@ def create_app(
     def refuse_prediction_upload(request: Request, job_id: str) -> Response:
         c = ctx(request)
         if not c.token:
-            return go(request, sign_in(f"/predict/{job_id}"))
+            return go(request, sign_in(c, f"/predict/{job_id}"))
         with c.lock:
             draft, _ = prediction_draft(c, job_id)
             if draft is not None:
@@ -1364,7 +1424,7 @@ def create_app(
     def predict_start(request: Request, job_id: str) -> Response:
         c = ctx(request)
         if not c.token:
-            return go(request, sign_in(f"/predict/{job_id}"))
+            return go(request, sign_in(c, f"/predict/{job_id}"))
         with c.lock:
             draft = c.session.prediction
             if draft is None or draft.job_id != job_id or draft.plan is None:
