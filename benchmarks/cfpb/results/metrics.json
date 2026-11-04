@@ -1,0 +1,441 @@
+{
+  "test_rows": 378,
+  "test_dates": [
+    "2026-07-01",
+    "2026-07-29"
+  ],
+  "bootstrap_resamples": 2000,
+  "contenders": {
+    "claude-zero": {
+      "name": "Claude Opus 5.5, instructions only",
+      "rows": 378,
+      "unanswered": 0,
+      "all_three_right": 0.3333333333333333,
+      "all_three_right_95": [
+        0.2857142857142857,
+        0.3783068783068783
+      ],
+      "questions": {
+        "issue": {
+          "accuracy": 0.5608465608465608,
+          "accuracy_95": [
+            0.5079365079365079,
+            0.6084656084656085
+          ],
+          "macro_f1": 0.49193245932710994,
+          "macro_f1_95": [
+            0.4361540516443949,
+            0.5405238488391817
+          ],
+          "ece": 0.13499999999999998
+        },
+        "product": {
+          "accuracy": 0.917989417989418,
+          "accuracy_95": [
+            0.8888888888888888,
+            0.9444444444444444
+          ],
+          "macro_f1": 0.8910080102975256,
+          "macro_f1_95": [
+            0.8485274620862807,
+            0.9297083214650876
+          ],
+          "ece": 0.07457671957671956
+        },
+        "outcome": {
+          "accuracy": 0.6402116402116402,
+          "accuracy_95": [
+            0.58994708994709,
+            0.687896825396825
+          ],
+          "macro_f1": 0.4955497276111411,
+          "macro_f1_95": [
+            0.4081617171340717,
+            0.5781701962248604
+          ],
+          "ece": 0.054603174603174556
+        }
+      },
+      "cost": {
+        "usd_per_1000": 8.044412698412698,
+        "batch_usd_per_1000": 4.022206349206349,
+        "complaints_per_minute": 166.45030878679242,
+        "median_seconds": 2.17,
+        "concurrency": 8,
+        "spent_usd": 3.040788,
+        "prices": {
+          "input": 4.0,
+          "output": 20.0,
+          "cache_write": 5.0,
+          "cache_read": 0.2,
+          "batch_discount": 0.5,
+          "date": "2026-11-03"
+        }
+      }
+    },
+    "claude-few": {
+      "name": "Claude Opus 5.5, with examples",
+      "rows": 378,
+      "unanswered": 0,
+      "all_three_right": 0.4126984126984127,
+      "all_three_right_95": [
+        0.36243386243386244,
+        0.46296296296296297
+      ],
+      "questions": {
+        "issue": {
+          "accuracy": 0.6084656084656085,
+          "accuracy_95": [
+            0.5582010582010583,
+            0.6587301587301587
+          ],
+          "macro_f1": 0.5605898346979892,
+          "macro_f1_95": [
+            0.5039201997436307,
+            0.6075880158404338
+          ],
+          "ece": 0.08917989417989415
+        },
+        "product": {
+          "accuracy": 0.9126984126984127,
+          "accuracy_95": [
+            0.8835978835978836,
+            0.9391534391534392
+          ],
+          "macro_f1": 0.882564890394309,
+          "macro_f1_95": [
+            0.8374249978525,
+            0.9211227320211595
+          ],
+          "ece": 0.07420634920634919
+        },
+        "outcome": {
+          "accuracy": 0.6798941798941799,
+          "accuracy_95": [
+            0.6322751322751323,
+            0.7275132275132276
+          ],
+          "macro_f1": 0.562251194912223,
+          "macro_f1_95": [
+            0.47629535706986453,
+            0.6404429314834935
+          ],
+          "ece": 0.08619047619047625
+        }
+      },
+      "cost": {
+        "usd_per_1000": 7.536992592592593,
+        "batch_usd_per_1000": 3.7684962962962967,
+        "complaints_per_minute": 229.60972228548513,
+        "median_seconds": 1.863,
+        "concurrency": 8,
+        "spent_usd": 2.8489832,
+        "prices": {
+          "input": 4.0,
+          "output": 20.0,
+          "cache_write": 5.0,
+          "cache_read": 0.2,
+          "batch_discount": 0.5,
+          "date": "2026-11-03"
+        }
+      }
+    },
+    "clef-flash-untrained": {
+      "name": "Clef-Flash, out of the box",
+      "rows": 378,
+      "unanswered": 0,
+      "all_three_right": 0.19576719576719576,
+      "all_three_right_95": [
+        0.15608465608465608,
+        0.23809523809523808
+      ],
+      "questions": {
+        "issue": {
+          "accuracy": 0.4365079365079365,
+          "accuracy_95": [
+            0.3835978835978836,
+            0.48677248677248675
+          ],
+          "macro_f1": 0.4368270202346417,
+          "macro_f1_95": [
+            0.3691079169813601,
+            0.48909933541867895
+          ],
+          "ece": 0.1914587301587302
+        },
+        "product": {
+          "accuracy": 0.8650793650793651,
+          "accuracy_95": [
+            0.8306878306878307,
+            0.8994708994708994
+          ],
+          "macro_f1": 0.8381826784899135,
+          "macro_f1_95": [
+            0.7917525292413075,
+            0.8811483148672794
+          ],
+          "ece": 0.06824179894179887
+        },
+        "outcome": {
+          "accuracy": 0.5105820105820106,
+          "accuracy_95": [
+            0.4603174603174603,
+            0.5608465608465608
+          ],
+          "macro_f1": 0.27512397131899796,
+          "macro_f1_95": [
+            0.2410169116039535,
+            0.3149841557419683
+          ],
+          "ece": 0.2303359788359788
+        }
+      },
+      "cost": {
+        "usd_per_1000": 0.04613412376979107,
+        "complaints_per_minute": 993.4728624890834,
+        "flavor": "rtx-pro-6000",
+        "gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+        "price_per_hour": 2.74998
+      }
+    },
+    "clef-flash-tuned": {
+      "name": "Clef-Flash, tuned",
+      "rows": 378,
+      "unanswered": 0,
+      "all_three_right": 0.4444444444444444,
+      "all_three_right_95": [
+        0.3915343915343915,
+        0.4973544973544973
+      ],
+      "questions": {
+        "issue": {
+          "accuracy": 0.6984126984126984,
+          "accuracy_95": [
+            0.6507936507936508,
+            0.746031746031746
+          ],
+          "macro_f1": 0.6599289340078687,
+          "macro_f1_95": [
+            0.5931749091154985,
+            0.7155796245200694
+          ],
+          "ece": 0.07155820105820107
+        },
+        "product": {
+          "accuracy": 0.91005291005291,
+          "accuracy_95": [
+            0.8809523809523809,
+            0.9391534391534392
+          ],
+          "macro_f1": 0.8815640416590536,
+          "macro_f1_95": [
+            0.8343439624394674,
+            0.9215858981730056
+          ],
+          "ece": 0.031163492063492126
+        },
+        "outcome": {
+          "accuracy": 0.6534391534391535,
+          "accuracy_95": [
+            0.6058201058201058,
+            0.7037037037037037
+          ],
+          "macro_f1": 0.42650189762103113,
+          "macro_f1_95": [
+            0.3929494946427668,
+            0.4613777528654754
+          ],
+          "ece": 0.06704656084656087
+        }
+      },
+      "cost": {
+        "usd_per_1000": 0.06212524879225792,
+        "complaints_per_minute": 737.7515726860435,
+        "flavor": "rtx-pro-6000",
+        "gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+        "price_per_hour": 2.74998,
+        "training_hours": 0.7463302777777778,
+        "training_usd": 2.052393337283333,
+        "training_flavor": "rtx-pro-6000"
+      }
+    },
+    "clef-27b-untrained": {
+      "name": "Clef 27B, out of the box",
+      "rows": 378,
+      "unanswered": 0,
+      "all_three_right": 0.17724867724867724,
+      "all_three_right_95": [
+        0.1402116402116402,
+        0.21428571428571427
+      ],
+      "questions": {
+        "issue": {
+          "accuracy": 0.38095238095238093,
+          "accuracy_95": [
+            0.3333333333333333,
+            0.42857142857142855
+          ],
+          "macro_f1": 0.36363856783413373,
+          "macro_f1_95": [
+            0.30800736147912006,
+            0.41158393301395396
+          ],
+          "ece": 0.3354261904761905
+        },
+        "product": {
+          "accuracy": 0.873015873015873,
+          "accuracy_95": [
+            0.8386243386243386,
+            0.9048280423280419
+          ],
+          "macro_f1": 0.8480193236714976,
+          "macro_f1_95": [
+            0.8014507232215979,
+            0.8907319464954354
+          ],
+          "ece": 0.06268280423280423
+        },
+        "outcome": {
+          "accuracy": 0.5238095238095238,
+          "accuracy_95": [
+            0.4708994708994709,
+            0.5740740740740741
+          ],
+          "macro_f1": 0.3112083371312247,
+          "macro_f1_95": [
+            0.2675402854579753,
+            0.3587449759844282
+          ],
+          "ece": 0.16243201058201057
+        }
+      },
+      "cost": {
+        "usd_per_1000": 0.12782358344693298,
+        "complaints_per_minute": 358.5645055791128,
+        "flavor": "rtx-pro-6000",
+        "gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+        "price_per_hour": 2.74998
+      }
+    },
+    "clef-27b-tuned": {
+      "name": "Clef 27B, tuned",
+      "rows": 378,
+      "unanswered": 0,
+      "all_three_right": 0.47883597883597884,
+      "all_three_right_95": [
+        0.428505291005291,
+        0.5291005291005291
+      ],
+      "questions": {
+        "issue": {
+          "accuracy": 0.701058201058201,
+          "accuracy_95": [
+            0.6534391534391535,
+            0.7486772486772487
+          ],
+          "macro_f1": 0.6429065006552821,
+          "macro_f1_95": [
+            0.5726119030226463,
+            0.6997374415994001
+          ],
+          "ece": 0.059620370370370344
+        },
+        "product": {
+          "accuracy": 0.9259259259259259,
+          "accuracy_95": [
+            0.8994708994708994,
+            0.9523809523809523
+          ],
+          "macro_f1": 0.9052191307510457,
+          "macro_f1_95": [
+            0.8659299628562179,
+            0.9402110508702602
+          ],
+          "ece": 0.03121269841269849
+        },
+        "outcome": {
+          "accuracy": 0.6825396825396826,
+          "accuracy_95": [
+            0.6349206349206349,
+            0.7328042328042328
+          ],
+          "macro_f1": 0.4481441217580369,
+          "macro_f1_95": [
+            0.41481608496744843,
+            0.4815037266904509
+          ],
+          "ece": 0.034192063492063524
+        }
+      },
+      "cost": {
+        "usd_per_1000": 0.17262039500611842,
+        "complaints_per_minute": 265.51323786726056,
+        "flavor": "rtx-pro-6000",
+        "gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+        "price_per_hour": 2.74998,
+        "training_hours": 1.999831388888889,
+        "training_usd": 5.4994963228166664,
+        "training_flavor": "rtx-pro-6000"
+      }
+    }
+  },
+  "paired_differences": {
+    "clef-flash-tuned minus claude-few": {
+      "difference": 0.031746031746031744,
+      "difference_95": [
+        -0.021164021164021163,
+        0.08994708994708994
+      ],
+      "share_of_resamples_above_zero": 0.862
+    },
+    "clef-27b-tuned minus claude-few": {
+      "difference": 0.06613756613756613,
+      "difference_95": [
+        0.015873015873015872,
+        0.11904761904761904
+      ],
+      "share_of_resamples_above_zero": 0.993
+    },
+    "clef-flash-tuned minus claude-zero": {
+      "difference": 0.1111111111111111,
+      "difference_95": [
+        0.05291005291005291,
+        0.1693121693121693
+      ],
+      "share_of_resamples_above_zero": 1.0
+    },
+    "clef-27b-tuned minus claude-zero": {
+      "difference": 0.1455026455026455,
+      "difference_95": [
+        0.09259259259259259,
+        0.19576719576719576
+      ],
+      "share_of_resamples_above_zero": 1.0
+    },
+    "clef-flash-tuned minus clef-flash-untrained": {
+      "difference": 0.24867724867724866,
+      "difference_95": [
+        0.19047619047619047,
+        0.30687830687830686
+      ],
+      "share_of_resamples_above_zero": 1.0
+    },
+    "clef-27b-tuned minus clef-27b-untrained": {
+      "difference": 0.30158730158730157,
+      "difference_95": [
+        0.24603174603174602,
+        0.35714285714285715
+      ],
+      "share_of_resamples_above_zero": 1.0
+    },
+    "claude-few minus claude-zero": {
+      "difference": 0.07936507936507936,
+      "difference_95": [
+        0.03968253968253968,
+        0.11904761904761904
+      ],
+      "share_of_resamples_above_zero": 1.0
+    }
+  },
+  "cross_check_problems": []
+}

@@ -1,0 +1,68 @@
+{
+  "claude-zero": {
+    "usd_per_1000": 8.044412698412698,
+    "batch_usd_per_1000": 4.022206349206349,
+    "complaints_per_minute": 166.45030878679242,
+    "median_seconds": 2.17,
+    "concurrency": 8,
+    "spent_usd": 3.040788,
+    "prices": {
+      "input": 4.0,
+      "output": 20.0,
+      "cache_write": 5.0,
+      "cache_read": 0.2,
+      "batch_discount": 0.5,
+      "date": "2026-11-03"
+    }
+  },
+  "claude-few": {
+    "usd_per_1000": 7.536992592592593,
+    "batch_usd_per_1000": 3.7684962962962967,
+    "complaints_per_minute": 229.60972228548513,
+    "median_seconds": 1.863,
+    "concurrency": 8,
+    "spent_usd": 2.8489832,
+    "prices": {
+      "input": 4.0,
+      "output": 20.0,
+      "cache_write": 5.0,
+      "cache_read": 0.2,
+      "batch_discount": 0.5,
+      "date": "2026-11-03"
+    }
+  },
+  "clef-flash-untrained": {
+    "usd_per_1000": 0.04613412376979107,
+    "complaints_per_minute": 993.4728624890834,
+    "flavor": "rtx-pro-6000",
+    "gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+    "price_per_hour": 2.74998
+  },
+  "clef-flash-tuned": {
+    "usd_per_1000": 0.06212524879225792,
+    "complaints_per_minute": 737.7515726860435,
+    "flavor": "rtx-pro-6000",
+    "gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+    "price_per_hour": 2.74998,
+    "training_hours": 0.7463302777777778,
+    "training_usd": 2.052393337283333,
+    "training_flavor": "rtx-pro-6000"
+  },
+  "clef-27b-untrained": {
+    "usd_per_1000": 0.12782358344693298,
+    "complaints_per_minute": 358.5645055791128,
+    "flavor": "rtx-pro-6000",
+    "gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+    "price_per_hour": 2.74998
+  },
+  "clef-27b-tuned": {
+    "usd_per_1000": 0.17262039500611842,
+    "complaints_per_minute": 265.51323786726056,
+    "flavor": "rtx-pro-6000",
+    "gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+    "price_per_hour": 2.74998,
+    "training_hours": 1.999831388888889,
+    "training_usd": 5.4994963228166664,
+    "training_flavor": "rtx-pro-6000"
+  }
+}

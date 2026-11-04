@@ -18,7 +18,7 @@ from pathlib import Path
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from benchmarks.cfpb.common import REPO, RESULTS
+from benchmarks.cfpb.common import DATA, REPO, RESULTS
 
 CSS = REPO / "clef_tune" / "ui" / "static" / "clef-tune.css"
 ROWS = [  # (name, before contender, after contender): the frontier LLM first, as the yardstick
@@ -26,15 +26,11 @@ ROWS = [  # (name, before contender, after contender): the frontier LLM first, a
     ("Clef-Flash", "clef-flash-untrained", "clef-flash-tuned"),
     ("Clef 27B", "clef-27b-untrained", "clef-27b-tuned"),
 ]
-TITLE = "Fine-tuned small models against a frontier LLM, on real bank complaints"
+TITLE = "Small decision models tuned on past data matched or beat a frontier LLM"  # results
 
 
 def money(x: float) -> str:
-    if x >= 1:
-        return f"${x:,.2f}"
-    if x >= 0.1:
-        return f"${x:.2f}"
-    return f"{x * 100:.1f}¢"
+    return f"${x:,.2f}"
 
 
 def cost_line(contenders: dict, before: str, after: str) -> str:
@@ -103,9 +99,8 @@ def page(metrics: dict, title: str, css: str | None = None) -> str:
     )
     month = date.fromisoformat(first).strftime("%B %Y")
     foot = (
-        f"{n} complaints to a large US bank, received in {month}, after Claude's training data "
-        "was collected, and never used to train or prompt any model here. Shaded bars: 95% "
-        "ranges."
+        f"{n} complaints to a large US bank from {month}, after Claude's training data, never "
+        "used to train or prompt any model here. Shaded bars: 95% ranges."
     )
     if training:
         foot += " One-off training: " + ", ".join(training) + "."
@@ -120,22 +115,22 @@ def page(metrics: dict, title: str, css: str | None = None) -> str:
 <style>
   html, body {{ margin: 0; width: 1080px; height: 1350px; overflow: hidden;
     background: var(--page); }}
-  .canvas {{ position: relative; width: 1080px; height: 1350px; padding: 76px 76px 0; }}
+  .canvas {{ position: relative; width: 1080px; height: 1350px; padding: 62px 76px 0; }}
   .kicker {{ display: flex; align-items: center; gap: 16px; font-size: 24px; letter-spacing: .14em;
     text-transform: uppercase; color: var(--muted); }}
   .kicker .mark {{ width: 20px; height: 20px; border-width: 3px; }}
-  h1 {{ font-weight: 300; font-size: 58px; line-height: 1.2; margin: 40px 0 26px; }}
-  .accent {{ width: 110px; height: 3px; background: var(--oak); margin: 0 0 26px; }}
-  .sub {{ font-size: 28px; line-height: 1.45; color: var(--muted); margin: 0 0 34px; }}
+  h1 {{ font-weight: 300; font-size: 54px; line-height: 1.18; margin: 30px 0 22px; }}
+  .accent {{ width: 110px; height: 3px; background: var(--oak); margin: 0 0 22px; }}
+  .sub {{ font-size: 27px; line-height: 1.4; color: var(--muted); margin: 0 0 22px; }}
   .legend {{ display: flex; flex-wrap: wrap; gap: 14px 40px; font-size: 25px; color: var(--muted);
-    margin: 0 0 46px; }}
+    margin: 0 0 26px; }}
   .legend i {{ display: inline-block; width: 24px; height: 24px; border-radius: 50%;
     vertical-align: -4px; margin-right: 12px; box-sizing: border-box; }}
   .legend i.b {{ border: 4px solid var(--oak); }} .legend i.a {{ background: var(--sage); }}
-  .row {{ margin: 0 0 54px; }}
-  .nm {{ font-size: 36px; font-weight: 400; }}
-  .nm small {{ display: block; font-size: 26px; color: var(--muted); margin-top: 4px; }}
-  .track {{ position: relative; height: 104px; margin: 0 14px; }}
+  .row {{ margin: 0 0 18px; }}
+  .nm {{ font-size: 34px; font-weight: 400; }}
+  .nm small {{ display: block; font-size: 24px; color: var(--muted); margin-top: 2px; }}
+  .track {{ position: relative; height: 96px; margin: 0 14px; }}
   .track .grid {{ position: absolute; top: 46px; bottom: 0; width: 1px;
     background: var(--line-soft); }}
   .track::after {{ content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px;
@@ -150,10 +145,10 @@ def page(metrics: dict, title: str, css: str | None = None) -> str:
   .dot.a {{ background: var(--sage); }}
   .dl {{ position: absolute; top: 0; font-size: 31px; white-space: nowrap; }}
   .dl.b {{ color: var(--oak-ink); }} .dl.a {{ color: var(--sage-ink); font-weight: 500; }}
-  .axis {{ display: flex; justify-content: space-between; margin: -30px 14px 0; font-size: 22px;
+  .axis {{ display: flex; justify-content: space-between; margin: 6px 14px 0; font-size: 22px;
     color: var(--muted); }}
-  .foot {{ position: absolute; left: 76px; right: 76px; bottom: 58px; padding-top: 22px;
-    border-top: 2px solid var(--line); font-size: 23px; line-height: 1.5; color: var(--muted); }}
+  .foot {{ position: absolute; left: 76px; right: 76px; bottom: 44px; padding-top: 18px;
+    border-top: 2px solid var(--line); font-size: 21px; line-height: 1.45; color: var(--muted); }}
 
   /* the video's build-up: rows rise in a stagger, each "after" slides out from its "before" */
   html:not(.play) * {{ animation: none !important; }}
@@ -172,8 +167,8 @@ def page(metrics: dict, title: str, css: str | None = None) -> str:
   <div class="kicker"><span class="mark"></span>clef-tune benchmark</div>
   <h1>{html.escape(title)}</h1>
   <div class="accent"></div>
-  <p class="sub">How often all three answers were right: the issue, the product, and how the
-    bank closed the complaint</p>
+  <p class="sub">How often all three answers were right: the issue, the product, and the bank's
+    outcome</p>
   <div class="legend"><span><i class="b"></i>Out of the box, or instructions only</span>
     <span><i class="a"></i>Tuned, or given 30 examples</span></div>
   {"".join(rows)}
@@ -201,7 +196,7 @@ def main() -> None:
     parser.add_argument("--title", default=TITLE)
     args = parser.parse_args()
     metrics = json.loads((RESULTS / "metrics.json").read_text(encoding="utf-8"))
-    out = RESULTS / "chart.html"
+    out = DATA / "chart.html"  # git-ignored: it links the stylesheet by a local path
     out.write_text(page(metrics, args.title), encoding="utf-8")
     render_png(out, RESULTS / "chart.png")
     print("->", RESULTS / "chart.png")

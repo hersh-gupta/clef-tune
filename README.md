@@ -11,6 +11,22 @@ Sign in with Hugging Face, and training runs on your own account and credits.
 
 [![The clef-tune web UI: upload a spreadsheet, say what to predict, and train](docs/images/welcome.png)](https://huggingface.co/spaces/hvgupta1/clef-tune)
 
+## Benchmark
+
+On 378 real bank complaints from the CFPB, models tuned with clef-tune on 3,000 past complaints
+matched or beat Claude Opus 5.5 given 30 worked examples:
+
+- **Clef 27B:** 47.9% of complaints with all three answers right.
+- **Clef-Flash:** 44.4%.
+- **Claude:** 41.3%.
+
+They did it for a few cents per 1,000 complaints, where Claude costs about $7.50.
+
+The write-up covers the method, the costs and the limits:
+[benchmarks/README.md](benchmarks/README.md).
+
+[![The benchmark: before and after tuning, against Claude Opus 5.5](benchmarks/cfpb/results/benchmark.gif)](benchmarks/README.md)
+
 ## Install
 
 ```bash

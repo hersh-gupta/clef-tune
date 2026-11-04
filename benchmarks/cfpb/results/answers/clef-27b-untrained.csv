@@ -1,0 +1,379 @@
+complaint_id,ok,issue_answer,issue_confidence,issue_true,product_answer,product_confidence,product_true,outcome_answer,outcome_confidence,outcome_true
+23741109,1,other,0.1995,other,credit card,0.995,credit card,explanation only,0.6029,explanation only
+23742366,1,managing an account,0.8413,managing an account,checking or savings account,0.9708,checking or savings account,money back,0.4157,money back
+23742496,1,fraud or scam,0.9604,fraud or scam,money transfer,0.8717,money transfer,money back,0.5204,explanation only
+23742595,1,managing an account,0.7953,managing an account,checking or savings account,0.995,checking or savings account,explanation only,0.7199,explanation only
+23746033,1,fraud or scam,0.9876,fraud or scam,money transfer,0.6385,money transfer,explanation only,0.8888,explanation only
+23748137,1,fraud or scam,0.8853,managing an account,credit card,0.422,checking or savings account,explanation only,0.8528,explanation only
+23752185,1,other,0.4216,other,money transfer,0.994,money transfer,money back,0.6256,money back
+23752327,1,fraud or scam,0.6943,other,credit card,0.9709,checking or savings account,fix without money,0.6324,explanation only
+23754449,1,managing an account,0.9555,managing an account,checking or savings account,0.9949,checking or savings account,explanation only,0.7523,money back
+23754556,1,fraud or scam,0.9678,fraud or scam,money transfer,0.9908,money transfer,money back,0.3482,explanation only
+23754949,1,managing an account,0.9409,managing an account,checking or savings account,0.9862,checking or savings account,explanation only,0.8762,explanation only
+23755323,1,closing an account,0.9518,closing an account,checking or savings account,0.9903,checking or savings account,explanation only,0.9315,money back
+23755388,1,other,0.4481,managing an account,checking or savings account,0.5535,checking or savings account,explanation only,0.6802,explanation only
+23757790,1,closing an account,0.605,closing an account,checking or savings account,0.9483,checking or savings account,money back,0.5319,money back
+23760089,1,disputed purchase,0.8178,managing an account,credit card,0.9902,checking or savings account,explanation only,0.7108,explanation only
+23760392,1,fraud or scam,0.7884,managing an account,checking or savings account,0.9622,checking or savings account,explanation only,0.4557,explanation only
+23761911,1,fraud or scam,0.903,other,money transfer,0.5734,money transfer,explanation only,0.6179,explanation only
+23762933,1,managing an account,0.9287,other,checking or savings account,0.9859,checking or savings account,fix without money,0.488,explanation only
+23764285,1,other,0.3099,opening an account,checking or savings account,0.9849,checking or savings account,explanation only,0.8259,explanation only
+23764432,1,fraud or scam,0.3766,other,money transfer,0.9532,money transfer,explanation only,0.9164,explanation only
+23766745,1,fraud or scam,0.895,fraud or scam,credit card,0.9301,money transfer,explanation only,0.8616,money back
+23770131,1,fraud or scam,0.6401,managing an account,checking or savings account,0.9568,checking or savings account,explanation only,0.7717,money back
+23772128,1,closing an account,0.8953,closing an account,checking or savings account,0.9879,checking or savings account,explanation only,0.9174,explanation only
+23772179,1,disputed purchase,0.7499,disputed purchase,credit card,0.9926,credit card,explanation only,0.8647,money back
+23772312,1,fraud or scam,0.9864,fraud or scam,checking or savings account,0.5261,money transfer,explanation only,0.8743,explanation only
+23773502,1,fraud or scam,0.6147,managing an account,checking or savings account,0.9027,checking or savings account,money back,0.5687,money back
+23776332,1,disputed purchase,0.6789,disputed purchase,credit card,0.9667,credit card,explanation only,0.93,explanation only
+23778896,1,closing an account,0.5533,other,credit card,0.9587,credit card,explanation only,0.9244,explanation only
+23779143,1,closing an account,0.9619,closing an account,credit card,0.6183,checking or savings account,explanation only,0.4685,money back
+23781677,1,fraud or scam,0.8049,card features or terms,credit card,0.9838,credit card,explanation only,0.735,money back
+23782107,1,fraud or scam,0.4751,opening an account,checking or savings account,0.9861,checking or savings account,explanation only,0.7298,explanation only
+23783438,1,opening an account,0.9621,opening an account,checking or savings account,0.9949,checking or savings account,fix without money,0.5156,explanation only
+23785137,1,managing an account,0.2833,other,checking or savings account,0.9961,checking or savings account,explanation only,0.9061,money back
+23785597,1,closing an account,0.8139,closing an account,checking or savings account,0.904,checking or savings account,explanation only,0.8649,explanation only
+23785912,1,managing an account,0.942,other,checking or savings account,0.9829,money transfer,explanation only,0.7356,explanation only
+23793707,1,fraud or scam,0.6634,managing an account,checking or savings account,0.9487,checking or savings account,explanation only,0.7962,money back
+23795044,1,opening an account,0.7596,other,credit card,0.9869,credit card,explanation only,0.5716,explanation only
+23796936,1,unwanted charge,0.2632,closing an account,checking or savings account,0.9501,checking or savings account,explanation only,0.9244,explanation only
+23798283,1,managing an account,0.7607,other,checking or savings account,0.942,credit card,explanation only,0.761,fix without money
+23798615,1,managing an account,0.3277,opening an account,checking or savings account,0.997,checking or savings account,explanation only,0.7178,explanation only
+23799040,1,other,0.3462,managing an account,checking or savings account,0.9935,checking or savings account,explanation only,0.6824,explanation only
+23800002,1,closing an account,0.8688,closing an account,credit card,0.9891,credit card,explanation only,0.5821,explanation only
+23801571,1,disputed purchase,0.3471,disputed purchase,credit card,0.9692,credit card,explanation only,0.8927,money back
+23802732,1,managing an account,0.9285,other,checking or savings account,0.9764,money transfer,explanation only,0.4965,explanation only
+23804417,1,managing an account,0.8161,closing an account,credit card,0.7216,checking or savings account,explanation only,0.8269,explanation only
+23805498,1,card features or terms,0.4844,other,credit card,0.9928,credit card,explanation only,0.6191,explanation only
+23805976,1,closing an account,0.3815,other,credit card,0.9939,credit card,explanation only,0.8493,money back
+23807007,1,fraud or scam,0.8632,disputed purchase,credit card,0.988,credit card,explanation only,0.9018,money back
+23807515,1,fraud or scam,0.9428,managing an account,money transfer,0.7301,checking or savings account,explanation only,0.8918,money back
+23808423,1,card features or terms,0.5001,other,credit card,0.9927,credit card,explanation only,0.5519,money back
+23809603,1,managing an account,0.9095,managing an account,checking or savings account,0.8893,checking or savings account,explanation only,0.3746,explanation only
+23814950,1,fraud or scam,0.785,disputed purchase,credit card,0.9918,credit card,explanation only,0.766,money back
+23815543,1,card features or terms,0.8803,other,credit card,0.9964,credit card,explanation only,0.908,explanation only
+23818246,1,closing an account,0.9173,closing an account,checking or savings account,0.9906,checking or savings account,fix without money,0.4352,money back
+23818824,1,closing an account,0.8991,closing an account,credit card,0.9873,credit card,explanation only,0.7091,explanation only
+23819289,1,fraud or scam,0.9571,fraud or scam,checking or savings account,0.5503,money transfer,explanation only,0.903,explanation only
+23821045,1,fraud or scam,0.4164,unwanted charge,checking or savings account,0.3489,checking or savings account,explanation only,0.5105,explanation only
+23822881,1,closing an account,0.8086,managing an account,checking or savings account,0.9971,checking or savings account,money back,0.6224,money back
+23825208,1,opening an account,0.5076,opening an account,checking or savings account,0.9205,checking or savings account,explanation only,0.6984,explanation only
+23826768,1,fraud or scam,0.3989,other,money transfer,0.9946,money transfer,explanation only,0.5663,explanation only
+23832229,1,managing an account,0.9101,managing an account,checking or savings account,0.957,checking or savings account,money back,0.5968,money back
+23833327,1,fraud or scam,0.7551,disputed purchase,credit card,0.8918,credit card,explanation only,0.7733,money back
+23834321,1,managing an account,0.8654,other,checking or savings account,0.9915,checking or savings account,explanation only,0.6142,explanation only
+23835057,1,card features or terms,0.6986,other,credit card,0.936,credit card,fix without money,0.5313,explanation only
+23837119,1,disputed purchase,0.3491,other,credit card,0.8751,credit card,explanation only,0.5602,money back
+23840017,1,fraud or scam,0.8361,disputed purchase,credit card,0.9886,credit card,explanation only,0.597,money back
+23840191,1,fraud or scam,0.7905,disputed purchase,credit card,0.9903,credit card,explanation only,0.8182,explanation only
+23841180,1,managing an account,0.843,managing an account,checking or savings account,0.978,checking or savings account,explanation only,0.655,explanation only
+23842045,1,fraud or scam,0.7177,disputed purchase,credit card,0.9889,credit card,money back,0.5043,explanation only
+23844461,1,fraud or scam,0.8573,disputed purchase,credit card,0.9736,credit card,explanation only,0.5163,money back
+23845672,1,closing an account,0.9023,closing an account,checking or savings account,0.9973,checking or savings account,money back,0.6289,explanation only
+23845814,1,opening an account,0.8271,opening an account,checking or savings account,0.9792,checking or savings account,fix without money,0.5607,explanation only
+23846964,1,unwanted charge,0.3816,managing an account,checking or savings account,0.8204,checking or savings account,explanation only,0.5845,explanation only
+23847905,1,managing an account,0.6523,unwanted charge,checking or savings account,0.9937,checking or savings account,explanation only,0.7767,explanation only
+23849250,1,managing an account,0.8253,other,checking or savings account,0.9765,money transfer,explanation only,0.8646,explanation only
+23875928,1,disputed purchase,0.3992,managing an account,checking or savings account,0.806,checking or savings account,explanation only,0.4446,money back
+23878045,1,other,0.5451,other,credit card,0.9968,credit card,explanation only,0.557,explanation only
+23878441,1,disputed purchase,0.8309,disputed purchase,credit card,0.9866,credit card,explanation only,0.9064,explanation only
+23879166,1,card features or terms,0.6101,other,credit card,0.9869,credit card,explanation only,0.8557,explanation only
+23879233,1,card features or terms,0.5811,other,credit card,0.9861,credit card,explanation only,0.806,explanation only
+23879424,1,fraud or scam,0.5473,unwanted charge,credit card,0.5068,checking or savings account,explanation only,0.7928,money back
+23882107,1,disputed purchase,0.3701,other,checking or savings account,0.6986,checking or savings account,explanation only,0.6545,explanation only
+23882545,1,disputed purchase,0.6802,disputed purchase,credit card,0.9683,credit card,explanation only,0.8003,money back
+23883950,1,closing an account,0.4404,managing an account,checking or savings account,0.9911,checking or savings account,explanation only,0.8,explanation only
+23885212,1,fraud or scam,0.8619,other,money transfer,0.9879,money transfer,explanation only,0.557,explanation only
+23887903,1,card features or terms,0.4041,other,credit card,0.9799,credit card,explanation only,0.6893,money back
+23888933,1,card features or terms,0.7947,other,credit card,0.984,credit card,explanation only,0.4133,explanation only
+23889636,1,closing an account,0.9595,managing an account,checking or savings account,0.9961,checking or savings account,explanation only,0.6406,explanation only
+23891229,1,managing an account,0.8684,managing an account,checking or savings account,0.9174,checking or savings account,fix without money,0.498,explanation only
+23891814,1,fraud or scam,0.4927,opening an account,credit card,0.6205,checking or savings account,explanation only,0.8353,explanation only
+23899628,1,closing an account,0.7576,other,credit card,0.9839,credit card,explanation only,0.7678,explanation only
+23901539,1,fraud or scam,0.9303,fraud or scam,money transfer,0.8395,money transfer,explanation only,0.6062,explanation only
+23901914,1,managing an account,0.6429,other,money transfer,0.8808,money transfer,explanation only,0.5902,explanation only
+23902882,1,managing an account,0.4783,unwanted charge,checking or savings account,0.8521,checking or savings account,explanation only,0.5439,explanation only
+23903270,1,closing an account,0.9524,closing an account,checking or savings account,0.9954,checking or savings account,explanation only,0.6724,money back
+23903317,1,managing an account,0.9257,managing an account,checking or savings account,0.9872,checking or savings account,explanation only,0.471,money back
+23903829,1,fraud or scam,0.7806,disputed purchase,credit card,0.9926,credit card,explanation only,0.6988,explanation only
+23903846,1,other,0.3874,managing an account,checking or savings account,0.4867,checking or savings account,explanation only,0.8514,money back
+23905502,1,closing an account,0.6731,closing an account,checking or savings account,0.9375,checking or savings account,explanation only,0.5118,money back
+23906782,1,managing an account,0.7029,managing an account,checking or savings account,0.7891,checking or savings account,explanation only,0.4311,explanation only
+23907137,1,closing an account,0.8945,closing an account,checking or savings account,0.9814,checking or savings account,money back,0.4234,money back
+23907752,1,other,0.4594,other,credit card,0.9841,credit card,explanation only,0.8383,explanation only
+23907928,1,disputed purchase,0.3237,other,checking or savings account,0.8768,checking or savings account,fix without money,0.4376,money back
+23907935,1,managing an account,0.9286,closing an account,checking or savings account,0.9135,checking or savings account,explanation only,0.4891,fix without money
+23909308,1,other,0.401,other,money transfer,0.9952,money transfer,explanation only,0.805,explanation only
+23909804,1,fraud or scam,0.9765,other,money transfer,0.8944,money transfer,explanation only,0.7895,explanation only
+23910013,1,managing an account,0.9447,managing an account,checking or savings account,0.9897,checking or savings account,explanation only,0.5975,explanation only
+23910568,1,fraud or scam,0.5237,other,checking or savings account,0.9415,checking or savings account,explanation only,0.4209,money back
+23913029,1,managing an account,0.7052,managing an account,checking or savings account,0.9392,checking or savings account,explanation only,0.6592,explanation only
+23913453,1,closing an account,0.5871,closing an account,checking or savings account,0.966,checking or savings account,explanation only,0.8265,money back
+23915003,1,closing an account,0.8118,managing an account,checking or savings account,0.9935,checking or savings account,explanation only,0.7286,explanation only
+23916478,1,managing an account,0.7832,managing an account,checking or savings account,0.9595,checking or savings account,money back,0.3972,money back
+23916546,1,disputed purchase,0.2608,managing an account,checking or savings account,0.6272,checking or savings account,fix without money,0.472,explanation only
+23916826,1,disputed purchase,0.6116,managing an account,credit card,0.985,checking or savings account,explanation only,0.5261,explanation only
+23918979,1,opening an account,0.6129,other,credit card,0.9952,credit card,explanation only,0.8978,explanation only
+23921989,1,fraud or scam,0.7541,disputed purchase,credit card,0.9909,credit card,explanation only,0.4516,money back
+23922005,1,fraud or scam,0.9792,fraud or scam,money transfer,0.9884,money transfer,explanation only,0.8138,explanation only
+23923201,1,fraud or scam,0.7971,disputed purchase,credit card,0.9903,credit card,explanation only,0.6836,money back
+23924004,1,fraud or scam,0.9765,fraud or scam,checking or savings account,0.8994,money transfer,explanation only,0.6394,explanation only
+23924960,1,closing an account,0.8907,closing an account,checking or savings account,0.9913,checking or savings account,explanation only,0.737,money back
+23935504,1,disputed purchase,0.6559,managing an account,credit card,0.6376,checking or savings account,explanation only,0.61,money back
+23936997,1,card features or terms,0.3877,managing an account,checking or savings account,0.989,checking or savings account,money back,0.5911,money back
+23937325,1,managing an account,0.291,managing an account,checking or savings account,0.9973,checking or savings account,money back,0.5777,explanation only
+23939050,1,fraud or scam,0.8532,managing an account,checking or savings account,0.9764,checking or savings account,money back,0.4678,money back
+23939756,1,disputed purchase,0.7376,disputed purchase,credit card,0.9887,credit card,explanation only,0.8773,money back
+23939785,1,managing an account,0.5494,other,money transfer,0.9884,money transfer,explanation only,0.5634,explanation only
+23940672,1,fraud or scam,0.9,managing an account,checking or savings account,0.9101,checking or savings account,money back,0.4397,explanation only
+23943393,1,fraud or scam,0.5812,unwanted charge,credit card,0.9655,checking or savings account,explanation only,0.8458,explanation only
+23945008,1,managing an account,0.9346,managing an account,checking or savings account,0.989,checking or savings account,explanation only,0.6803,fix without money
+23945254,1,fraud or scam,0.7354,disputed purchase,credit card,0.9935,credit card,explanation only,0.5866,money back
+23945379,1,managing an account,0.9165,other,checking or savings account,0.9671,checking or savings account,explanation only,0.8556,explanation only
+23946299,1,fraud or scam,0.4881,fraud or scam,money transfer,0.9846,money transfer,explanation only,0.5595,explanation only
+23948580,1,managing an account,0.3954,other,checking or savings account,0.9898,checking or savings account,explanation only,0.9304,explanation only
+23949301,1,closing an account,0.7555,managing an account,checking or savings account,0.9943,checking or savings account,explanation only,0.7396,money back
+23951073,1,fraud or scam,0.8312,disputed purchase,credit card,0.9924,credit card,explanation only,0.3998,money back
+23951784,1,managing an account,0.9433,managing an account,checking or savings account,0.9834,checking or savings account,explanation only,0.8756,money back
+23952561,1,disputed purchase,0.8122,disputed purchase,credit card,0.6189,credit card,explanation only,0.8664,explanation only
+23953247,1,closing an account,0.6686,closing an account,credit card,0.9831,credit card,explanation only,0.7706,fix without money
+23953628,1,disputed purchase,0.407,disputed purchase,credit card,0.9908,credit card,explanation only,0.6824,money back
+23954399,1,fraud or scam,0.7339,managing an account,checking or savings account,0.8988,checking or savings account,explanation only,0.6575,money back
+23956157,1,fraud or scam,0.7627,unwanted charge,credit card,0.8175,checking or savings account,explanation only,0.8854,money back
+23957601,1,opening an account,0.9328,opening an account,checking or savings account,0.9823,checking or savings account,explanation only,0.5473,explanation only
+23964009,1,other,0.7552,managing an account,checking or savings account,0.9312,checking or savings account,fix without money,0.5015,explanation only
+23968458,1,unwanted charge,0.3726,disputed purchase,checking or savings account,0.6077,credit card,explanation only,0.6725,money back
+23968807,1,other,0.6065,managing an account,checking or savings account,0.7744,checking or savings account,explanation only,0.88,explanation only
+23974069,1,fraud or scam,0.9823,unwanted charge,money transfer,0.7104,checking or savings account,explanation only,0.5341,money back
+23974213,1,disputed purchase,0.767,unwanted charge,checking or savings account,0.8703,checking or savings account,explanation only,0.7716,money back
+23979880,1,managing an account,0.9465,managing an account,checking or savings account,0.9891,checking or savings account,explanation only,0.4508,explanation only
+23979961,1,card features or terms,0.9179,other,credit card,0.9966,credit card,money back,0.3937,explanation only
+23984046,1,fraud or scam,0.7512,disputed purchase,credit card,0.9916,credit card,explanation only,0.7485,explanation only
+23984711,1,fraud or scam,0.8806,disputed purchase,checking or savings account,0.8484,credit card,explanation only,0.7771,explanation only
+23986399,1,managing an account,0.9434,managing an account,checking or savings account,0.9908,checking or savings account,explanation only,0.7717,explanation only
+23987085,1,closing an account,0.4949,opening an account,checking or savings account,0.9949,checking or savings account,explanation only,0.8391,explanation only
+23989098,1,fraud or scam,0.9643,disputed purchase,credit card,0.9473,credit card,explanation only,0.7967,explanation only
+23989399,1,managing an account,0.7712,managing an account,checking or savings account,0.9842,checking or savings account,explanation only,0.7856,money back
+23989784,1,managing an account,0.6769,managing an account,checking or savings account,0.9821,checking or savings account,explanation only,0.6006,money back
+23990075,1,fraud or scam,0.8831,disputed purchase,credit card,0.996,credit card,explanation only,0.4852,money back
+23990244,1,disputed purchase,0.566,disputed purchase,credit card,0.9231,credit card,explanation only,0.9209,money back
+23991031,1,managing an account,0.5042,unwanted charge,checking or savings account,0.9601,checking or savings account,explanation only,0.4828,money back
+23992622,1,managing an account,0.9153,managing an account,checking or savings account,0.9837,checking or savings account,explanation only,0.4386,explanation only
+23992847,1,managing an account,0.8536,other,checking or savings account,0.9532,checking or savings account,explanation only,0.4888,explanation only
+23993585,1,managing an account,0.94,managing an account,checking or savings account,0.9823,checking or savings account,explanation only,0.7037,explanation only
+23994459,1,managing an account,0.5184,other,money transfer,0.9872,money transfer,explanation only,0.4073,explanation only
+23994612,1,fraud or scam,0.6829,disputed purchase,credit card,0.9818,credit card,explanation only,0.3929,explanation only
+23995544,1,disputed purchase,0.8443,disputed purchase,credit card,0.9925,credit card,explanation only,0.7831,money back
+23996013,1,closing an account,0.8703,closing an account,checking or savings account,0.9957,checking or savings account,explanation only,0.8314,money back
+23997928,1,card features or terms,0.9794,card features or terms,credit card,0.9952,credit card,money back,0.4267,money back
+24002214,1,disputed purchase,0.7121,unwanted charge,checking or savings account,0.5323,checking or savings account,explanation only,0.5413,explanation only
+24012535,1,managing an account,0.3736,other,checking or savings account,0.9733,checking or savings account,money back,0.7126,money back
+24012999,1,fraud or scam,0.9828,fraud or scam,money transfer,0.9472,money transfer,explanation only,0.4813,explanation only
+24013156,1,fraud or scam,0.8991,managing an account,money transfer,0.7269,checking or savings account,explanation only,0.8095,explanation only
+24013984,1,managing an account,0.8911,managing an account,checking or savings account,0.9912,checking or savings account,explanation only,0.9016,explanation only
+24016555,1,closing an account,0.9201,closing an account,credit card,0.925,checking or savings account,explanation only,0.8449,explanation only
+24020200,1,disputed purchase,0.6957,disputed purchase,credit card,0.9843,credit card,explanation only,0.8962,explanation only
+24024975,1,closing an account,0.6914,closing an account,checking or savings account,0.9885,checking or savings account,explanation only,0.9046,explanation only
+24025154,1,fraud or scam,0.647,disputed purchase,credit card,0.9536,credit card,explanation only,0.6727,money back
+24026497,1,managing an account,0.8058,managing an account,checking or savings account,0.952,checking or savings account,explanation only,0.7785,money back
+24029401,1,closing an account,0.8641,closing an account,checking or savings account,0.9785,checking or savings account,explanation only,0.7266,money back
+24029881,1,disputed purchase,0.7843,managing an account,credit card,0.9186,checking or savings account,money back,0.4131,money back
+24033499,1,managing an account,0.9258,managing an account,checking or savings account,0.9484,checking or savings account,explanation only,0.8859,money back
+24113125,1,fraud or scam,0.7833,disputed purchase,credit card,0.9601,credit card,explanation only,0.8348,explanation only
+24113718,1,opening an account,0.9482,opening an account,checking or savings account,0.9947,checking or savings account,explanation only,0.6124,explanation only
+24115842,1,fraud or scam,0.6956,disputed purchase,money transfer,0.4032,credit card,explanation only,0.8326,explanation only
+24116045,1,managing an account,0.698,fraud or scam,checking or savings account,0.9757,money transfer,explanation only,0.5176,explanation only
+24116673,1,fraud or scam,0.6173,managing an account,checking or savings account,0.9874,checking or savings account,explanation only,0.6312,money back
+24116963,1,closing an account,0.5639,closing an account,checking or savings account,0.9905,checking or savings account,money back,0.4003,money back
+24117425,1,managing an account,0.9218,managing an account,checking or savings account,0.99,checking or savings account,explanation only,0.7797,money back
+24118544,1,managing an account,0.3773,managing an account,checking or savings account,0.9923,checking or savings account,fix without money,0.4037,explanation only
+24118747,1,disputed purchase,0.8969,unwanted charge,credit card,0.9565,checking or savings account,explanation only,0.7284,explanation only
+24119159,1,fraud or scam,0.932,managing an account,money transfer,0.8115,checking or savings account,explanation only,0.8763,explanation only
+24119427,1,card features or terms,0.9041,other,credit card,0.9973,credit card,fix without money,0.4872,explanation only
+24119927,1,fraud or scam,0.4339,disputed purchase,credit card,0.9914,credit card,money back,0.48,explanation only
+24119975,1,fraud or scam,0.7855,disputed purchase,credit card,0.991,credit card,explanation only,0.6478,explanation only
+24122175,1,disputed purchase,0.6951,disputed purchase,credit card,0.9901,credit card,explanation only,0.4765,explanation only
+24122640,1,closing an account,0.8642,other,checking or savings account,0.6299,credit card,explanation only,0.8117,explanation only
+24123244,1,disputed purchase,0.5924,disputed purchase,credit card,0.9893,credit card,explanation only,0.8308,money back
+24124434,1,closing an account,0.4315,closing an account,checking or savings account,0.7575,checking or savings account,explanation only,0.5197,explanation only
+24127959,1,closing an account,0.8332,managing an account,checking or savings account,0.9783,checking or savings account,explanation only,0.8174,explanation only
+24130781,1,managing an account,0.8758,managing an account,checking or savings account,0.9531,checking or savings account,explanation only,0.8242,explanation only
+24132185,1,managing an account,0.9585,closing an account,checking or savings account,0.9673,checking or savings account,explanation only,0.6728,money back
+24132589,1,opening an account,0.9558,other,credit card,0.6312,credit card,explanation only,0.7147,fix without money
+24133346,1,fraud or scam,0.9429,managing an account,checking or savings account,0.6935,checking or savings account,money back,0.7764,explanation only
+24133640,1,opening an account,0.9788,other,credit card,0.9851,credit card,fix without money,0.7266,fix without money
+24133898,1,card features or terms,0.4566,other,credit card,0.9905,credit card,money back,0.458,explanation only
+24136826,1,card features or terms,0.8591,other,credit card,0.9948,credit card,explanation only,0.5106,money back
+24136886,1,fraud or scam,0.8228,disputed purchase,credit card,0.9668,credit card,explanation only,0.7396,money back
+24139390,1,closing an account,0.9061,closing an account,checking or savings account,0.925,checking or savings account,explanation only,0.5922,explanation only
+24139491,1,fraud or scam,0.8527,other,money transfer,0.965,money transfer,explanation only,0.7789,explanation only
+24141863,1,card features or terms,0.6924,other,credit card,0.9877,credit card,explanation only,0.7447,explanation only
+24142833,1,closing an account,0.8238,closing an account,checking or savings account,0.9936,checking or savings account,explanation only,0.6966,money back
+24143776,1,other,0.6277,opening an account,checking or savings account,0.9722,checking or savings account,fix without money,0.4906,explanation only
+24144681,1,managing an account,0.9585,managing an account,checking or savings account,0.9859,checking or savings account,fix without money,0.5346,explanation only
+24146429,1,fraud or scam,0.9725,fraud or scam,money transfer,0.9689,money transfer,fix without money,0.4762,explanation only
+24147698,1,managing an account,0.6047,other,credit card,0.9888,credit card,explanation only,0.532,fix without money
+24148163,1,disputed purchase,0.801,managing an account,credit card,0.594,checking or savings account,explanation only,0.6255,explanation only
+24148287,1,fraud or scam,0.9639,managing an account,checking or savings account,0.9468,checking or savings account,explanation only,0.7554,money back
+24148746,1,managing an account,0.2725,managing an account,checking or savings account,0.997,checking or savings account,explanation only,0.8824,explanation only
+24150961,1,closing an account,0.865,closing an account,checking or savings account,0.9897,checking or savings account,explanation only,0.7712,money back
+24151472,1,managing an account,0.7147,card features or terms,credit card,0.9886,credit card,fix without money,0.5356,explanation only
+24151910,1,card features or terms,0.9699,other,credit card,0.9958,credit card,explanation only,0.6996,explanation only
+24153307,1,card features or terms,0.3759,other,credit card,0.9654,credit card,explanation only,0.5951,explanation only
+24156666,1,other,0.3724,other,credit card,0.9514,credit card,explanation only,0.6417,fix without money
+24160114,1,closing an account,0.9495,closing an account,checking or savings account,0.9816,checking or savings account,explanation only,0.6799,money back
+24162200,1,disputed purchase,0.5452,card features or terms,credit card,0.7841,credit card,explanation only,0.8147,money back
+24163863,1,fraud or scam,0.8838,managing an account,checking or savings account,0.8678,checking or savings account,explanation only,0.821,money back
+24164921,1,fraud or scam,0.852,disputed purchase,credit card,0.9882,credit card,explanation only,0.6489,explanation only
+24165699,1,card features or terms,0.98,other,credit card,0.9978,credit card,explanation only,0.8274,explanation only
+24165869,1,opening an account,0.5921,other,credit card,0.99,credit card,explanation only,0.922,explanation only
+24166116,1,fraud or scam,0.731,disputed purchase,credit card,0.9935,credit card,explanation only,0.5597,money back
+24173363,1,fraud or scam,0.3335,managing an account,checking or savings account,0.5868,checking or savings account,explanation only,0.7113,explanation only
+24173369,1,disputed purchase,0.8067,managing an account,credit card,0.936,checking or savings account,explanation only,0.8502,money back
+24174611,1,managing an account,0.4935,closing an account,checking or savings account,0.9906,checking or savings account,fix without money,0.5722,explanation only
+24175043,1,managing an account,0.6097,managing an account,checking or savings account,0.9796,checking or savings account,explanation only,0.6918,money back
+24176127,1,card features or terms,0.3807,other,credit card,0.9866,credit card,explanation only,0.8753,money back
+24176879,1,card features or terms,0.4705,other,credit card,0.9925,credit card,explanation only,0.6671,explanation only
+24177011,1,closing an account,0.794,closing an account,checking or savings account,0.9957,checking or savings account,explanation only,0.8403,explanation only
+24181575,1,unwanted charge,0.4331,unwanted charge,checking or savings account,0.7499,checking or savings account,explanation only,0.822,money back
+24182062,1,disputed purchase,0.7455,managing an account,credit card,0.9414,checking or savings account,explanation only,0.9217,explanation only
+24183390,1,unwanted charge,0.3974,unwanted charge,checking or savings account,0.8019,checking or savings account,explanation only,0.8105,money back
+24185521,1,managing an account,0.7212,other,checking or savings account,0.5069,checking or savings account,explanation only,0.8187,explanation only
+24187481,1,unwanted charge,0.6324,managing an account,checking or savings account,0.9623,checking or savings account,explanation only,0.5331,explanation only
+24187653,1,other,0.3994,other,checking or savings account,0.9357,checking or savings account,explanation only,0.6245,money back
+24190632,1,fraud or scam,0.8739,unwanted charge,checking or savings account,0.6926,checking or savings account,explanation only,0.8983,money back
+24191660,1,disputed purchase,0.5185,managing an account,credit card,0.5044,checking or savings account,explanation only,0.7943,explanation only
+24193796,1,fraud or scam,0.8196,unwanted charge,checking or savings account,0.9835,checking or savings account,explanation only,0.7119,money back
+24194401,1,card features or terms,0.8288,other,credit card,0.9959,credit card,fix without money,0.5563,explanation only
+24197914,1,managing an account,0.9139,managing an account,checking or savings account,0.9747,checking or savings account,explanation only,0.8794,money back
+24198255,1,closing an account,0.6855,closing an account,checking or savings account,0.9887,checking or savings account,explanation only,0.8223,money back
+24198852,1,fraud or scam,0.7833,opening an account,credit card,0.806,checking or savings account,explanation only,0.4249,money back
+24199020,1,other,0.2813,managing an account,money transfer,0.8744,checking or savings account,explanation only,0.8386,explanation only
+24199326,1,fraud or scam,0.9834,fraud or scam,money transfer,0.854,money transfer,explanation only,0.8632,explanation only
+24199649,1,fraud or scam,0.707,disputed purchase,credit card,0.9946,credit card,explanation only,0.7394,money back
+24203462,1,closing an account,0.9376,closing an account,credit card,0.9901,credit card,explanation only,0.8508,explanation only
+24204852,1,other,0.3574,other,credit card,0.9872,credit card,fix without money,0.7021,explanation only
+24206015,1,other,0.5384,other,money transfer,0.9859,money transfer,money back,0.6213,explanation only
+24206546,1,unwanted charge,0.3868,closing an account,checking or savings account,0.975,credit card,explanation only,0.4746,explanation only
+24206735,1,managing an account,0.9142,managing an account,checking or savings account,0.9912,checking or savings account,explanation only,0.5727,explanation only
+24207405,1,disputed purchase,0.3189,managing an account,checking or savings account,0.9953,checking or savings account,money back,0.5925,money back
+24211137,1,fraud or scam,0.8236,card features or terms,credit card,0.9839,credit card,explanation only,0.4665,money back
+24213076,1,fraud or scam,0.8892,unwanted charge,checking or savings account,0.9757,checking or savings account,explanation only,0.8016,money back
+24217159,1,fraud or scam,0.8462,disputed purchase,credit card,0.9941,credit card,explanation only,0.7269,money back
+24217271,1,managing an account,0.442,closing an account,checking or savings account,0.9757,checking or savings account,fix without money,0.4494,money back
+24217889,1,fraud or scam,0.9841,fraud or scam,money transfer,0.8904,money transfer,explanation only,0.5926,explanation only
+24219408,1,managing an account,0.8043,disputed purchase,credit card,0.9541,credit card,explanation only,0.857,explanation only
+24220401,1,card features or terms,0.9751,card features or terms,credit card,0.9964,credit card,explanation only,0.8189,explanation only
+24220687,1,fraud or scam,0.897,disputed purchase,credit card,0.9939,credit card,money back,0.7114,money back
+24223659,1,closing an account,0.4475,opening an account,checking or savings account,0.9919,checking or savings account,explanation only,0.9325,fix without money
+24225751,1,fraud or scam,0.9787,other,money transfer,0.9326,money transfer,explanation only,0.6267,money back
+24226094,1,disputed purchase,0.391,managing an account,checking or savings account,0.862,checking or savings account,money back,0.4778,money back
+24226609,1,unwanted charge,0.5786,unwanted charge,checking or savings account,0.7779,checking or savings account,explanation only,0.7942,money back
+24226650,1,managing an account,0.9404,managing an account,checking or savings account,0.9497,checking or savings account,fix without money,0.3733,explanation only
+24226846,1,fraud or scam,0.9626,managing an account,checking or savings account,0.6123,checking or savings account,explanation only,0.8892,explanation only
+24226934,1,fraud or scam,0.9547,disputed purchase,credit card,0.9848,credit card,explanation only,0.8299,explanation only
+24228218,1,closing an account,0.8487,closing an account,checking or savings account,0.9873,checking or savings account,explanation only,0.4555,explanation only
+24228698,1,fraud or scam,0.5744,unwanted charge,checking or savings account,0.9046,checking or savings account,explanation only,0.785,money back
+24229250,1,fraud or scam,0.6211,managing an account,checking or savings account,0.978,checking or savings account,money back,0.3937,explanation only
+24230476,1,card features or terms,0.9383,card features or terms,credit card,0.9948,credit card,explanation only,0.6614,explanation only
+24231540,1,fraud or scam,0.5778,disputed purchase,credit card,0.9813,credit card,explanation only,0.6955,money back
+24233394,1,fraud or scam,0.9444,unwanted charge,checking or savings account,0.885,checking or savings account,explanation only,0.7934,money back
+24233587,1,opening an account,0.6634,other,credit card,0.8917,credit card,fix without money,0.8443,explanation only
+24236094,1,closing an account,0.8853,closing an account,checking or savings account,0.9676,checking or savings account,explanation only,0.9709,money back
+24236681,1,managing an account,0.6124,managing an account,checking or savings account,0.8686,checking or savings account,explanation only,0.6312,explanation only
+24240608,1,disputed purchase,0.3374,managing an account,checking or savings account,0.9813,checking or savings account,explanation only,0.5464,money back
+24241685,1,closing an account,0.4337,managing an account,checking or savings account,0.9654,checking or savings account,explanation only,0.6573,explanation only
+24242206,1,managing an account,0.8997,managing an account,checking or savings account,0.9614,checking or savings account,fix without money,0.6687,explanation only
+24246797,1,fraud or scam,0.8937,fraud or scam,money transfer,0.5915,money transfer,explanation only,0.8223,explanation only
+24248570,1,managing an account,0.8761,other,checking or savings account,0.969,credit card,explanation only,0.9163,explanation only
+24250123,1,unwanted charge,0.6103,managing an account,checking or savings account,0.9349,checking or savings account,money back,0.5874,explanation only
+24250529,1,opening an account,0.8313,other,credit card,0.9363,credit card,fix without money,0.8113,explanation only
+24252247,1,fraud or scam,0.984,fraud or scam,money transfer,0.8466,money transfer,explanation only,0.8471,money back
+24255216,1,managing an account,0.3442,other,money transfer,0.9836,money transfer,explanation only,0.4896,money back
+24259547,1,fraud or scam,0.6195,managing an account,checking or savings account,0.9543,checking or savings account,explanation only,0.9042,explanation only
+24259930,1,closing an account,0.7761,closing an account,credit card,0.9398,credit card,explanation only,0.4792,explanation only
+24264745,1,fraud or scam,0.3942,unwanted charge,checking or savings account,0.9826,checking or savings account,explanation only,0.3754,money back
+24266833,1,card features or terms,0.9783,card features or terms,credit card,0.9948,credit card,explanation only,0.831,fix without money
+24268526,1,managing an account,0.4546,unwanted charge,checking or savings account,0.9376,checking or savings account,explanation only,0.6153,fix without money
+24271773,1,fraud or scam,0.7551,card features or terms,credit card,0.9917,credit card,explanation only,0.8171,explanation only
+24272518,1,fraud or scam,0.8565,card features or terms,credit card,0.9929,credit card,money back,0.5096,explanation only
+24273288,1,fraud or scam,0.9722,disputed purchase,credit card,0.9405,credit card,explanation only,0.7448,explanation only
+24273882,1,disputed purchase,0.484,disputed purchase,credit card,0.991,credit card,explanation only,0.8763,money back
+24277809,1,other,0.4449,unwanted charge,checking or savings account,0.9843,checking or savings account,explanation only,0.9225,explanation only
+24279234,1,closing an account,0.899,opening an account,checking or savings account,0.992,checking or savings account,explanation only,0.6738,explanation only
+24281861,1,unwanted charge,0.2665,other,checking or savings account,0.9806,checking or savings account,explanation only,0.4761,money back
+24282499,1,disputed purchase,0.8078,unwanted charge,credit card,0.9346,checking or savings account,explanation only,0.8041,money back
+24286960,1,closing an account,0.9229,closing an account,checking or savings account,0.8967,checking or savings account,explanation only,0.8052,money back
+24287391,1,managing an account,0.2443,disputed purchase,credit card,0.7836,credit card,explanation only,0.4451,money back
+24287406,1,closing an account,0.8529,closing an account,checking or savings account,0.9966,checking or savings account,explanation only,0.4601,money back
+24288023,1,card features or terms,0.8589,other,credit card,0.9971,credit card,explanation only,0.8726,money back
+24355400,1,fraud or scam,0.7847,managing an account,credit card,0.4486,checking or savings account,explanation only,0.8972,explanation only
+24356334,1,disputed purchase,0.7013,disputed purchase,credit card,0.991,credit card,explanation only,0.5506,money back
+24358592,1,opening an account,0.9146,opening an account,checking or savings account,0.9633,checking or savings account,fix without money,0.7037,explanation only
+24358763,1,fraud or scam,0.7951,managing an account,checking or savings account,0.7772,checking or savings account,explanation only,0.8301,money back
+24372568,1,opening an account,0.4896,other,credit card,0.981,credit card,explanation only,0.682,explanation only
+24373130,1,card features or terms,0.9944,card features or terms,credit card,0.9983,credit card,explanation only,0.5195,explanation only
+24376765,1,managing an account,0.496,other,checking or savings account,0.5381,money transfer,money back,0.371,money back
+24377877,1,disputed purchase,0.2627,managing an account,checking or savings account,0.8006,checking or savings account,explanation only,0.8117,explanation only
+24379264,1,managing an account,0.4179,other,credit card,0.9676,credit card,fix without money,0.8143,explanation only
+24382530,1,fraud or scam,0.7216,disputed purchase,credit card,0.992,credit card,explanation only,0.4615,money back
+24386054,1,managing an account,0.3417,unwanted charge,checking or savings account,0.9864,checking or savings account,explanation only,0.8222,money back
+24386212,1,managing an account,0.9391,managing an account,checking or savings account,0.9762,checking or savings account,fix without money,0.5717,money back
+24388958,1,other,0.3269,other,money transfer,0.9783,money transfer,money back,0.6102,explanation only
+24391014,1,opening an account,0.9093,other,credit card,0.9532,credit card,fix without money,0.5034,explanation only
+24395122,1,unwanted charge,0.7804,unwanted charge,credit card,0.7812,checking or savings account,money back,0.8923,explanation only
+24397105,1,unwanted charge,0.4009,other,credit card,0.9272,credit card,explanation only,0.8463,explanation only
+24400461,1,managing an account,0.4278,closing an account,checking or savings account,0.9735,checking or savings account,explanation only,0.8304,explanation only
+24401537,1,other,0.3878,managing an account,checking or savings account,0.7878,checking or savings account,explanation only,0.6504,explanation only
+24404303,1,disputed purchase,0.8153,disputed purchase,credit card,0.9517,credit card,explanation only,0.8682,explanation only
+24406996,1,closing an account,0.9302,closing an account,checking or savings account,0.9937,checking or savings account,explanation only,0.8986,explanation only
+24408053,1,card features or terms,0.4294,managing an account,credit card,0.9833,checking or savings account,explanation only,0.6832,explanation only
+24417855,1,closing an account,0.8243,unwanted charge,checking or savings account,0.984,checking or savings account,explanation only,0.7294,money back
+24422729,1,closing an account,0.8711,closing an account,checking or savings account,0.9915,checking or savings account,explanation only,0.9494,money back
+24427296,1,fraud or scam,0.7017,disputed purchase,credit card,0.9893,credit card,explanation only,0.5667,money back
+24431882,1,opening an account,0.9755,opening an account,checking or savings account,0.9921,checking or savings account,fix without money,0.5244,explanation only
+24438877,1,fraud or scam,0.7433,disputed purchase,credit card,0.926,credit card,explanation only,0.5526,explanation only
+24443222,1,managing an account,0.6489,closing an account,checking or savings account,0.9929,checking or savings account,explanation only,0.6333,explanation only
+24466968,1,fraud or scam,0.4086,unwanted charge,credit card,0.7324,checking or savings account,explanation only,0.4456,explanation only
+24473211,1,card features or terms,0.8228,other,credit card,0.9934,credit card,fix without money,0.3464,explanation only
+24474097,1,managing an account,0.7602,managing an account,checking or savings account,0.881,checking or savings account,explanation only,0.7362,explanation only
+24477230,1,fraud or scam,0.7001,managing an account,checking or savings account,0.9473,checking or savings account,explanation only,0.7663,explanation only
+24482199,1,card features or terms,0.5862,other,credit card,0.9902,credit card,money back,0.7621,explanation only
+24483416,1,fraud or scam,0.6628,other,money transfer,0.9888,money transfer,explanation only,0.7548,explanation only
+24483953,1,other,0.4996,other,credit card,0.9946,credit card,explanation only,0.9072,explanation only
+24485459,1,card features or terms,0.9845,other,credit card,0.9976,credit card,explanation only,0.5029,explanation only
+24487743,1,managing an account,0.925,managing an account,checking or savings account,0.9813,checking or savings account,explanation only,0.7632,money back
+24515071,1,closing an account,0.7897,managing an account,checking or savings account,0.9848,checking or savings account,explanation only,0.5911,explanation only
+24523451,1,managing an account,0.5401,unwanted charge,checking or savings account,0.982,checking or savings account,explanation only,0.467,money back
+24526900,1,closing an account,0.7532,managing an account,checking or savings account,0.992,checking or savings account,explanation only,0.7173,explanation only
+24527711,1,managing an account,0.3328,other,checking or savings account,0.9598,checking or savings account,explanation only,0.7019,explanation only
+24529928,1,managing an account,0.454,card features or terms,credit card,0.9004,credit card,money back,0.4619,money back
+24536817,1,managing an account,0.8069,managing an account,checking or savings account,0.7319,checking or savings account,fix without money,0.5026,explanation only
+24537090,1,card features or terms,0.7948,other,credit card,0.9965,credit card,explanation only,0.8067,explanation only
+24611949,1,managing an account,0.8627,managing an account,checking or savings account,0.9698,checking or savings account,explanation only,0.811,explanation only
+24617075,1,managing an account,0.8315,managing an account,checking or savings account,0.9846,checking or savings account,explanation only,0.4333,money back
+24618624,1,managing an account,0.9354,managing an account,checking or savings account,0.9881,checking or savings account,explanation only,0.8667,explanation only
+24623454,1,other,0.6027,other,credit card,0.9794,credit card,fix without money,0.6593,explanation only
+24629620,1,managing an account,0.4294,other,money transfer,0.9886,money transfer,explanation only,0.5696,money back
+24630858,1,unwanted charge,0.3124,unwanted charge,checking or savings account,0.8695,checking or savings account,explanation only,0.861,explanation only
+24633772,1,card features or terms,0.9782,other,credit card,0.9899,credit card,explanation only,0.6195,explanation only
+24637924,1,card features or terms,0.4163,other,credit card,0.9289,credit card,explanation only,0.8233,explanation only
+24638639,1,closing an account,0.6211,managing an account,checking or savings account,0.9921,checking or savings account,explanation only,0.6828,explanation only
+24639126,1,managing an account,0.9605,managing an account,checking or savings account,0.989,checking or savings account,explanation only,0.423,money back
+24640575,1,managing an account,0.5626,other,credit card,0.9778,credit card,explanation only,0.7013,explanation only
+24643806,1,managing an account,0.931,managing an account,checking or savings account,0.9508,checking or savings account,explanation only,0.6704,money back
+24646043,1,fraud or scam,0.4472,managing an account,checking or savings account,0.9755,checking or savings account,money back,0.7302,explanation only
+24678471,1,other,0.5594,closing an account,credit card,0.5494,credit card,explanation only,0.8473,money back
+24685230,1,managing an account,0.8066,other,money transfer,0.9106,money transfer,explanation only,0.4673,explanation only
+24690277,1,opening an account,0.6912,other,credit card,0.9917,credit card,explanation only,0.8742,explanation only
+24691948,1,disputed purchase,0.261,managing an account,money transfer,0.9657,checking or savings account,explanation only,0.6905,money back
+24694292,1,fraud or scam,0.4881,disputed purchase,credit card,0.9908,credit card,explanation only,0.7828,money back
+24696403,1,fraud or scam,0.8168,other,credit card,0.9768,credit card,money back,0.4977,money back
+24696958,1,fraud or scam,0.6447,managing an account,checking or savings account,0.8658,checking or savings account,explanation only,0.5926,money back
+24698599,1,unwanted charge,0.4679,unwanted charge,checking or savings account,0.9549,checking or savings account,explanation only,0.7605,explanation only
+24700039,1,managing an account,0.8054,managing an account,checking or savings account,0.989,checking or savings account,explanation only,0.8669,explanation only
+24703359,1,card features or terms,0.7868,other,credit card,0.9586,credit card,explanation only,0.4509,money back
+24704182,1,fraud or scam,0.6909,fraud or scam,checking or savings account,0.9569,money transfer,explanation only,0.8802,explanation only
+24723843,1,disputed purchase,0.7635,managing an account,checking or savings account,0.9695,checking or savings account,explanation only,0.419,explanation only
+24736738,1,fraud or scam,0.7353,other,checking or savings account,0.9882,money transfer,fix without money,0.5482,explanation only
+24737393,1,managing an account,0.4392,other,money transfer,0.9927,money transfer,fix without money,0.7387,explanation only
