@@ -32,7 +32,7 @@ from benchmarks.cfpb.common import DATA, PREPARED, RESULTS, machine_env  # noqa:
 
 WIDTH, HEIGHT, SCALE = 540, 675, 2  # CSS pixels; frames are 1080x1350
 FPS = 30
-LENGTH = 65.0  # seconds
+LENGTH = 57.0  # seconds
 RUN_DIR = DATA / "video" / "run"
 EXAMPLE = ROOT / "examples" / "support_tickets.yaml"
 
@@ -64,6 +64,7 @@ STAGE = """<!doctype html>
   #cap .k { display: flex; align-items: center; gap: 9px; font-size: 11.5px; letter-spacing: .14em;
     text-transform: uppercase; color: var(--muted); }
   #cap .k b { color: var(--sage-ink); font-weight: 500; }
+  #cap .k .dotsep { color: var(--line); }
   #cap .k .mark { width: 10px; height: 10px; }
   #cap .line { font-size: 25px; font-weight: 300; line-height: 1.25; margin-top: 11px; }
   #cap .sped { display: inline-block; margin-left: 10px; font-size: 10.5px; letter-spacing: .1em;
@@ -115,7 +116,8 @@ STAGE = """<!doctype html>
 <script>
   window.caption = (n, label, line, sped) => {
     const cap = document.getElementById("cap");
-    cap.innerHTML = `<div class="k rise"><span class="mark"></span><b>${n}</b>${label}</div>` +
+    cap.innerHTML = `<div class="k rise"><span class="mark"></span>How it works` +
+      `<span class="dotsep">·</span><b>${n}</b>${label}</div>` +
       `<div class="line rise" style="animation-delay:.12s">${line}` +
       (sped ? `<span class="sped">SPED UP</span>` : "") + `</div>`;
   };
@@ -385,30 +387,34 @@ def video_command(out: Path, keep_frames: bool) -> None:
                 if left > 0:
                     page.wait_for_timeout(left * 1000)
 
-            # 1 · title card
-            at(4.6)
+            # 1 · the question, then straight to the answer: the benchmark chart builds up
+            at(3.0)
+            page.evaluate(f"document.getElementById('chart').src = '{base}/__chart#play'")
+            page.wait_for_timeout(400)
+            page.evaluate("card('chartcard')")
+            # 2 · how it works: the spreadsheet
+            at(14.6)
             caption("data")
             page.evaluate("card(null)")
-            # 2 · the spreadsheet
-            at(6.0)
+            at(15.6)
             ui.locator(".drop input[type=file]").set_input_files(str(upload_file(frames_dir)))
             frame().wait_for_load_state("networkidle")
-            at(9.6)
+            at(19.2)
             scroll_to_end_of(".pager")  # the whole first example: complaint and its 3 answers
             # 3 · the decisions
-            at(12.8)
+            at(22.2)
             for qid, ask in ASKS.items():
                 if qid != "outcome":
                     post("/questions/ask", qid=qid, ask=ask)
             caption("questions")
             goto("/questions?q=outcome")
-            at(14.6)
+            at(23.8)
             box = ui.locator("#ask-box")
             box.click()
             box.press("Control+A")
             box.press("Backspace")
             box.type(ASKS["outcome"], delay=55)
-            at(20.6)
+            at(28.8)
             # 4 · configure, and the price before starting
             caption("train")
             post("/settings/flavor", flavor=run.estimate["flavor"])  # the GPU the run used
@@ -417,9 +423,9 @@ def video_command(out: Path, keep_frames: bool) -> None:
             # estimate assumes a 90/10 split, so it would show slightly different numbers.)
             goto("/train")
             ui.locator("#review .srows").wait_for()
-            at(23.4)
+            at(31.4)
             scroll(170)
-            at(27.0)
+            at(34.4)
             # 5 · training, sped up
             caption("run", sped=True)
             ui.get_by_role("button", name="Start training").click()
@@ -432,15 +438,10 @@ def video_command(out: Path, keep_frames: bool) -> None:
             # 6 · results: the page's own poll swaps them in when the run finishes; no reload
             ui.locator(".dots").wait_for()
             caption("results")
-            at(34.6)
-            glide_to_end_of(".qres", 7.0)  # the before/after dots, then each question
-            # 7 · the benchmark
-            at(43.0)
-            page.evaluate(f"document.getElementById('chart').src = '{base}/__chart#play'")
-            page.wait_for_timeout(400)
-            page.evaluate("card('chartcard')")
-            # 8 · close
-            at(59.6)
+            at(42.6)
+            glide_to_end_of(".qres", 6.5)  # the before/after dots, then each question
+            # 7 · close
+            at(51.4)
             page.evaluate("card('close')")
             at(LENGTH)
             cast.stop()

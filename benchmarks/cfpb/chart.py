@@ -53,6 +53,7 @@ def page(metrics: dict, title: str, css: str | None = None) -> str:
         bl, bh = (100 * v for v in b["all_three_right_95"])
         al, ah = (100 * v for v in a["all_three_right_95"])
         lo, hi = min(bx, ax), max(bx, ax)
+        origin = "left center" if ax >= bx else "right center"  # the line grows with the dot
         # Labels sit above their dots; when the dots are close, push them apart sideways.
         close = hi - lo < 10
         b_shift = (
@@ -74,7 +75,7 @@ def page(metrics: dict, title: str, css: str | None = None) -> str:
           <i class="grid" style="left:100%"></i>
           <i class="ci b" style="left:{bl:.2f}%;width:{bh - bl:.2f}%"></i>
           <i class="ci a" style="left:{al:.2f}%;width:{ah - al:.2f}%;--from:{bx:.2f}%"></i>
-          <i class="ln" style="left:{lo:.2f}%;width:{hi - lo:.2f}%"></i>
+          <i class="ln" style="left:{lo:.2f}%;width:{hi - lo:.2f}%;transform-origin:{origin}"></i>
           <i class="dot b" style="left:{bx:.2f}%"></i>
           <i class="dot a" style="left:{ax:.2f}%;--from:{bx:.2f}%"></i>
           <span class="dl b" style="left:{bx:.2f}%;transform:{b_shift}">{bx:.0f}%</span>
@@ -150,15 +151,17 @@ def page(metrics: dict, title: str, css: str | None = None) -> str:
   .foot {{ position: absolute; left: 76px; right: 76px; bottom: 44px; padding-top: 18px;
     border-top: 2px solid var(--line); font-size: 21px; line-height: 1.45; color: var(--muted); }}
 
-  /* the video's build-up: rows rise in a stagger, each "after" slides out from its "before" */
+  /* the video's build-up: each row rises with its name and cost, then its "after" dot slides
+     out from its "before" dot, the line between them growing with it */
   html:not(.play) * {{ animation: none !important; }}
   .play .row {{ animation: rise .9s var(--ease) backwards;
     animation-delay: calc(var(--i) * 1.6s + .3s); }}
   .play .dot.a, .play .dl.a {{ animation: slide 1.2s var(--ease) backwards;
     animation-delay: calc(var(--i) * 1.6s + 1s); }}
-  .play .ln, .play .ci.a {{ animation: fadein .8s ease backwards;
-    animation-delay: calc(var(--i) * 1.6s + 1.6s); }}
-  .play .nm small {{ animation: fadein .8s ease backwards; animation-delay: 5.6s; }}
+  .play .ln {{ animation: grow 1.2s var(--ease) backwards;
+    animation-delay: calc(var(--i) * 1.6s + 1s); }}
+  .play .ci.a {{ animation: fadein .8s ease backwards;
+    animation-delay: calc(var(--i) * 1.6s + 2s); }}
   .play .foot {{ animation: fadein 1s ease backwards; animation-delay: 6s; }}
 </style>
 <script>if (location.hash === "#play") document.documentElement.classList.add("play");</script>
