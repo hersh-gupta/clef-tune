@@ -33,9 +33,13 @@ def base(config_path: str, out: str) -> None:
     head, head_config = load_head(
         path, load_clef_code(path), device=torch.device("cpu"), dtype=torch.float32
     )
-    adapter.render_card = lambda *args, **kwargs: f"# {config.run_name}, untrained\n"
     model = SimpleNamespace(language_model=None, head=head)  # no LoRA: the backbone as released
-    adapter.save_adapter(out, model, head_config, config, calibration={}, metrics={})
+    card = adapter.render_card  # it needs training metrics, which an untrained model has none of
+    adapter.render_card = lambda *args, **kwargs: f"# {config.run_name}, untrained\n"
+    try:
+        adapter.save_adapter(out, model, head_config, config, calibration={}, metrics={})
+    finally:
+        adapter.render_card = card
     print(f"saved the untrained model as an adapter in {out}")
 
 
