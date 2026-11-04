@@ -210,7 +210,7 @@ def export_answers(model: str, arm: str, folder: Path) -> Path:
     """The scorer's shape: one row per complaint with each answer, its confidence and the truth."""
     with (PREPARED / "test.csv").open(encoding="utf-8", newline="") as rows:
         truth = {r["complaint_id"]: r for r in csv.DictReader(rows)}
-    with (folder / f"{arm}-predictions.csv").open(encoding="utf-8", newline="") as rows:
+    with (folder / f"{arm}-predictions.csv").open(encoding="utf-8-sig", newline="") as rows:
         predicted = list(csv.DictReader(rows))
     name = MODELS[model][2] + ("-tuned" if arm == "tuned" else "-untrained")
     ANSWERS.mkdir(parents=True, exist_ok=True)

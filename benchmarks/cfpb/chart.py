@@ -38,12 +38,12 @@ def money(x: float) -> str:
 
 
 def cost_line(contenders: dict, before: str, after: str) -> str:
-    costs = [contenders[c].get("cost") or {} for c in (before, after) if c in contenders]
-    values = sorted({round(c["usd_per_1000"], 4) for c in costs if c.get("usd_per_1000")})
-    if not values:
+    """The cost of the filled dot: the tuned model, or Claude with examples."""
+    cost = (contenders.get(after) or {}).get("cost") or {}
+    if not cost.get("usd_per_1000"):
         return ""
-    text = money(values[0]) if len(values) == 1 else f"{money(values[0])}–{money(values[-1])}"
-    return f"{text} per 1,000 complaints"
+    kind = "with examples" if after.startswith("claude") else "tuned"
+    return f"{money(cost['usd_per_1000'])} per 1,000 complaints, {kind}"
 
 
 def page(metrics: dict, title: str, css: str | None = None) -> str:
