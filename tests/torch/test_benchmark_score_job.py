@@ -54,6 +54,29 @@ def test_untrained_adapter_answers_like_the_training_baseline(tmp_path, tiny_rel
         assert float(row["department_confidence"]) == pytest.approx(max(probs), abs=1e-3)
 
 
+def test_fetch_points_a_downloaded_adapter_at_the_mounted_model(
+    tmp_path, tiny_release, monkeypatch
+):
+    import shutil
+
+    import huggingface_hub
+
+    from clef_tune.adapter import read_adapter
+
+    config_path = write_tiny_project(tmp_path / "project", tiny_release)
+    score_job.base(str(config_path), str(tmp_path / "published"))
+
+    def download(repo, local_dir):  # stands in for the Hub: copy the "published" adapter
+        shutil.copytree(tmp_path / "published", local_dir)
+        return local_dir
+
+    monkeypatch.setattr(huggingface_hub, "snapshot_download", download)
+    monkeypatch.setattr(score_job, "MODEL_MOUNT", str(tiny_release))
+    score_job.fetch("me/tiny", str(tmp_path / "fetched"))
+    info = read_adapter(tmp_path / "fetched")
+    assert info.config.model.local_path == str(tiny_release)
+
+
 def test_clef_tune_eval_reads_the_untrained_adapter(tmp_path, tiny_release):
     config_path = write_tiny_project(tmp_path / "project", tiny_release)
     score_job.base(str(config_path), str(tmp_path / "base"))

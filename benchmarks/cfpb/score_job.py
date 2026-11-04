@@ -42,15 +42,14 @@ def base(config_path: str, out: str) -> None:
 def fetch(repo: str, out: str) -> None:
     from huggingface_hub import snapshot_download
 
+    from clef_tune.adapter import CONFIG_FILE
     from clef_tune.config import load_config
-
-    path = Path(snapshot_download(repo, local_dir=out))
-    config_file = path / "config.yaml"
-    config = load_config(config_file)
-    data = config.to_portable_dict()
-    data["model"]["local_path"] = MODEL_MOUNT
     from clef_tune.yamlio import dump_yaml
 
+    path = Path(snapshot_download(repo, local_dir=out))
+    config_file = path / CONFIG_FILE
+    data = load_config(config_file).to_portable_dict()
+    data["model"]["local_path"] = MODEL_MOUNT
     config_file.write_text(dump_yaml(data), encoding="utf-8")
     print(f"downloaded {repo} to {path}; base model at {MODEL_MOUNT}")
 
