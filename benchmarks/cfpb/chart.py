@@ -82,7 +82,8 @@ def page(metrics: dict, title: str, css: str | None = None) -> str:
           <i class="dot b" style="left:{bx:.2f}%"></i>
           <i class="dot a" style="left:{ax:.2f}%;--from:{bx:.2f}%"></i>
           <span class="dl b" style="left:{bx:.2f}%;transform:{b_shift}">{bx:.0f}%</span>
-          <span class="dl a" style="left:{ax:.2f}%;--from:{bx:.2f}%;transform:{a_shift}">{ax:.0f}%</span>
+          <span class="dl a"
+            style="left:{ax:.2f}%;--from:{bx:.2f}%;transform:{a_shift}">{ax:.0f}%</span>
         </div>
       </div>""")
     first, last = metrics["test_dates"]
@@ -117,7 +118,8 @@ def page(metrics: dict, title: str, css: str | None = None) -> str:
   rel="stylesheet">
 <link rel="stylesheet" href="{css or CSS.as_uri()}">
 <style>
-  html, body {{ margin: 0; width: 1080px; height: 1350px; overflow: hidden; background: var(--page); }}
+  html, body {{ margin: 0; width: 1080px; height: 1350px; overflow: hidden;
+    background: var(--page); }}
   .canvas {{ position: relative; width: 1080px; height: 1350px; padding: 76px 76px 0; }}
   .kicker {{ display: flex; align-items: center; gap: 16px; font-size: 24px; letter-spacing: .14em;
     text-transform: uppercase; color: var(--muted); }}
@@ -134,11 +136,13 @@ def page(metrics: dict, title: str, css: str | None = None) -> str:
   .nm {{ font-size: 36px; font-weight: 400; }}
   .nm small {{ display: block; font-size: 26px; color: var(--muted); margin-top: 4px; }}
   .track {{ position: relative; height: 104px; margin: 0 14px; }}
-  .track .grid {{ position: absolute; top: 46px; bottom: 0; width: 1px; background: var(--line-soft); }}
+  .track .grid {{ position: absolute; top: 46px; bottom: 0; width: 1px;
+    background: var(--line-soft); }}
   .track::after {{ content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px;
     background: var(--line); }}
   .ci {{ position: absolute; top: 56px; height: 14px; border-radius: 7px; }}
-  .ci.b {{ background: var(--oak); opacity: .18; }} .ci.a {{ background: var(--sage); opacity: .22; }}
+  .ci.b {{ background: var(--oak); opacity: .18; }}
+  .ci.a {{ background: var(--sage); opacity: .22; }}
   .ln {{ position: absolute; top: 60px; height: 6px; background: #8E9C86; border-radius: 3px; }}
   .dot {{ position: absolute; top: 46px; width: 34px; height: 34px; margin-left: -17px;
     border-radius: 50%; box-sizing: border-box; box-shadow: 0 0 0 3px var(--page); }}
@@ -153,7 +157,8 @@ def page(metrics: dict, title: str, css: str | None = None) -> str:
 
   /* the video's build-up: rows rise in a stagger, each "after" slides out from its "before" */
   html:not(.play) * {{ animation: none !important; }}
-  .play .row {{ animation: rise .9s var(--ease) backwards; animation-delay: calc(var(--i) * 1.6s + .3s); }}
+  .play .row {{ animation: rise .9s var(--ease) backwards;
+    animation-delay: calc(var(--i) * 1.6s + .3s); }}
   .play .dot.a, .play .dl.a {{ animation: slide 1.2s var(--ease) backwards;
     animation-delay: calc(var(--i) * 1.6s + 1s); }}
   .play .ln, .play .ci.a {{ animation: fadein .8s ease backwards;
