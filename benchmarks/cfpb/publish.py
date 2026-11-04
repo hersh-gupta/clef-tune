@@ -79,8 +79,9 @@ Columns: `complaint_id` (the CFPB's), `date_received`, `complaint` (the consumer
 used to train on it.
 
 **Scope:** complaints about Bank of America ("{BANK}" in the CFPB data)
-on checking or savings accounts, credit cards and money transfers, with published text and a final company response. Credit reports, debt collection,
-loans, mortgages and prepaid cards are left out. {split["dropped_too_long"]["train_months"]}
+on checking or savings accounts, credit cards and money transfers, with published text and a
+final company response. Credit reports, debt collection, loans, mortgages and prepaid cards are
+left out. {split["dropped_too_long"]["train_months"]}
 complaints longer than {split["max_chars"]:,} characters were dropped from the training months
 (none from the test month).
 
