@@ -32,6 +32,7 @@ from benchmarks.cfpb.common import DATA, PREPARED, RESULTS, machine_env  # noqa:
 
 WIDTH, HEIGHT, SCALE = 540, 675, 2  # CSS pixels; frames are 1080x1350
 FPS = 30
+LENGTH = 63.0  # seconds
 RUN_DIR = DATA / "video" / "run"
 EXAMPLE = ROOT / "examples" / "support_tickets.yaml"
 
@@ -99,7 +100,7 @@ STAGE = """<!doctype html>
     <div class="k"><span class="mark"></span>clef-tune benchmark</div>
     <h1>Can a small decision model, tuned on real data, beat a frontier LLM?</h1>
     <div class="accent"></div>
-    <p>Tested on __N__ bank complaints</p>
+    <p>Trained and tested on public bank complaints from the CFPB</p>
   </div>
   <div id="chartcard" class="card"><iframe id="chart" src="about:blank"></iframe></div>
   <div id="close" class="card">
@@ -391,29 +392,28 @@ def video_command(out: Path, keep_frames: bool) -> None:
             ui.get_by_role("button", name="Start training").click()
             frame().wait_for_load_state("networkidle")
             start = time.monotonic()
-            while (done := (time.monotonic() - start) / 6.5) < 1:
+            while (done := (time.monotonic() - start) / 6.0) < 1:
                 run.advance(done)
                 page.wait_for_timeout(100)
             run.advance(1.0)
-            at(35.0)
-            # 6 · results
+            # 6 · results: the page's own poll swaps them in when the run finishes; no reload
+            ui.locator(".dots").wait_for()
             caption("results")
-            goto("/runs/job-cfpb")
-            at(39.0)
+            at(36.5)
             scroll(140)
             # 7 · the benchmark
-            at(42.6)
+            at(40.6)
             page.evaluate(f"document.getElementById('chart').src = '{base}/__chart#play'")
             page.wait_for_timeout(400)
             page.evaluate("card('chartcard')")
             # 8 · close
-            at(59.4)
+            at(57.5)
             page.evaluate("card('close')")
-            at(65.0)
+            at(LENGTH)
             cast.stop()
             browser.close()
         out.parent.mkdir(parents=True, exist_ok=True)
-        encode(cast.times(t0), 65.0, out)
+        encode(cast.times(t0), LENGTH, out)
         print(f"{len(cast.frames)} frames -> {out}")
     finally:
         server.should_exit = True
@@ -459,8 +459,9 @@ def gif_command(out: Path) -> None:
                 "-i",
                 str(mp4),
                 "-vf",
-                "fps=15,scale=720:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=96[p];"
-                "[b][p]paletteuse=dither=bayer:bayer_scale=4",
+                "fps=20,scale=810:-1:flags=lanczos,split[a][b];"
+                "[a]palettegen=max_colors=128:stats_mode=full[p];"
+                "[b][p]paletteuse=dither=none",
                 "-loop",
                 "0",
                 str(out),
