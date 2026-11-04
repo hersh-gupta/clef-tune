@@ -36,7 +36,7 @@ RUN_DIR = DATA / "video" / "run"
 EXAMPLE = ROOT / "examples" / "support_tickets.yaml"
 
 CAPTIONS = {
-    "data": ("1", "Your data", "Load 3,000 bank complaints from the CFPB's public records"),
+    "data": ("1", "Your data", "Load 3,300 bank complaints from the CFPB's public records"),
     "questions": (
         "2",
         "Your decisions",
@@ -144,8 +144,8 @@ def fetch_run_command() -> None:
         work.source, [(f"{work.path}/out/metrics.jsonl", RUN_DIR / "metrics.jsonl")]
     )
     repo = "hvgupta1/clef-flash-cfpb-complaints"
-    for name in ("metrics.json", "config.yaml"):
-        shutil.copy(hf_hub_download(repo, name, token=token), RUN_DIR / name)
+    shutil.copy(hf_hub_download(repo, "metrics.json", token=token), RUN_DIR / "metrics.json")
+    shutil.copy(hf_hub_download(repo, "train_config.yaml", token=token), RUN_DIR / "config.yaml")
     estimate = {  # as shown by `clef-tune jobs launch` for the run (see benchmarks/README.md)
         "flavor": "rtx-pro-6000",
         "price_per_hour": 2.75,
@@ -260,11 +260,14 @@ def serve_ui(run):
 
 
 def upload_file(folder: Path) -> Path:
-    """The training rows as the person would upload them: without the date column."""
-    with (PREPARED / "train.csv").open(encoding="utf-8", newline="") as rows:
-        reader = csv.DictReader(rows)
-        columns = [c for c in reader.fieldnames if c != "date_received"]
-        data = [{c: r[c] for c in columns} for r in reader]
+    """What the real run learned from, as one spreadsheet: the 3,000 training and 300 validation
+    complaints, without the date column. The app sets 300 of them aside to test, as the run did."""
+    data, columns = [], None
+    for split in ("train", "validation"):
+        with (PREPARED / f"{split}.csv").open(encoding="utf-8", newline="") as rows:
+            reader = csv.DictReader(rows)
+            columns = [c for c in reader.fieldnames if c != "date_received"]
+            data += [{c: r[c] for c in columns} for r in reader]
     path = folder / "bank_complaints.csv"
     with path.open("w", encoding="utf-8", newline="") as out:
         writer = csv.DictWriter(out, fieldnames=columns, lineterminator="\n")
@@ -375,6 +378,7 @@ def video_command(out: Path, keep_frames: bool) -> None:
             # 4 · configure, and the price before starting
             caption("train")
             post("/settings/flavor", flavor=run.estimate["flavor"])  # the GPU the run used
+            post("/settings/holdout", percent="9.0909")  # about 300 of 3,300, as the run did
             # The review lists the settings and the run's real estimate. (The Settings page's own
             # estimate assumes a 90/10 split, so it would show slightly different numbers.)
             goto("/train")
@@ -436,10 +440,10 @@ def gif_command(out: Path) -> None:
             tab = browser.new_page(viewport={"width": 1080, "height": 1350})
             tab.goto(source.as_uri())
             tab.evaluate("document.fonts.ready")
+            tab.wait_for_timeout(300)
             cast = Screencast(tab, folder)
-            tab.evaluate("location.hash = '#play'; location.reload()")
-            tab.wait_for_load_state("load")
             cast.start()
+            tab.evaluate("document.documentElement.classList.add('play')")  # starts the build-up
             t0 = time.monotonic()
             tab.wait_for_timeout(9500)
             cast.stop()
