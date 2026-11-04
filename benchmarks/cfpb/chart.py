@@ -21,10 +21,10 @@ if __package__ in (None, ""):
 from benchmarks.cfpb.common import REPO, RESULTS
 
 CSS = REPO / "clef_tune" / "ui" / "static" / "clef-tune.css"
-ROWS = [  # (name, before contender, after contender, before label, after label)
+ROWS = [  # (name, before contender, after contender): the frontier LLM first, as the yardstick
+    ("Claude Opus 5.5", "claude-zero", "claude-few"),
     ("Clef-Flash", "clef-flash-untrained", "clef-flash-tuned"),
     ("Clef 27B", "clef-27b-untrained", "clef-27b-tuned"),
-    ("Claude Opus 5.5", "claude-zero", "claude-few"),
 ]
 TITLE = "Fine-tuned small models against a frontier LLM, on real bank complaints"
 
@@ -89,7 +89,7 @@ def page(metrics: dict, title: str, css: str | None = None) -> str:
     first, last = metrics["test_dates"]
     n = metrics["test_rows"]
     training = []
-    for name, _, after in ROWS[:2]:
+    for name, _, after in ROWS[1:]:
         cost = (c.get(after) or {}).get("cost") or {}
         if cost.get("training_usd") is not None:
             training.append(f"{name} ${cost['training_usd']:.2f}")

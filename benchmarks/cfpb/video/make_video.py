@@ -32,7 +32,7 @@ from benchmarks.cfpb.common import DATA, PREPARED, RESULTS, machine_env  # noqa:
 
 WIDTH, HEIGHT, SCALE = 540, 675, 2  # CSS pixels; frames are 1080x1350
 FPS = 30
-LENGTH = 63.0  # seconds
+LENGTH = 65.0  # seconds
 RUN_DIR = DATA / "video" / "run"
 EXAMPLE = ROOT / "examples" / "support_tickets.yaml"
 
@@ -336,6 +336,39 @@ def video_command(out: Path, keep_frames: bool) -> None:
                     top,
                 )
 
+            def scroll_to_end_of(selector: str) -> None:
+                """Scroll until the element's bottom clears the sticky Continue bar."""
+                page.evaluate(
+                    """selector => {
+                      const win = document.getElementById('ui').contentWindow;
+                      const box = win.document.querySelector(selector).getBoundingClientRect();
+                      const top = win.scrollY + box.bottom - win.innerHeight + 96;
+                      win.scrollTo({top, behavior: 'smooth'});
+                    }""",
+                    selector,
+                )
+
+            def glide_to_end_of(selector: str, seconds: float) -> None:
+                """A slow, even scroll (smooth scrolling is too quick to read along)."""
+                page.evaluate(
+                    """([selector, ms]) => {
+                      const win = document.getElementById('ui').contentWindow;
+                      const all = win.document.querySelectorAll(selector);
+                      const box = all[all.length - 1].getBoundingClientRect();
+                      const from = win.scrollY;
+                      const to = from + box.bottom - win.innerHeight + 96;
+                      const start = win.performance.now();  // the frame's own clock
+                      const ease = (t) => t < .5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
+                      const step = (now) => {
+                        const t = Math.min(1, (now - start) / ms);
+                        win.scrollTo(0, from + (to - from) * ease(t));
+                        if (t < 1) win.requestAnimationFrame(step);
+                      };
+                      win.requestAnimationFrame(step);
+                    }""",
+                    [selector, seconds * 1000],
+                )
+
             def post(path: str, **fields) -> None:
                 page.request.post(f"{base}{path}", form=fields, headers={"Origin": base})
 
@@ -360,8 +393,8 @@ def video_command(out: Path, keep_frames: bool) -> None:
             at(6.0)
             ui.locator(".drop input[type=file]").set_input_files(str(upload_file(frames_dir)))
             frame().wait_for_load_state("networkidle")
-            at(10.0)
-            scroll(150)
+            at(9.6)
+            scroll_to_end_of(".pager")  # the whole first example: complaint and its 3 answers
             # 3 · the decisions
             at(12.8)
             for qid, ask in ASKS.items():
@@ -399,15 +432,15 @@ def video_command(out: Path, keep_frames: bool) -> None:
             # 6 · results: the page's own poll swaps them in when the run finishes; no reload
             ui.locator(".dots").wait_for()
             caption("results")
-            at(36.5)
-            scroll(140)
+            at(34.6)
+            glide_to_end_of(".qres", 7.0)  # the before/after dots, then each question
             # 7 · the benchmark
-            at(40.6)
+            at(43.0)
             page.evaluate(f"document.getElementById('chart').src = '{base}/__chart#play'")
             page.wait_for_timeout(400)
             page.evaluate("card('chartcard')")
             # 8 · close
-            at(57.5)
+            at(59.6)
             page.evaluate("card('close')")
             at(LENGTH)
             cast.stop()

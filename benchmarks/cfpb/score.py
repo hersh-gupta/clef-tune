@@ -28,13 +28,13 @@ from clef_tune.calibration import ECE_BINS
 
 QUESTIONS = ("issue", "product", "outcome")
 BOOTSTRAP = 2000
-CONTENDERS = {  # answers file stem -> how the write-up names it
+CONTENDERS = {  # answers file stem -> how the write-up names it, in the order shown
+    "claude-zero": "Claude Opus 5.5, instructions only",
+    "claude-few": "Claude Opus 5.5, with examples",
     "clef-flash-untrained": "Clef-Flash, out of the box",
     "clef-flash-tuned": "Clef-Flash, tuned",
     "clef-27b-untrained": "Clef 27B, out of the box",
     "clef-27b-tuned": "Clef 27B, tuned",
-    "claude-zero": "Claude Opus 5.5, instructions only",
-    "claude-few": "Claude Opus 5.5, with examples",
 }
 PAIRS = [  # (a, b): the paired difference a - b in "all three right"
     ("clef-flash-tuned", "claude-few"),
