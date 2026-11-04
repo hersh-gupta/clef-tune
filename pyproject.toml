@@ -40,6 +40,9 @@ train = [
   "safetensors>=0.5",
 ]
 dev = ["pytest>=8.0", "ruff>=0.6", "playwright>=1.45"]
+benchmark = [
+    "anthropic>=1.0",
+]
 
 [project.scripts]
 clef-tune = "clef_tune.cli:app"
