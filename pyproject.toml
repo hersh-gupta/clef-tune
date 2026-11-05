@@ -54,6 +54,9 @@ Source = "https://github.com/hersh-gupta/clef-tune"
 [tool.hatch.version]
 source = "vcs"
 fallback-version = "0.0.0"
+# hatch-vcs doesn't pass the name on by itself, and without it the version a job sets for its
+# git-less install (SETUPTOOLS_SCM_PRETEND_VERSION_FOR_CLEF_TUNE) is ignored.
+raw-options = { dist_name = "clef-tune" }
 
 [tool.hatch.build.hooks.vcs]
 version-file = "clef_tune/_version.py"

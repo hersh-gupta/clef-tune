@@ -50,8 +50,11 @@ class Source:
 
     @property
     def version(self) -> str:
-        """The version to build an archive under; it has no git metadata to derive one from."""
-        return "0.0.0+g" + self.ref[:12] if _FULL_SHA.match(self.ref) else "0.0.0"
+        """The version to build an archive under; it has no git metadata to derive one from. The
+        ref goes in the version's local part, so whatever shows the version names the code."""
+        if _FULL_SHA.match(self.ref):
+            return "0.0.0+g" + self.ref[:12]
+        return "0.0.0+" + re.sub(r"[^A-Za-z0-9]+", ".", self.ref).strip(".")
 
 
 def source_repo(env: Mapping[str, str] = os.environ) -> str:

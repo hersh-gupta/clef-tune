@@ -89,7 +89,20 @@ def test_requirement_and_version():
     assert pinned.owner_repo == "hersh-gupta/clef-tune"
     assert pinned.requirement() == f"clef-tune[train] @ {DEFAULT_SOURCE}/archive/{SHA}.tar.gz"
     assert pinned.version == "0.0.0+g0123456789ab"
-    assert Source(DEFAULT_SOURCE, "main").version == "0.0.0"
+
+
+@pytest.mark.parametrize(
+    "ref, version",
+    [
+        ("main", "0.0.0+main"),
+        ("v1.2", "0.0.0+v1.2"),
+        ("feature/fast-kernels", "0.0.0+feature.fast.kernels"),
+        ("abc1234", "0.0.0+abc1234"),
+    ],
+)
+def test_a_ref_github_could_not_pin_still_names_itself(ref, version):
+    # pin_commit keeps the ref as given when GitHub cannot be reached, and the job still installs.
+    assert Source(DEFAULT_SOURCE, ref).version == version
 
 
 def test_pin_commit_resolves_a_ref_to_its_full_sha():
