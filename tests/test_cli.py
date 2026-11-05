@@ -1,3 +1,5 @@
+import os
+import subprocess
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -17,6 +19,21 @@ runner = CliRunner()
 def offline(monkeypatch):
     monkeypatch.setattr(cli, "counter_for_config", lambda config: CharCounter())
     monkeypatch.setattr(cli, "fetch_hf_prices", lambda: {})
+
+
+def test_a_cp1252_output_cannot_crash_a_real_command(tmp_path):
+    # Windows gives a redirected or piped command cp1252, whatever the console can show.
+    config = tmp_path / "config.yaml"
+    config.write_text('run_name: "✖"\ndata: {train: d.csv}\n', encoding="utf-8")
+    result = subprocess.run(
+        [sys.executable, "-m", "clef_tune", "validate", str(config)],
+        env={**os.environ, "PYTHONIOENCODING": "cp1252"},
+        capture_output=True,
+        timeout=120,
+    )
+    assert b"UnicodeEncodeError" not in result.stderr, result.stderr
+    assert result.returncode == 2, result.stderr  # the invalid config's own exit code
+    assert b"Invalid config" in result.stdout and b"\\u2716" in result.stdout
 
 
 def test_version():

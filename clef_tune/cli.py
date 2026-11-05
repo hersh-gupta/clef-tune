@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import io
 import json
+import sys
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path, PureWindowsPath
@@ -77,6 +79,16 @@ def main(
     ] = False,
 ) -> None:
     """Fine-tune Cloudflare's Clef decision models."""
+    _keep_output_printable()
+
+
+def _keep_output_printable() -> None:
+    """Show a character the output cannot encode as its code (\\u2716), rather than crash. Windows
+    gives a redirected command cp1252, which lacks much of what a name, a Hugging Face error or
+    a job's log can hold. Every command's console and echo output goes through these streams."""
+    for stream in (sys.stdout, sys.stderr):
+        if isinstance(stream, io.TextIOWrapper):
+            stream.reconfigure(errors="backslashreplace")
 
 
 def _load(path: Path) -> Config:

@@ -221,3 +221,71 @@ def test_resume_shows_the_cost_and_asks(monkeypatch):
     assert refused.exit_code == 1 and "at most $3.00" in refused.output and calls == []
     assert runner.invoke(cli.app, ["jobs", "resume", "job123", "--yes"]).exit_code == 0
     assert calls == ["job123"]
+
+
+def run_on_cp1252(*args):
+    """Run a command with the output Windows gives a redirected command."""
+    return CliRunner(charset="cp1252").invoke(cli.app, list(args))
+
+
+def assert_survived(result, shown):
+    assert not isinstance(result.exception, UnicodeEncodeError), result.exception
+    assert shown in result.output
+    assert result.exit_code in (0, 1), result.output  # the command's own answer, not a crash
+
+
+def test_a_message_from_hugging_face_cannot_crash_jobs_launch(monkeypatch):
+    def rejected(config, request):
+        raise LaunchError("Bad request:\n✖ Invalid string\n  → at labels.timeout")
+
+    monkeypatch.setattr(cli, "plan_launch", rejected)
+    result = run_on_cp1252("jobs", "launch", str(EXAMPLE), "--yes")
+    assert_survived(result, "at labels.timeout")
+    assert result.exit_code == 1
+    assert "\\u2716" in result.output and "\\u2192" in result.output  # shown, not lost
+
+
+def test_a_run_name_cp1252_lacks_cannot_crash_jobs_launch(monkeypatch):
+    plan = fake_plan(config=SimpleNamespace(run_name="チケット"))
+    monkeypatch.setattr(cli, "plan_launch", lambda config, request: plan)
+    monkeypatch.setattr(
+        cli, "submit_launch", lambda plan: SimpleNamespace(id="job123", url="https://hf.co/j")
+    )
+    result = run_on_cp1252("jobs", "launch", str(EXAMPLE), "--yes")
+    assert_survived(result, "Job started")
+    assert result.exit_code == 0
+
+
+def test_jobs_list_survives_cp1252(monkeypatch):
+    info = SimpleNamespace(
+        id="job123",
+        labels={"run": "✖"},
+        flavor="l4x1",
+        status=SimpleNamespace(stage="RUNNING"),
+        created_at=datetime(2026, 11, 4, tzinfo=UTC),
+    )
+    monkeypatch.setattr(cli, "list_jobs", lambda: [info])
+    assert_survived(run_on_cp1252("jobs", "list"), "job123")
+
+
+def test_jobs_status_survives_cp1252(monkeypatch):
+    status = JobStatus(
+        id="job123",
+        url="https://hf.co/j",
+        run="r",
+        flavor="l4x1",
+        stage="ERROR",
+        message="✖ failed",
+        hours=None,
+        cost=None,
+        progress=[],
+    )
+    monkeypatch.setattr(cli, "job_status", lambda job_id: status)
+    assert_survived(run_on_cp1252("jobs", "status", "job123"), "job123")
+
+
+def test_jobs_logs_survives_cp1252(monkeypatch):
+    # A job's Python tracebacks draw their frames with characters cp1252 lacks.
+    lines = ["│ ❱ raise RuntimeError", "last line"]
+    monkeypatch.setattr(cli, "job_logs", lambda job_id, follow: lines)
+    assert_survived(run_on_cp1252("jobs", "logs", "job123"), "last line")
