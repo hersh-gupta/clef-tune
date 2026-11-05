@@ -20,12 +20,15 @@ from huggingface_hub import HfApi, JobInfo, Volume, constants, get_token
 from clef_tune.bundle import write_bundle
 from clef_tune.config import Config, load_config
 from clef_tune.estimate import (
+    GPUS,
     HF_FLAVORS,
     EstimateRow,
+    cannot_train,
     estimate_hf_flavors,
     estimate_prediction,
     fetch_hf_prices,
     model_spec,
+    no_hardware_message,
     recommend,
     suggest_timeout,
     workload_from,
@@ -225,14 +228,23 @@ def plan_launch(
     flavor = request.flavor
     if flavor is not None and flavor not in HF_FLAVORS:
         raise LaunchError(f"unknown flavor {flavor!r}; choose one of {', '.join(HF_FLAVORS)}")
+    if flavor is not None and cannot_train(
+        GPUS[HF_FLAVORS[flavor].gpu], config.train.mode, request.kernels
+    ):
+        raise LaunchError(
+            f"{flavor} can't do this training: the fast attention kernels stop at its first step "
+            "on H100 and H200 GPUs. Choose other hardware, or on the command line pass "
+            "--no-kernels for a slower run."
+        )
     live = prices if prices is not None else fetch_hf_prices()
     row = None
     spec = model_spec(config.model.id)
     if spec is not None and report.tokens is not None:
-        rows = estimate_hf_flavors(spec, workload_from(config, report.tokens), live)
+        workload = workload_from(config, report.tokens, kernels=request.kernels)
+        rows = estimate_hf_flavors(spec, workload, live)
         row = next(r for r in rows if r.flavor == flavor) if flavor else recommend(rows)
         if row is None:
-            raise LaunchError("no HF Jobs flavor fits this config; see `clef-tune estimate`")
+            raise LaunchError(no_hardware_message(spec, workload))
         if not row.fits:
             raise LaunchError(f"{flavor} cannot run this config: {row.note}")
         flavor = row.flavor

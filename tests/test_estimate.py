@@ -1,5 +1,6 @@
 import dataclasses
 import math
+import re
 from types import SimpleNamespace
 
 import pytest
@@ -55,8 +56,8 @@ def test_memory_fit_clef_bf16_vs_4bit():
     a100 = est.estimate_hardware(CLEF, workload(), est.GPUS["A100-80GB"], 1, 2.5, "a100-large")
     assert not a100.fits and a100.fits_with_4bit
     assert a100.note == "fits only with 4-bit (QLoRA)"
-    h200 = est.estimate_hardware(CLEF, workload(), est.GPUS["H200"], 1, 5.0, "h200")
-    assert h200.fits and h200.note is None
+    rtx = est.estimate_hardware(CLEF, workload(), est.GPUS["RTX-PRO-6000"], 1, 2.75, "rtx")
+    assert rtx.fits and rtx.note is None
     assert est.memory_needed_gb(CLEF, workload(), "4bit") < 48
 
 
@@ -150,3 +151,54 @@ def test_suggest_timeout_adds_setup_minutes():
     )
     assert est.suggest_timeout(row) == "30m"  # 0.3 h high x 1.25 = 22.5 min -> 30m
     assert est.suggest_timeout(row, extra_minutes=15) == "1h"  # (18 + 15) x 1.25 = 41.25 -> 60
+
+
+HOPPER_FLAVORS = ["h200", "h200x2", "h200x4", "h200x8"]
+
+
+def test_only_h100_and_h200_count_as_hopper():
+    assert {gpu.name for gpu in est.GPUS.values() if gpu.hopper} == {"H100", "H200"}
+
+
+@pytest.mark.parametrize("gpu", ["H100", "H200"])
+def test_hopper_gpus_cannot_do_lora_training_with_the_fast_kernels(gpu):
+    row = est.estimate_hardware(CLEF, workload(), est.GPUS[gpu], 1, 5.0, gpu)
+    assert not row.fits and not row.fits_with_4bit  # 4-bit doesn't help, so it mustn't be offered
+    assert row.note == est.HOPPER_NOTE
+
+
+def test_hopper_flavors_are_never_recommended_for_lora_training_however_cheap():
+    prices = dict.fromkeys(HOPPER_FLAVORS, 0.01)
+    rows = est.estimate_hf_flavors(CLEF, workload(), prices)
+    hopper = [row for row in rows if row.flavor in HOPPER_FLAVORS]
+    assert len(hopper) == len(HOPPER_FLAVORS) and not any(row.fits for row in hopper)
+    assert est.recommend(rows).gpu not in ("H100", "H200")
+
+
+@pytest.mark.parametrize("changes", [{"mode": "head_only"}, {"kernels": False}])
+def test_hopper_still_fits_what_never_runs_the_failing_kernel(changes):
+    # Head-only training never backpropagates through attention; no kernels, no such kernel.
+    row = est.estimate_hardware(CLEF, workload(**changes), est.GPUS["H200"], 1, 5.0, "h200")
+    assert row.fits and row.note is None
+
+
+def test_a_run_too_big_for_every_usable_gpu_is_told_how_to_fix_it():
+    big = workload(max_tokens_per_batch=32768)
+    assert est.recommend(est.estimate_hf_flavors(CLEF, big, {})) is None
+    message = est.no_hardware_message(CLEF, big)
+    assert "about 106 GB" in message and "96 GB" in message
+    assert "train.max_tokens_per_batch" in message
+    tokens = int(re.search(r"to ([0-9,]+) or less", message).group(1).replace(",", ""))
+    assert tokens % 1000 == 0
+    lowered = workload(max_tokens_per_batch=tokens)
+    assert est.recommend(est.estimate_hf_flavors(CLEF, lowered, {})) is not None
+
+
+def test_when_a_smaller_batch_cannot_help_the_message_says_what_can():
+    message = est.no_hardware_message(CLEF, workload(lora_r=1024))
+    assert "train.max_tokens_per_batch" not in message and "train.lora.r" in message
+
+
+def test_without_the_kernels_the_largest_gpu_counts_again():
+    message = est.no_hardware_message(CLEF, workload(max_tokens_per_batch=300_000, kernels=False))
+    assert "141 GB" in message

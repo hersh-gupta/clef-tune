@@ -239,6 +239,21 @@ def test_settings_show_the_estimate_and_update_in_place(client):
     assert "Use a number: more than 0." in typo.text
 
 
+def test_the_settings_page_explains_machines_that_cannot_be_used(client):
+    sample(client)
+    page = client.get("/settings").text
+    h200 = page.split('value="h200"')[1].split("</option>")[0]
+    assert "disabled" in h200 and "do this training" in h200 and "too small" not in h200
+    client.post("/settings/model", data={"model": "Cloudflare/clef"}, headers=SCRIPT)
+    big = client.post(
+        "/settings/field",
+        data={"path": "train.max_tokens_per_batch", "value": "32768"},
+        headers=SCRIPT,
+    ).text
+    assert 'class="error-box" role="alert">This run is too big' in big
+    assert '<details class="adv" open>' in big
+
+
 def test_advanced_settings_explain_themselves(client):
     sample(client)
     page = client.get("/settings").text

@@ -221,12 +221,10 @@ uv run python benchmarks/cfpb/video/make_video.py gif
 Each step saves its outputs and can be rerun on its own. The training jobs install clef-tune from
 GitHub at commit `af1a9a4`.
 
-**Two things to know about the hardware:**
-
-- Training failed on an H200, because the fast attention kernels' training step refuses to run on
-  Hopper GPUs with this Triton version. The runs used an RTX Pro 6000 (Blackwell) instead.
-- A timeout like `2.5h` puts a dot in a job label, which Hugging Face rejects, so the commands use
-  minutes.
+**A note on the hardware:** the runs used an RTX Pro 6000. A first attempt on an H200 failed at its
+first training step, because the fast attention kernels refuse to train on H100 and H200 GPUs with
+the Triton version torch 2.11 installs. clef-tune no longer offers those GPUs for this kind of
+training.
 
 Committed outputs in [`cfpb/results/`](cfpb/results/):
 

@@ -33,7 +33,7 @@
 {{ m.estimate(est) }}
 <p class="fine">Runs on Hugging Face's cloud on {{ est.hardware }}, billed to your Hugging Face account.{% if est.cap_cost %} The run stops itself after <b>{{ est.cap_time }}</b>, so it can never cost more than <b>{{ est.cap_cost }}</b>.{% endif %}</p>
 {% else %}
-<p class="fine">{{ page.estimate_note }}</p>
+<p class="{{ 'error-box' if page.blocked else 'fine' }}"{% if page.blocked %} role="alert"{% endif %}>{{ page.estimate_note }}</p>
 {% endif %}
 {% if page.holdout %}
 {%- set h = page.holdout %}
@@ -49,17 +49,17 @@
   </span>
 </form>
 {% endif %}
-<details class="adv"{% if field_error or page.flavor %} open{% endif %}>
+<details class="adv"{% if field_error or page.flavor or page.blocked %} open{% endif %}>
   <summary>Advanced settings <span>For people who know fine-tuning</span></summary>
   {% if page.flavors %}
   <form class="setting" data-post data-autosubmit="change" action="/settings/flavor">
     <span class="sl"><label for="flavor-in">Hardware</label>
-      <span class="info-tip"><button type="button" aria-label="About Hardware" aria-describedby="tip-flavor">?</button><span class="tip" role="tooltip" id="tip-flavor">The GPU the run uses on Hugging Face's cloud. Bigger GPUs finish sooner but cost more per hour; ones too small for this model and data can't be chosen.</span></span>
+      <span class="info-tip"><button type="button" aria-label="About Hardware" aria-describedby="tip-flavor">?</button><span class="tip" role="tooltip" id="tip-flavor">The GPU the run uses on Hugging Face's cloud. Bigger GPUs finish sooner but cost more per hour; ones too small for this model and data, or that can't do this kind of training, can't be chosen.</span></span>
       <code>flavor</code></span>
     <select id="flavor-in" name="flavor">
       <option value="">Cheapest that fits</option>
       {%- for f in page.flavors %}
-      <option value="{{ f.flavor }}"{% if f.flavor == page.flavor %} selected{% endif %}{% if not f.fits %} disabled{% endif %}>{{ f.hardware }} · {{ f.time }} · {{ f.cost }}{% if not f.fits %} (too small){% endif %}</option>
+      <option value="{{ f.flavor }}"{% if f.flavor == page.flavor %} selected{% endif %}{% if not f.fits %} disabled{% endif %}>{{ f.hardware }} · {{ f.time }} · {{ f.cost }}{% if not f.fits %} ({{ f.why_not }}){% endif %}</option>
       {%- endfor %}
     </select>
     <span class="sd">Picked for the lowest cost that fits. Each choice shows its time and cost for this data.</span>

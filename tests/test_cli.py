@@ -9,7 +9,8 @@ from typer.testing import CliRunner
 
 from clef_tune import cli
 from clef_tune.clef_code import ClefCodeError
-from tests.helpers import CharCounter, make_config, ticket_rows, write_csv
+from clef_tune.yamlio import dump_yaml
+from tests.helpers import SCHEMA, CharCounter, make_config, ticket_rows, write_csv
 
 EXAMPLE = Path(__file__).resolve().parents[1] / "examples" / "support_tickets.yaml"
 runner = CliRunner()
@@ -85,6 +86,36 @@ def test_estimate_custom_gpu():
     result = runner.invoke(cli.app, ["estimate", str(EXAMPLE), "--gpu", "H100", "--price", "2.5"])
     assert result.exit_code == 0, result.output
     assert "1x H100" in result.output and "$" in result.output
+
+
+def test_estimate_says_hopper_cannot_do_this_training():
+    result = runner.invoke(cli.app, ["estimate", str(EXAMPLE)])
+    assert result.exit_code == 0, result.output
+    row = next(line for line in result.output.splitlines() if " h200 " in line)
+    assert "no (" in row and "H100 and H200" in row
+    custom = runner.invoke(cli.app, ["estimate", str(EXAMPLE), "--gpu", "H100"])
+    assert "H100 and H200" in custom.output and "Recommended" not in custom.output
+
+
+def test_estimate_says_how_to_fix_a_run_no_usable_gpu_can_hold(tmp_path):
+    write_csv(tmp_path / "train.csv", ticket_rows(40))
+    config = tmp_path / "config.yaml"
+    config.write_text(
+        dump_yaml(
+            {
+                "run_name": "big",
+                "model": {"id": "Cloudflare/clef"},
+                "data": {"train": "train.csv", "id_column": "id"},
+                "train": {"max_tokens_per_batch": 32768},
+                "schema": SCHEMA,
+            }
+        ),
+        encoding="utf-8",
+    )
+    result = runner.invoke(cli.app, ["estimate", str(config)])
+    assert result.exit_code == 0, result.output
+    assert "Recommended" not in result.output
+    assert "train.max_tokens_per_batch" in result.output and "or less" in result.output
 
 
 def test_estimate_rejects_unknown_gpu():

@@ -27,6 +27,7 @@ from clef_tune.estimate import (
     estimate_hf_flavors,
     fetch_hf_prices,
     model_spec,
+    no_hardware_message,
     recommend,
     suggest_timeout,
     workload_from,
@@ -225,6 +226,8 @@ def estimate(
         console.print(
             f"Recommended: [bold]{best.flavor}[/] (HF Jobs timeout {suggest_timeout(best)})"
         )
+    elif gpu is None:
+        console.print(f"[yellow]{escape(no_hardware_message(spec, workload))}[/]")
     console.print(
         "[dim]Estimates are rough ranges (-30%/+50%). Training reports a measured ETA "
         "after 20 steps.[/]"

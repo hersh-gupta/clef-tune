@@ -99,6 +99,11 @@ you already have, because an isolated build makes model loading crash:
 pip install --no-build-isolation causal-conv1d==1.7.0 flash-linear-attention==0.6.0
 ```
 
+These kernels can't do LoRA training on H100 or H200 GPUs with the Triton version torch 2.11
+installs: training stops at its first step. So `clef-tune estimate` and `jobs launch` don't offer
+those GPUs for it. Quick (head-only) training and predictions work on them. To do LoRA training on
+one anyway, leave the kernels out (`jobs launch --no-kernels`), which is slower.
+
 There is also a Dockerfile:
 `docker build -t clef-tune .`, then `docker run --gpus all -v "$PWD:/work" -w /work clef-tune train cfg.yaml`.
 

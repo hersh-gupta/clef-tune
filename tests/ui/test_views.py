@@ -131,6 +131,42 @@ def test_a_chosen_machine_changes_the_estimate(session, services):
     assert page.estimate.hardware == "one A100 80GB GPU" and page.repo == "support-tickets"
 
 
+def test_hopper_machines_cannot_be_chosen_for_training_they_cannot_do(session, services):
+    def machine(name):
+        rows = views.settings_page(session, services, "me").flavors
+        return next(row for row in rows if row.flavor == name)
+
+    h200 = machine("h200")
+    assert not h200.fits and h200.why_not == "can't do this training"
+    t4 = machine("t4-small")
+    assert not t4.fits and t4.why_not == "too small"
+    handlers.set_preset(session, "quick")
+    handlers.refresh(session, services)
+    assert machine("h200").fits
+
+
+def test_a_run_no_machine_can_hold_says_how_to_fix_it(session, services):
+    handlers.set_model(session, "Cloudflare/clef")
+    assert handlers.set_field(session, "train.max_tokens_per_batch", "32768") is None
+    handlers.refresh(session, services)
+    page = views.settings_page(session, services, "me")
+    assert page.estimate is None and page.blocked
+    assert "96 GB" in page.estimate_note and "train.max_tokens_per_batch" in page.estimate_note
+    assert "Advanced settings" in page.estimate_note
+
+
+def test_a_chosen_machine_that_can_no_longer_do_the_training_asks_for_another(session, services):
+    handlers.set_preset(session, "quick")
+    handlers.refresh(session, services)
+    session.flavor = "h200"
+    page = views.settings_page(session, services, "me")
+    assert page.estimate is not None and not page.blocked
+    handlers.set_preset(session, "balanced")
+    handlers.refresh(session, services)
+    page = views.settings_page(session, services, "me")
+    assert page.estimate is None and page.blocked and "Choose another" in page.estimate_note
+
+
 def test_predicting_checks_the_file_and_summarizes_the_result(tmp_path):
     config = load_config(EXAMPLE_CONFIG)
     rows = [{"subject": "s", "body": "b", "customer_tier": "pro"} for _ in range(3)]

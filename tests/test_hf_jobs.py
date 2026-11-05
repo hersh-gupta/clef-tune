@@ -204,18 +204,19 @@ def test_without_kernels_there_is_no_cache_lookup_or_build_time():
 
 
 def test_a_multi_gpu_flavor_runs_one_process_per_gpu():
-    assert plan(request=JobRequest(flavor="h200x2")).gpus == 2
+    assert plan(request=JobRequest(flavor="rtx-pro-6000x2")).gpus == 2
 
 
 def test_an_explicit_timeout_and_its_maximum_cost():
-    p = plan(request=JobRequest(flavor="h200", timeout="2h"))
-    assert p.timeout == "2h" and p.max_cost == pytest.approx(2 * HF_FLAVORS["h200"].price_per_hour)
+    p = plan(request=JobRequest(flavor="rtx-pro-6000", timeout="2h"))
+    price = HF_FLAVORS["rtx-pro-6000"].price_per_hour
+    assert p.timeout == "2h" and p.max_cost == pytest.approx(2 * price)
 
 
 @pytest.mark.parametrize("timeout", ["90", "1 h", "h", "2w"])
 def test_a_timeout_needs_a_number_and_a_unit(timeout):
     with pytest.raises(LaunchError, match="timeout"):
-        plan(request=JobRequest(flavor="h200", timeout=timeout))
+        plan(request=JobRequest(flavor="rtx-pro-6000", timeout=timeout))
 
 
 def test_an_unknown_flavor_lists_the_known_ones():
@@ -290,6 +291,71 @@ def test_without_a_tokenizer_the_flavor_and_timeout_must_be_given(monkeypatch):
         plan_launch(EXAMPLE, **kwargs)
     p = plan_launch(EXAMPLE, JobRequest(flavor="l4x1", timeout="1h"), **kwargs)
     assert p.estimate is None and p.estimated_hours is None and p.gpus == 1
+
+
+HOPPER_FLAVORS = ["h200", "h200x2", "h200x4", "h200x8"]
+
+
+def nothing_uploaded_or_started(api):
+    return not [call for call in api.calls if call[0] in ("sync_job_volume", "run_job")]
+
+
+@pytest.mark.parametrize("flavor", HOPPER_FLAVORS)
+def test_a_hopper_flavor_is_refused_for_lora_training_before_anything_starts(flavor):
+    api = FakeApi()
+    with pytest.raises(LaunchError, match="can't do this training.*--no-kernels"):
+        plan(api, JobRequest(flavor=flavor))
+    assert nothing_uploaded_or_started(api)
+
+
+def test_a_hopper_flavor_is_refused_when_there_is_no_estimate_to_check_it_against(monkeypatch):
+    def offline(config, token=None):
+        raise OSError("offline")
+
+    monkeypatch.setattr(hf_jobs, "counter_for_config", offline)
+    api = FakeApi()
+    with pytest.raises(LaunchError, match="can't do this training"):
+        plan_launch(
+            EXAMPLE,
+            JobRequest(flavor="h200", timeout="1h"),
+            api=api,
+            token=TOKEN,
+            prices={},
+            source=SOURCE,
+        )
+    assert nothing_uploaded_or_started(api)
+
+
+def test_a_hopper_flavor_is_allowed_for_head_only_training(tmp_path):
+    config = project(tmp_path, train={"mode": "head_only"})
+    assert plan(request=JobRequest(flavor="h200"), config=config).flavor == "h200"
+
+
+def test_a_hopper_flavor_is_allowed_without_the_kernels():
+    assert plan(request=JobRequest(flavor="h200", kernels=False)).flavor == "h200"
+
+
+def test_the_plan_never_picks_a_hopper_flavor_for_lora_training_however_cheap():
+    p = plan_launch(
+        EXAMPLE,
+        JobRequest(),
+        api=FakeApi(),
+        token=TOKEN,
+        counter=CharCounter(),
+        prices=dict.fromkeys(HOPPER_FLAVORS, 0.01),
+        source=SOURCE,
+    )
+    assert p.flavor not in HOPPER_FLAVORS
+
+
+def test_a_run_no_usable_gpu_can_hold_says_how_to_fix_it(tmp_path):
+    config = project(
+        tmp_path, model={"id": "Cloudflare/clef"}, train={"max_tokens_per_batch": 32768}
+    )
+    api = FakeApi()
+    with pytest.raises(LaunchError, match="96 GB.*train.max_tokens_per_batch"):
+        plan(api, config=config)
+    assert nothing_uploaded_or_started(api)
 
 
 NOW = datetime(2026, 10, 28, 12, 0, 0, tzinfo=UTC)

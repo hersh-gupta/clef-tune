@@ -6,7 +6,12 @@ from huggingface_hub import Volume
 
 from clef_tune import hub
 from clef_tune.config import PINNED_REVISIONS, load_config
-from clef_tune.estimate import estimate_prediction, model_spec, prediction_workload
+from clef_tune.estimate import (
+    estimate_hf_flavors,
+    estimate_prediction,
+    model_spec,
+    prediction_workload,
+)
 from clef_tune.launch import hf_jobs
 from clef_tune.launch.hf_jobs import LaunchError
 from clef_tune.launch.job_script import predict_script
@@ -23,6 +28,12 @@ def test_a_prediction_estimate_is_one_forward_pass_plus_setup():
     row = estimate_prediction(model_spec(CONFIG.model.id), CONFIG, 1_240 * 360, {})
     assert row is not None and row.fits
     assert 10 / 60 <= row.hours < 15 / 60  # mostly the 10 minutes of start, install and load
+
+
+def test_a_prediction_can_still_run_on_hopper():
+    # Predicting is one forward pass, so it never reaches the kernel that refuses Hopper.
+    rows = estimate_hf_flavors(model_spec(CONFIG.model.id), prediction_workload(CONFIG, 1000), {})
+    assert next(row for row in rows if row.flavor == "h200").fits
 
 
 def test_the_prediction_script_predicts_into_the_work_folder():

@@ -11,9 +11,11 @@ from typing import Any, Literal
 from clef_tune.card import CALIBRATION_CAVEAT, WEIGHTING_NOTE
 from clef_tune.config import Config
 from clef_tune.estimate import (
+    HOPPER_NOTE,
     EstimateRow,
     estimate_hf_flavors,
     model_spec,
+    no_hardware_message,
     optimizer_steps,
     recommend,
     suggest_timeout,
@@ -710,6 +712,10 @@ class FlavorRow:
     note: str
     recommended: bool
 
+    @property
+    def why_not(self) -> str:
+        return "can't do this training" if self.note == HOPPER_NOTE else "too small"
+
 
 @dataclass
 class SettingsPage:
@@ -727,6 +733,7 @@ class SettingsPage:
     noun: str
     error: str | None
     holdout: HoldoutView | None = None
+    blocked: bool = False  # the run cannot start as set, and estimate_note says what to change
 
 
 def _row_for(session: Session, rows: list[EstimateRow]) -> EstimateRow | None:
@@ -777,7 +784,7 @@ def settings_page(session: Session, services: Services, namespace: str | None) -
                     f"{w.money_range(row.cost_low, row.cost_high)}"
                 )
         presets.append(Choice(key, name, text, extra, key == "balanced"))
-    estimate, note, flavors = None, "", []
+    estimate, note, flavors, blocked = None, "", [], False
     rows = session.estimates
     if rows:
         chosen = _row_for(session, rows)
@@ -786,6 +793,13 @@ def settings_page(session: Session, services: Services, namespace: str | None) -
         total = test + (len(report.train) if report else 0)
         if chosen is not None:
             estimate = _estimate(chosen, test, total)
+        elif best is not None:
+            blocked = True
+            note = "The hardware chosen under Advanced settings can't do this. Choose another."
+        elif config is not None and spec is not None and tokens is not None:
+            blocked = True
+            message = no_hardware_message(spec, workload_from(config, tokens))
+            note = f"{message} You can change it under Advanced settings."
         flavors = [
             FlavorRow(
                 r.flavor,
@@ -858,6 +872,7 @@ def settings_page(session: Session, services: Services, namespace: str | None) -
         noun=noun,
         error=error,
         holdout=holdout,
+        blocked=blocked,
     )
 
 

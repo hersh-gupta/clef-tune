@@ -8,7 +8,7 @@ tokens. The trainer replaces these with measured throughput after 20 steps.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
@@ -24,6 +24,7 @@ MEMORY_HEADROOM = 1.15
 CUDA_CONTEXT_GB = 1.5
 WEIGHT_BYTES_4BIT = 0.55
 TIMEOUT_MARGIN = 1.25
+HOPPER_NOTE = "H100 and H200 can't do this training"
 
 
 @dataclass(frozen=True)
@@ -32,6 +33,7 @@ class GPUSpec:
     bf16_tflops: float  # approximate dense BF16 tensor throughput from datasheets
     memory_gb: float
     supports_bf16: bool = True
+    hopper: bool = False
 
 
 GPUS: dict[str, GPUSpec] = {
@@ -42,8 +44,8 @@ GPUS: dict[str, GPUSpec] = {
         GPUSpec("L4", 121, 24),
         GPUSpec("L40S", 362, 48),
         GPUSpec("A100-80GB", 312, 80),
-        GPUSpec("H100", 989, 80),
-        GPUSpec("H200", 989, 141),
+        GPUSpec("H100", 989, 80, hopper=True),
+        GPUSpec("H200", 989, 141, hopper=True),
         GPUSpec("B200", 2250, 180),
         GPUSpec("RTX-PRO-6000", 500, 96),
         GPUSpec("RTX-4090", 165, 24),
@@ -129,6 +131,7 @@ class Workload:
     max_tokens_per_batch: int
     lora_r: int
     gradient_checkpointing: bool = True
+    kernels: bool = True  # the fast attention kernels; see cannot_train
 
 
 def optimizer_steps(config: Config, tokens: TokenStats) -> int:
@@ -138,7 +141,7 @@ def optimizer_steps(config: Config, tokens: TokenStats) -> int:
     return max(1, math.ceil(tokens.train_tokens / tokens_per_step)) * train.epochs
 
 
-def workload_from(config: Config, tokens: TokenStats) -> Workload:
+def workload_from(config: Config, tokens: TokenStats, *, kernels: bool = True) -> Workload:
     train = config.train
     total_steps = optimizer_steps(config, tokens)
     eval_passes = 2 + total_steps // config.eval.eval_every  # baseline + periodic + final
@@ -152,6 +155,7 @@ def workload_from(config: Config, tokens: TokenStats) -> Workload:
         max_tokens_per_batch=train.max_tokens_per_batch,
         lora_r=train.lora.r,
         gradient_checkpointing=train.gradient_checkpointing,
+        kernels=kernels,
     )
 
 
@@ -208,6 +212,14 @@ def memory_needed_gb(model: ModelSpec, workload: Workload, quantization: str) ->
     return (weights + trainable + activations) / 1e9 * MEMORY_HEADROOM + CUDA_CONTEXT_GB
 
 
+def cannot_train(gpu: GPUSpec, mode: str, kernels: bool) -> bool:
+    """flash-linear-attention 0.6.0 refuses to backpropagate through gated attention on Hopper
+    GPUs with Triton 3.4 to 3.7.0, which gives wrong gradients there, and torch 2.11 pins Triton
+    3.6.0. Head-only training and predictions never backpropagate through attention, and without
+    the kernels the slow path runs instead."""
+    return gpu.hopper and kernels and mode == "lora"
+
+
 @dataclass(frozen=True)
 class EstimateRow:
     flavor: str
@@ -255,11 +267,14 @@ def estimate_hardware(
 ) -> EstimateRow:
     need = memory_needed_gb(model, workload, workload.quantization)
     need_4bit = memory_needed_gb(model, workload, "4bit")
-    fits = gpu.supports_bf16 and need <= gpu.memory_gb
-    fits_4bit = gpu.supports_bf16 and need_4bit <= gpu.memory_gb
+    usable = gpu.supports_bf16 and not cannot_train(gpu, workload.mode, workload.kernels)
+    fits = usable and need <= gpu.memory_gb
+    fits_4bit = usable and need_4bit <= gpu.memory_gb
     note = None
     if not gpu.supports_bf16:
         note = "no bf16 support"
+    elif not usable:
+        note = HOPPER_NOTE
     elif not fits and fits_4bit and workload.quantization == "none":
         note = "fits only with 4-bit (QLoRA)"
     elif not fits:
@@ -306,6 +321,41 @@ def estimate_hf_flavors(
 def recommend(rows: list[EstimateRow]) -> EstimateRow | None:
     fitting = [row for row in rows if row.fits and row.cost_point is not None]
     return min(fitting, key=lambda row: row.cost_point) if fitting else None
+
+
+def _largest_batch(model: ModelSpec, workload: Workload, memory_gb: float) -> int:
+    """The largest max_tokens_per_batch that fits, rounded down to a thousand. Memory grows in a
+    straight line with the batch."""
+    empty, one = (
+        memory_needed_gb(model, replace(workload, max_tokens_per_batch=t), workload.quantization)
+        for t in (0, 1)
+    )
+    return int((memory_gb - empty) / (one - empty)) // 1000 * 1000
+
+
+def no_hardware_message(model: ModelSpec, workload: Workload) -> str:
+    """Why no HF Jobs flavor can take this workload, and what to change."""
+    largest = max(
+        GPUS[flavor.gpu].memory_gb
+        for flavor in HF_FLAVORS.values()
+        if GPUS[flavor.gpu].supports_bf16
+        and not cannot_train(GPUS[flavor.gpu], workload.mode, workload.kernels)
+    )
+    need = memory_needed_gb(model, workload, workload.quantization)
+    problem = (
+        "This run is too big for any GPU on Hugging Face that can train it: it needs about "
+        f"{need:.0f} GB of memory, and the largest has {largest:.0f} GB."
+    )
+    tokens = _largest_batch(model, workload, largest)
+    if tokens > 0:
+        return (
+            f"{problem} Lower the tokens per batch (train.max_tokens_per_batch) "
+            f"to {tokens:,} or less."
+        )
+    return (
+        f"{problem} Lower the LoRA rank (train.lora.r), "
+        "or load the model in 4-bit (train.quantization)."
+    )
 
 
 def estimate_prediction(
