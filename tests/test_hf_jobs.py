@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
@@ -11,7 +12,7 @@ from huggingface_hub import Volume
 from huggingface_hub.errors import HfHubHTTPError
 
 from clef_tune.config import PINNED_REVISIONS, load_config
-from clef_tune.estimate import HF_FLAVORS, suggest_timeout
+from clef_tune.estimate import HF_FLAVORS, TIMEOUT_MARGIN, suggest_timeout
 from clef_tune.launch import hf_jobs
 from clef_tune.launch.hf_jobs import (
     JobRequest,
@@ -25,6 +26,7 @@ from clef_tune.launch.hf_jobs import (
     plan_launch,
     resume_job,
     submit_launch,
+    timeout_hours,
 )
 from clef_tune.launch.job_script import job_command, job_env
 from clef_tune.launch.source import Source, SourceError
@@ -39,6 +41,7 @@ SOURCE = Source(
 WRITE = {"name": "me", "auth": {"type": "access_token", "accessToken": {"role": "write"}}}
 READ = {"name": "me", "auth": {"type": "access_token", "accessToken": {"role": "read"}}}
 TOKEN = "hf_test"
+HF_LABEL_VALUE = re.compile(r"^[a-zA-Z0-9_-]*$")  # anything else gets a 400 from Hugging Face
 
 
 class FakeApi:
@@ -102,6 +105,9 @@ class FakeApi:
         self.calls.append(("run_job", kwargs))
         if self.run_error:
             raise self.run_error
+        for key, value in (kwargs.get("labels") or {}).items():
+            if not HF_LABEL_VALUE.match(value):
+                raise ValueError(f"400: labels.{key} must match {HF_LABEL_VALUE.pattern}: {value}")
         return SimpleNamespace(id="job123", url="https://huggingface.co/jobs/me/job123")
 
     def batch_bucket_files(self, bucket_id, *, add=None, delete=None, token=None, **kwargs):
@@ -484,6 +490,69 @@ def test_resume_rebuilds_the_failed_job_with_a_fresh_token():
         "volumes": original.volumes,  # same /work folder: training auto-resumes from its checkpoint
         "token": TOKEN,
     }
+
+
+ACCEPTED_TIMEOUTS = ["2.5h", "1.5h", "0.5h", "1.1h", "1.234h", "1.5m", "2.5d", "0.25s", "90m", "6h"]
+
+
+@pytest.mark.parametrize("timeout", ACCEPTED_TIMEOUTS)
+def test_any_accepted_timeout_starts_the_job_with_a_label_that_reads_back(timeout):
+    api = FakeApi()
+    submit_launch(plan(api, JobRequest(timeout=timeout)), api=api, token=TOKEN, now=NOW)
+    run = run_call(api)
+    assert run["timeout"] == timeout  # the real limit is exactly what was asked for
+    label = run["labels"]["timeout"]
+    assert HF_LABEL_VALUE.match(label)
+    # never shorter than asked, so resuming from the label cannot stop a run early
+    assert timeout_hours(timeout) <= timeout_hours(label) < timeout_hours(timeout) + 1 / 3600
+
+
+@pytest.mark.parametrize(
+    "timeout, label",
+    [("2.5h", "150m"), ("1.5m", "90s"), ("2.5d", "60h"), ("2.0h", "2h"), ("90m", "90m")],
+)
+def test_a_timeout_label_stays_readable(timeout, label):
+    assert hf_jobs.timeout_label(timeout) == label
+
+
+@pytest.mark.parametrize("minutes", range(30, 601, 30))
+def test_every_suggested_timeout_makes_a_valid_label(minutes):
+    row = SimpleNamespace(hours_high=(minutes - 1) / 60 / TIMEOUT_MARGIN)
+    assert HF_LABEL_VALUE.match(hf_jobs.timeout_label(suggest_timeout(row)))
+
+
+def test_a_dotted_run_name_makes_a_valid_label(tmp_path):
+    api = FakeApi()
+    config = project(tmp_path, run_name="tickets.v1.2")
+    submit_launch(plan(api, config=config), api=api, token=TOKEN, now=NOW)
+    assert run_call(api)["labels"]["run"] == "tickets-v1-2"
+
+
+@pytest.mark.parametrize("request_timeout", [None, "2.5h"])
+def test_resuming_a_job_with_labels_from_before_the_fix_starts(request_timeout):
+    # Such a job's labels are read back as they are, and the new job's must be valid.
+    old = {"tool": "clef-tune", "run": "tickets.v1", "timeout": "1.5h", "name": "set-by-hf"}
+    api = FakeApi(job_info=job(stage="ERROR", labels=old))
+    resume_job("job123", timeout=request_timeout, api=api, token=TOKEN)
+    run = run_call(api)
+    assert run["timeout"] == (request_timeout or "1.5h")
+    assert run["labels"] == {
+        "tool": "clef-tune",
+        "run": "tickets-v1",
+        "timeout": "150m" if request_timeout else "90m",
+    }
+
+
+@pytest.mark.parametrize(
+    "label, hours", [("1.5h", 1.5), ("90m", 1.5), ("150m", 2.5), ("90s", 0.025)]
+)
+def test_the_timeout_label_reads_back_from_before_and_after_the_fix(label, hours):
+    labels = {"tool": "clef-tune", "run": "r", "timeout": label}
+    info = job("ERROR", labels=labels, environment={PRICE_ENV: "2"})
+    api = FakeApi(job_info=info, jobs=[info])
+    assert job_status("job123", api=api, token=TOKEN, now=NOW).timeout == label
+    quote = hf_jobs.quote_resume("job123", api=api, token=TOKEN)
+    assert quote.timeout == label and quote.max_cost == pytest.approx(2 * hours)
 
 
 def test_resume_can_extend_the_timeout():

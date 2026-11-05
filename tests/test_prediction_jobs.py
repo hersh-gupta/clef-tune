@@ -89,6 +89,26 @@ def test_submitting_a_prediction_stages_the_input_and_labels_the_job(tmp_path):
     assert run["secrets"] == {"HF_TOKEN": TOKEN}
 
 
+def test_a_prediction_with_a_dotted_model_name_makes_a_valid_label(tmp_path):
+    api = FakeApi()
+    csv_path = write_csv(tmp_path / "new.csv", [{"subject": "a", "body": "b"}])
+    prediction = hf_jobs.plan_prediction(
+        "me/tickets.v1.2",
+        csv_path,
+        config=CONFIG,
+        tokens=1000,
+        rows=1,
+        token=TOKEN,
+        api=api,
+        prices={},
+        source=SOURCE,
+    )
+    hf_jobs.submit_prediction(prediction, api=api, token=TOKEN)
+    run = next(call[1] for call in api.calls if call[0] == "run_job")
+    assert run["labels"]["run"] == "tickets-v1-2-predict"
+    assert run["labels"]["kind"] == "predict"
+
+
 def job(stage="COMPLETED", kind="predict", command=None):
     return SimpleNamespace(
         id="job9",

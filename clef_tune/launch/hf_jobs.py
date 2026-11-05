@@ -5,12 +5,14 @@ cancel and resume jobs. Torch-free."""
 from __future__ import annotations
 
 import json
+import math
 import re
 import shlex
 import tempfile
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from decimal import Decimal
 from pathlib import Path
 
 from huggingface_hub import HfApi, JobInfo, Volume, constants, get_token
@@ -46,7 +48,6 @@ from clef_tune.validation import ValidationReport, validate
 from clef_tune.yamlio import load_yaml_file
 
 TOOL_LABEL = {"tool": "clef-tune"}
-LABEL_KEYS = ("tool", "run", "timeout", "kind")
 PREDICT_KIND = "predict"  # the "kind" label of a prediction job; training jobs have none
 RUNS_FOLDER = "clef-tune-runs"  # one folder per launch in the jobs-artifacts bucket
 KERNEL_CACHE_ROOT = "clef-tune-kernels"
@@ -67,6 +68,8 @@ OUTPUT_NAMES_ENV = "CLEF_TUNE_OUTPUT_NAMES"
 
 _TIMEOUT = re.compile(r"^(\d+(?:\.\d+)?)([smhd])$")
 _HOURS_PER_UNIT = {"s": 1 / 3600, "m": 1 / 60, "h": 1, "d": 24}
+_SECONDS_PER_UNIT = {"d": 86400, "h": 3600, "m": 60, "s": 1}  # largest first
+_NOT_IN_A_LABEL = re.compile(r"[^A-Za-z0-9_-]+")  # HF rejects a label value with anything else
 
 
 class LaunchError(RuntimeError):
@@ -121,13 +124,41 @@ def kernel_cache_folder() -> str:
     return f"{KERNEL_CACHE_ROOT}/{slug}/causal-conv1d-{KERNEL_PINS['causal-conv1d']}"
 
 
-def timeout_hours(timeout: str) -> float:
+def _parse_timeout(timeout: str) -> tuple[str, str]:
     match = _TIMEOUT.match(timeout)
     if match is None:
         raise LaunchError(
             f"invalid timeout {timeout!r}: use a number and a unit (s, m, h or d), like 90m or 2h"
         )
-    return float(match.group(1)) * _HOURS_PER_UNIT[match.group(2)]
+    return match.group(1), match.group(2)
+
+
+def timeout_hours(timeout: str) -> float:
+    number, unit = _parse_timeout(timeout)
+    return float(number) * _HOURS_PER_UNIT[unit]
+
+
+def timeout_label(timeout: str) -> str:
+    """A timeout as a job label, which cannot have a dot: 2.5h is written 150m, in the largest
+    whole unit and rounded up to a second. timeout_hours reads it back."""
+    number, unit = _parse_timeout(timeout)
+    if "." not in number:
+        return timeout
+    seconds = math.ceil(Decimal(number) * _SECONDS_PER_UNIT[unit])
+    return next(
+        f"{seconds // size}{name}"
+        for name, size in _SECONDS_PER_UNIT.items()
+        if seconds % size == 0
+    )
+
+
+def job_labels(timeout: str, *, run: str | None = None, kind: str | None = None) -> dict[str, str]:
+    """A job's labels, in the characters HF allows: a run or repo name can have a dot."""
+    labels = {**TOOL_LABEL, "timeout": timeout_label(timeout)}
+    for key, value in (("run", run), ("kind", kind)):
+        if value:
+            labels[key] = _NOT_IN_A_LABEL.sub("-", value)
+    return labels
 
 
 def _kernel_wheel_cached(api: HfApi, namespace: str, token: str) -> bool:
@@ -358,7 +389,7 @@ def submit_launch(
             secrets={"HF_TOKEN": token},
             flavor=plan.flavor,
             timeout=plan.timeout,
-            labels={**TOOL_LABEL, "run": config.run_name, "timeout": plan.timeout},
+            labels=job_labels(plan.timeout, run=config.run_name),
             volumes=volumes,
             token=token,
         )
@@ -628,7 +659,7 @@ def resume_job(
         secrets={"HF_TOKEN": token},
         flavor=info.flavor,
         timeout=timeout,
-        labels={**{k: labels[k] for k in LABEL_KEYS if k in labels}, "timeout": timeout},
+        labels=job_labels(timeout, run=labels.get("run"), kind=labels.get("kind")),
         volumes=info.volumes,
         token=token,
     )
@@ -830,12 +861,7 @@ def submit_prediction(
             secrets={"HF_TOKEN": token},
             flavor=plan.flavor,
             timeout=plan.timeout,
-            labels={
-                **TOOL_LABEL,
-                "run": plan.run_name,
-                "timeout": plan.timeout,
-                "kind": PREDICT_KIND,
-            },
+            labels=job_labels(plan.timeout, run=plan.run_name, kind=PREDICT_KIND),
             volumes=volumes,
             token=token,
         )

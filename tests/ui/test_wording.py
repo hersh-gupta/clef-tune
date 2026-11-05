@@ -55,6 +55,7 @@ def test_money_and_time():
     assert w.time_left(70 * 60) == "About 1 hour 10 minutes left"
     assert w.timeout_text("30m") == "30 minutes" and w.timeout_text("1h") == "1 hour"
     assert w.timeout_text("1.5h") == "1 hour 30 minutes"
+    assert w.timeout_text("90m") == "1 hour 30 minutes"  # how a job's label stores it
 
 
 def test_answer_names_use_descriptions_only_for_numbered_scales():
