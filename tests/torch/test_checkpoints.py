@@ -78,6 +78,43 @@ def test_resave_of_same_step_and_tmp_dirs_ignored(tiny_release, tmp_path):
     assert latest_checkpoint(tmp_path).name == "step-1"
 
 
+def listed_but_gone(monkeypatch, folder_name):
+    """Make deleting `folder_name`'s weights fail the way a bucket mount did: the folder lists
+    the file, but the bucket does not hold it."""
+    import os
+    import shutil
+
+    real_rmtree = shutil.rmtree
+
+    def rmtree(path, ignore_errors=False, **kwargs):
+        if os.path.basename(str(path)) == folder_name and not ignore_errors:
+            raise FileNotFoundError(2, "No such file or directory", "trainable.safetensors")
+        real_rmtree(path, ignore_errors=ignore_errors, **kwargs)
+
+    monkeypatch.setattr(shutil, "rmtree", rmtree)
+
+
+def test_an_old_checkpoint_that_cannot_be_deleted_does_not_stop_training(
+    tiny_release, tmp_path, monkeypatch
+):
+    model, optimizer, scheduler = make(tiny_release)
+    for step in (1, 2):
+        save_checkpoint(tmp_path, model, optimizer, scheduler, state(step))
+    listed_but_gone(monkeypatch, "step-1")
+    saved = save_checkpoint(tmp_path, model, optimizer, scheduler, state(3))
+    assert latest_checkpoint(tmp_path) == saved and saved.name == "step-3"
+
+
+def test_best_is_replaced_when_the_old_one_lists_a_file_that_is_gone(
+    tiny_release, tmp_path, monkeypatch
+):
+    model, _, _ = make(tiny_release)
+    save_best(tmp_path, model, {"q": [[1.0]]}, {"q": [[1.0]]}, state(2))
+    listed_but_gone(monkeypatch, "best")
+    save_best(tmp_path, model, {"q": [[2.0]]}, {"q": [[1.0]]}, state(4))
+    assert load_best(tmp_path, model)[0] == {"q": [[2.0]]}
+
+
 def test_check_resume_refuses_a_different_config(tiny_release, tmp_path):
     assert check_resume(tmp_path, "abc") is None
     model, optimizer, scheduler = make(tiny_release)

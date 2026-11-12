@@ -223,6 +223,21 @@ def test_resume_shows_the_cost_and_asks(monkeypatch):
     assert calls == ["job123"]
 
 
+def test_resume_passes_the_commit_to_install(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(
+        cli, "quote_resume", lambda job_id, **k: ResumeQuote(job_id, "l4x1", "3h", 0.8)
+    )
+    monkeypatch.setattr(
+        cli,
+        "resume_job",
+        lambda job_id, **k: seen.update(k) or SimpleNamespace(id="job9", url="u"),
+    )
+    args = ["jobs", "resume", "job123", "--source-ref", "abc123", "--yes"]
+    assert runner.invoke(cli.app, args).exit_code == 0
+    assert seen == {"timeout": "3h", "source_ref": "abc123"}
+
+
 def run_on_cp1252(*args):
     """Run a command with the output Windows gives a redirected command."""
     return CliRunner(charset="cp1252").invoke(cli.app, list(args))

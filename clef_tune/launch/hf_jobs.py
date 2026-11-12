@@ -646,16 +646,38 @@ def quote_resume(
     return ResumeQuote(job_id, info.flavor, timeout, _price(info))
 
 
+_INSTALLED = re.compile(r"(clef-tune\[[\w,-]+\] @ )https://github\.com/[\w./-]+?\.tar\.gz")
+_VERSION_ENV = "SETUPTOOLS_SCM_PRETEND_VERSION_FOR_CLEF_TUNE"
+
+
+def _with_source(
+    job_id: str, command: list[str], env: dict[str, str], source: Source
+) -> tuple[list[str], dict[str, str]]:
+    """The job's command and environment, installing another clef-tune commit."""
+    changed = [_INSTALLED.sub(lambda m: m.group(1) + source.archive_url, part) for part in command]
+    if changed == command and source.archive_url not in " ".join(command):
+        raise LaunchError(f"cannot tell which clef-tune {job_id} installs, so cannot change it")
+    return changed, {**env, _VERSION_ENV: source.version}
+
+
 def resume_job(
     job_id: str,
     *,
     timeout: str | None = None,
+    source_ref: str | None = None,
+    source: Source | None = None,
     api: HfApi | None = None,
     token: str | None = None,
 ) -> JobInfo:
     """Start a failed or canceled job again with the same command, hardware and /work folder,
     so training resumes from its newest checkpoint. JobInfo has only secret names, so the
-    token is always fresh."""
+    token is always fresh. With `source_ref` the new job installs that clef-tune commit instead
+    of the first job's: a job that a clef-tune fault stopped would only fail again."""
+    if source is None and source_ref is not None:
+        try:
+            source = pin_commit(resolve_source(source_ref))
+        except SourceError as exc:
+            raise LaunchError(str(exc)) from exc
     api = api or HfApi()
     token = token or get_token()
     if token is None:
@@ -663,11 +685,14 @@ def resume_job(
     info = api.inspect_job(job_id=job_id, token=token)
     labels = info.labels or {}
     timeout = _resumable(job_id, info, timeout, api=api, token=token)
+    command, env = list(info.command or []), dict(info.environment or {})
+    if source is not None:
+        command, env = _with_source(job_id, command, env, source)
     return start_job(
         api,
         image=info.docker_image,
-        command=info.command,
-        env=info.environment,
+        command=command,
+        env=env,
         secrets={"HF_TOKEN": token},
         flavor=info.flavor,
         timeout=timeout,

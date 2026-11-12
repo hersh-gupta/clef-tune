@@ -685,6 +685,13 @@ def resume(
     timeout: Annotated[
         str | None, typer.Option(help="A new timeout, like 3h; default: the original.")
     ] = None,
+    source_ref: Annotated[
+        str | None,
+        typer.Option(
+            "--source-ref",
+            help="Install this clef-tune commit, tag or branch (default: the one the job used).",
+        ),
+    ] = None,
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Resume without asking.")] = False,
 ) -> None:
     """Restart a failed or canceled job from its newest checkpoint."""
@@ -698,7 +705,7 @@ def resume(
     if not yes:
         typer.confirm("Resume this job?", abort=True)
     with _job_errors():
-        job = resume_job(job_id, timeout=quote.timeout)
+        job = resume_job(job_id, timeout=quote.timeout, source_ref=source_ref)
     _print_started(job.id, job.url)
 
 

@@ -128,7 +128,9 @@ clef-tune jobs clean <job-id>     # remove files a finished job left behind
 ```
 
 The data goes to your private `<you>/jobs-artifacts` bucket, and the model to a private repo
-(`<you>/clef-tune-<run_name>` by default). The timeout caps the cost.
+(`<you>/clef-tune-<run_name>` by default). The timeout caps the cost. A resumed job installs the
+same clef-tune commit as the job it continues; `jobs resume <job-id> --source-ref <commit>`
+installs another, for a job that a since-fixed clef-tune fault stopped.
 
 ## Python
 

@@ -558,6 +558,29 @@ def test_resume_rebuilds_the_failed_job_with_a_fresh_token():
     }
 
 
+def test_resume_can_install_another_clef_tune_commit():
+    old = Source("https://github.com/hersh-gupta/clef-tune", "a" * 40)
+    new = Source("https://github.com/hersh-gupta/clef-tune", "b" * 40)
+    command = job_command(old, gpus=1, adapter_repo="me/x", keep_data=False, kernels=True)
+    env = job_env(old, price_per_hour=0.8, estimated_hours=1.0)
+    api = FakeApi(job_info=job(stage="ERROR", command=command, environment=env))
+    resume_job("job123", source=new, api=api, token=TOKEN)
+    run = run_call(api)
+    assert run["command"] == job_command(
+        new, gpus=1, adapter_repo="me/x", keep_data=False, kernels=True
+    )
+    assert run["env"] == job_env(new, price_per_hour=0.8, estimated_hours=1.0)
+    assert run["volumes"] == api.job_info.volumes  # the same /work folder, so its checkpoints
+
+
+def test_resume_refuses_a_new_commit_for_a_command_it_cannot_read():
+    new = Source("https://github.com/hersh-gupta/clef-tune", "b" * 40)
+    api = FakeApi(job_info=job(stage="ERROR"))  # its command installs nothing
+    with pytest.raises(LaunchError, match="cannot tell which clef-tune"):
+        resume_job("job123", source=new, api=api, token=TOKEN)
+    assert all(call[0] != "run_job" for call in api.calls)
+
+
 ACCEPTED_TIMEOUTS = ["2.5h", "1.5h", "0.5h", "1.1h", "1.234h", "1.5m", "2.5d", "0.25s", "90m", "6h"]
 
 

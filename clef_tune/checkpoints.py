@@ -85,9 +85,20 @@ def _read_json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _remove_dir(path: Path) -> None:
+    """Delete a folder that is about to be written again. On a bucket mount a folder can list a
+    file the bucket does not hold (after a rename, a file was seen left under the folder's old
+    name), and deleting that file raises FileNotFoundError. It is gone already, so the rest is
+    deleted; if something still stays, the write that follows fails and says so."""
+    try:
+        shutil.rmtree(path)
+    except FileNotFoundError:
+        shutil.rmtree(path, ignore_errors=True)
+
+
 def _replace_dir(tmp: Path, final: Path) -> None:
     if final.exists():
-        shutil.rmtree(final)
+        _remove_dir(final)
     tmp.rename(final)
 
 
@@ -96,7 +107,7 @@ def save_checkpoint(output_dir, model, optimizer, scheduler, state: TrainState) 
     final = root / f"step-{state.step}"
     tmp = root / f"step-{state.step}.tmp"
     if tmp.exists():
-        shutil.rmtree(tmp)
+        _remove_dir(tmp)
     tmp.mkdir(parents=True)
     save_file(trainable_state_dict(model), str(tmp / "trainable.safetensors"))
     torch.save(optimizer.state_dict(), tmp / "optimizer.pt")
@@ -105,7 +116,9 @@ def save_checkpoint(output_dir, model, optimizer, scheduler, state: TrainState) 
     _write_json(tmp / "state.json", asdict(state))
     _replace_dir(tmp, final)
     for _, old in _step_dirs(output_dir)[:-KEEP_CHECKPOINTS]:
-        shutil.rmtree(old)
+        # The new checkpoint is saved; failing to tidy an old one must not stop training. What
+        # stays is deleted when training succeeds, or by `clef-tune jobs clean`.
+        shutil.rmtree(old, ignore_errors=True)
     return final
 
 
@@ -149,7 +162,7 @@ def save_best(output_dir, model, eval_logits: Any, eval_targets: Any, state: Tra
     final = root / "best"
     tmp = root / "best.tmp"
     if tmp.exists():
-        shutil.rmtree(tmp)
+        _remove_dir(tmp)
     tmp.mkdir(parents=True)
     save_file(trainable_state_dict(model), str(tmp / "trainable.safetensors"))
     _write_json(tmp / "eval.json", {"logits": eval_logits, "targets": eval_targets})
