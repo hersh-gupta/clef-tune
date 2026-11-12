@@ -13,6 +13,7 @@ from transformers import AutoProcessor
 from clef_tune.adapter import AdapterInfo, read_adapter
 from clef_tune.calibration import softmax
 from clef_tune.clef_code import adapter_base_dir, load_clef_code
+from clef_tune.config import MAX_PROMPT_TOKENS
 from clef_tune.data import Record, load_file, read_rows
 from clef_tune.encoding import TrainItem, prepare_items
 from clef_tune.evaluation import predict_logits
@@ -38,6 +39,7 @@ class Predictor:
         clef_code: Any,
         info: AdapterInfo,
         device: torch.device,
+        max_length: int | None = None,
     ) -> None:
         self.model = model
         self.processor = processor
@@ -46,7 +48,12 @@ class Predictor:
         self.device = device
         self.schema: Schema | None = info.schema
         self.temperatures: dict[str, float] = dict(info.calibration)
+        # Training's limit, unless the caller asks to read longer (or shorter) prompts.
         self.max_length: int = info.config.train.max_length
+        if max_length is not None:
+            if not 256 <= max_length <= MAX_PROMPT_TOKENS:
+                raise ValueError(f"max_length must be 256 to {MAX_PROMPT_TOKENS:,}")
+            self.max_length = max_length
 
     @classmethod
     def load(
@@ -58,6 +65,7 @@ class Predictor:
         revision: str | None = None,
         token: str | None = None,
         base_model_path: str | Path | None = None,
+        max_length: int | None = None,
     ) -> Predictor:
         """Load an adapter directory or Hub repo. The base model comes from `base_model_path`,
         else the adapter's recorded model.local_path, else the pinned Hub snapshot."""
@@ -84,7 +92,7 @@ class Predictor:
         head, _ = load_head(info.path, clef_code, device=target, dtype=dtype)
         model = clef_code.ClefModel(backbone, head).eval()
         processor = AutoProcessor.from_pretrained(base)
-        return cls(model, processor, clef_code, info, target)
+        return cls(model, processor, clef_code, info, target, max_length=max_length)
 
     def _records(self, rows: Rows) -> list[Record]:
         records = []

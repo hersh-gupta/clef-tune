@@ -212,7 +212,7 @@ def test_every_advanced_setting_has_a_tip_and_a_range(session, services):
             assert row.range, row.path
     rows = {row.path: row for row in page.advanced}
     assert rows["train.lora.r"].range == "Usually 8–64"
-    assert "Allowed: 256 to 16,384." in rows["train.max_length"].tip
+    assert "Allowed: 256 to 262,144." in rows["train.max_length"].tip
     assert "Default: 4,096." in rows["train.max_length"].tip
     assert rows["eval.eval_every"].range.startswith("This run has about ")
 
@@ -221,5 +221,5 @@ def test_allowed_values_are_read_from_the_config():
     assert views.allowed("train.epochs") == "1 or more"
     assert views.allowed("train.lora.dropout") == "0 to just under 1"
     assert views.allowed("train.lora_lr") == "more than 0"
-    assert views.allowed("train.max_length") == "256 to 16,384"
+    assert views.allowed("train.max_length") == "256 to 262,144"
     assert views.allowed("eval.early_stopping_patience") == "1 or more, or empty"

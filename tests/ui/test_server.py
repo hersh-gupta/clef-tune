@@ -232,7 +232,7 @@ def test_settings_show_the_estimate_and_update_in_place(client):
         "/settings/field", data={"path": "train.max_length", "value": "100"}, headers=SCRIPT
     )
     row = bad.text.split('value="train.max_length"')[1].split("</form>")[0]
-    assert 'class="err"' in row and "Use a whole number: 256 to 16,384." in row
+    assert 'class="err"' in row and "Use a whole number: 256 to 262,144." in row
     typo = client.post(
         "/settings/field", data={"path": "train.lora_lr", "value": "fast"}, headers=SCRIPT
     )
@@ -258,7 +258,7 @@ def test_advanced_settings_explain_themselves(client):
     sample(client)
     page = client.get("/settings").text
     assert "Usually 8–64" in page and 'aria-label="About Adapter size"' in page
-    assert "Allowed: 256 to 16,384." in page
+    assert "Allowed: 256 to 262,144." in page
     assert "data.eval_fraction" not in page
 
 

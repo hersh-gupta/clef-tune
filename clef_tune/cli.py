@@ -283,6 +283,14 @@ DataArg = Annotated[Path, typer.Argument(exists=True, dir_okay=False, help="CSV 
 NoCalibrationOpt = Annotated[
     bool, typer.Option("--no-calibration", help="Do not apply the stored temperatures.")
 ]
+MaxLengthOpt = Annotated[
+    int | None,
+    typer.Option(
+        "--max-length",
+        min=256,
+        help="Read prompts up to this many tokens (default: the limit the model trained with).",
+    ),
+]
 
 
 def _looks_like_path(value: str) -> bool:
@@ -296,7 +304,7 @@ def _looks_like_path(value: str) -> bool:
     )
 
 
-def _load_predictor(adapter: str, base_model: Path | None = None):
+def _load_predictor(adapter: str, base_model: Path | None = None, max_length: int | None = None):
     path = Path(adapter).expanduser()
     if not path.is_dir() and _looks_like_path(adapter):
         raise _fail(f"adapter directory not found: {escape(str(path))}")
@@ -306,8 +314,8 @@ def _load_predictor(adapter: str, base_model: Path | None = None):
     source = str(path) if path.is_dir() else adapter
     try:
         if base_model is not None:
-            return Predictor.load(source, base_model_path=base_model)
-        return Predictor.load(source)
+            return Predictor.load(source, base_model_path=base_model, max_length=max_length)
+        return Predictor.load(source, max_length=max_length)
     except (HubError, ClefCodeError, OSError, ValueError) as exc:
         where = "" if path.is_dir() else f" (no local directory {adapter!r}; tried the Hub)"
         raise _fail(f"Could not load the adapter{escape(where)}: {escape(str(exc))}") from exc
@@ -321,6 +329,7 @@ def evaluate(
         Path | None, typer.Option("--output", help="Write the metrics report as JSON.")
     ] = None,
     no_calibration: NoCalibrationOpt = False,
+    max_length: MaxLengthOpt = None,
 ) -> None:
     """Evaluate an adapter on a labeled file."""
     from clef_tune.calibration import expected_calibration_error, softmax
@@ -329,7 +338,7 @@ def evaluate(
     from clef_tune.encoding import prepare_items
     from clef_tune.evaluation import predict_logits, summarize_eval
 
-    predictor = _load_predictor(adapter)
+    predictor = _load_predictor(adapter, max_length=max_length)
     try:
         loaded = load_file(predictor.info.config, str(data.resolve()))
     except (ValueError, OSError) as exc:
@@ -425,11 +434,12 @@ def predict(
         Path | None,
         typer.Option(help="A local copy of the base model (default: the adapter's own)."),
     ] = None,
+    max_length: MaxLengthOpt = None,
 ) -> None:
     """Predict answers for a data file."""
     from clef_tune.hub import HubError
 
-    predictor = _load_predictor(adapter, base_model=base_model)
+    predictor = _load_predictor(adapter, base_model=base_model, max_length=max_length)
     from clef_tune.predictor import predict_file
 
     try:

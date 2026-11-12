@@ -106,3 +106,21 @@ def test_predict_file_ignores_a_bad_label_cell(adapter, tmp_path):
     (tmp_path / "in.csv").write_text(text, encoding="utf-8")
     predictor = Predictor.load(adapter, device="cpu")
     assert predict_file(predictor, tmp_path / "in.csv", tmp_path / "out.jsonl") == 3
+
+
+def test_a_predictor_can_read_longer_prompts_than_training_did(adapter):
+    trained = Predictor.load(adapter, device="cpu")
+    longer = Predictor.load(adapter, device="cpu", max_length=trained.max_length * 4)
+    request = {
+        "model": "m",
+        "state": {"body": "the site is down " * trained.max_length},
+        "questions": {"spam": {"type": "noul"}},
+    }
+    cut = trained.systemone(request)["usage"]["input_tokens"]
+    whole = longer.systemone(request)["usage"]["input_tokens"]
+    assert cut <= trained.max_length < whole <= longer.max_length
+
+
+def test_a_predictor_refuses_a_limit_outside_what_the_model_reads(adapter):
+    with pytest.raises(ValueError, match="max_length must be 256 to 262,144"):
+        Predictor.load(adapter, device="cpu", max_length=100)

@@ -19,6 +19,11 @@ PINNED_REVISIONS = {
     "Cloudflare/clef-flash": "f0b7d3cd65296abfe459e6c228b618f5d8b26d2f",
 }
 
+# The longest prompt Clef's backbone has positions for (its `max_position_embeddings`). Clef's
+# own encoder only defaults to 16,384. Whether a prompt this long fits in memory is for the
+# estimate to say, not this limit.
+MAX_PROMPT_TOKENS = 262144
+
 PRESETS: dict[str, dict[str, Any]] = {
     "quick": {
         "train.mode": "head_only",
@@ -89,7 +94,7 @@ class TrainSection(_Section):
     lora_lr: float = Field(1e-4, gt=0)
     head_lr: float = Field(5e-5, gt=0)
     epochs: int = Field(3, ge=1)
-    max_length: int = Field(4096, ge=256, le=16384)
+    max_length: int = Field(4096, ge=256, le=MAX_PROMPT_TOKENS)
     max_tokens_per_batch: int = Field(16384, ge=256)
     grad_accum_steps: int = Field(4, ge=1)
     warmup_ratio: float = Field(0.03, ge=0, lt=1)

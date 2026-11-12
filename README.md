@@ -92,6 +92,10 @@ clef-tune eval out/<run>/final labeled.csv
 clef-tune export out/<run>/final --merge -o merged
 ```
 
+A model reads prompts up to the length it trained with (`train.max_length`, at most 262,144
+tokens). `predict` and `eval` take `--max-length` to read longer ones; longer prompts need more
+GPU memory, and `clef-tune estimate` counts the longest prompt when it says what fits.
+
 On Linux, the linear-attention kernels make training much faster. Build them against the torch
 you already have, because an isolated build makes model loading crash:
 

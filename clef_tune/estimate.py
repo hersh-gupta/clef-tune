@@ -132,6 +132,11 @@ class Workload:
     lora_r: int
     gradient_checkpointing: bool = True
     kernels: bool = True  # the fast attention kernels; see cannot_train
+    longest_prompt: int = 0  # a prompt is never split, so one this long is a batch on its own
+
+    @property
+    def largest_batch(self) -> int:
+        return max(self.max_tokens_per_batch, self.longest_prompt)
 
 
 def optimizer_steps(config: Config, tokens: TokenStats) -> int:
@@ -156,10 +161,11 @@ def workload_from(config: Config, tokens: TokenStats, *, kernels: bool = True) -
         lora_r=train.lora.r,
         gradient_checkpointing=train.gradient_checkpointing,
         kernels=kernels,
+        longest_prompt=tokens.max,
     )
 
 
-def prediction_workload(config: Config, tokens: int) -> Workload:
+def prediction_workload(config: Config, tokens: int, longest_prompt: int = 0) -> Workload:
     """One forward pass over `tokens` prompt tokens: training_flops then counts only the
     evaluation term, and the memory is a frozen (head-only) model's."""
     train = config.train
@@ -173,6 +179,7 @@ def prediction_workload(config: Config, tokens: int) -> Workload:
         max_tokens_per_batch=train.max_tokens_per_batch,
         lora_r=train.lora.r,
         gradient_checkpointing=train.gradient_checkpointing,
+        longest_prompt=longest_prompt,
     )
 
 
@@ -201,7 +208,7 @@ def memory_needed_gb(model: ModelSpec, workload: Workload, quantization: str) ->
         per_layer = 3 * (model.hidden + model.intermediate) + 8 * model.hidden
         lora_params = workload.lora_r * model.layers * per_layer
     trainable = (lora_params + model.head_params) * 16  # fp32 weights + grads + two Adam moments
-    tokens = workload.max_tokens_per_batch
+    tokens = workload.largest_batch
     layer_working_set = tokens * (18 * model.hidden + 4 * model.intermediate) * 2
     if workload.mode == "head_only":
         activations = layer_working_set
@@ -327,7 +334,11 @@ def _largest_batch(model: ModelSpec, workload: Workload, memory_gb: float) -> in
     """The largest max_tokens_per_batch that fits, rounded down to a thousand. Memory grows in a
     straight line with the batch."""
     empty, one = (
-        memory_needed_gb(model, replace(workload, max_tokens_per_batch=t), workload.quantization)
+        memory_needed_gb(
+            model,
+            replace(workload, max_tokens_per_batch=t, longest_prompt=0),
+            workload.quantization,
+        )
         for t in (0, 1)
     )
     return int((memory_gb - empty) / (one - empty)) // 1000 * 1000
@@ -347,6 +358,11 @@ def no_hardware_message(model: ModelSpec, workload: Workload) -> str:
         f"{need:.0f} GB of memory, and the largest has {largest:.0f} GB."
     )
     tokens = _largest_batch(model, workload, largest)
+    if tokens > 0 and workload.longest_prompt > workload.max_tokens_per_batch:
+        return (
+            f"{problem} The longest prompt alone is {workload.longest_prompt:,} tokens. "
+            f"Lower the prompt length (train.max_length) to {tokens:,} or less."
+        )
     if tokens > 0:
         return (
             f"{problem} Lower the tokens per batch (train.max_tokens_per_batch) "

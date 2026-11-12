@@ -383,7 +383,8 @@ ADVANCED_FIELDS: tuple[FieldSpec, ...] = (
         "train.max_length",
         "Max prompt length",
         "int",
-        help="Prompts longer than this (256–16384 tokens) have their state cut to fit.",
+        help="Prompts longer than this many tokens have their state cut to fit. Longer "
+        "prompts need more memory.",
     ),
     FieldSpec(
         "train.max_tokens_per_batch",

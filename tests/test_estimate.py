@@ -202,3 +202,30 @@ def test_when_a_smaller_batch_cannot_help_the_message_says_what_can():
 def test_without_the_kernels_the_largest_gpu_counts_again():
     message = est.no_hardware_message(CLEF, workload(max_tokens_per_batch=300_000, kernels=False))
     assert "141 GB" in message
+
+
+def test_one_long_prompt_sets_the_memory_even_when_the_batch_is_smaller():
+    # A prompt is never split across batches, so the longest one is a batch on its own.
+    long = est.memory_needed_gb(CLEF, workload(longest_prompt=65536), "none")
+    assert long == est.memory_needed_gb(CLEF, workload(max_tokens_per_batch=65536), "none")
+    short = est.memory_needed_gb(CLEF, workload(longest_prompt=1000), "none")
+    assert short == est.memory_needed_gb(CLEF, workload(), "none")
+
+
+def test_the_workload_carries_the_longest_prompt(tmp_path):
+    cfg = make_config(tmp_path, data={"train": "t.csv"}, train={"max_length": 40_000})
+    tokens = TokenStats(train_lengths=[1000, 40_000], eval_lengths=[1000], truncated_rows=0)
+    assert est.workload_from(cfg, tokens).largest_batch == 40_000
+    assert est.prediction_workload(cfg, 1000, longest_prompt=50_000).largest_batch == 50_000
+    assert est.prediction_workload(cfg, 1000).largest_batch == cfg.train.max_tokens_per_batch
+
+
+def test_a_prompt_too_long_for_every_usable_gpu_is_told_to_shorten_it():
+    big = workload(longest_prompt=65536)
+    assert est.recommend(est.estimate_hf_flavors(CLEF, big, {})) is None
+    message = est.no_hardware_message(CLEF, big)
+    assert "65,536 tokens" in message and "train.max_length" in message
+    assert "train.max_tokens_per_batch" not in message
+    tokens = int(re.search(r"to ([0-9,]+) or less", message).group(1).replace(",", ""))
+    shorter = workload(longest_prompt=tokens)
+    assert est.recommend(est.estimate_hf_flavors(CLEF, shorter, {})) is not None

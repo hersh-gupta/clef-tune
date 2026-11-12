@@ -1,7 +1,13 @@
 import pytest
 from pydantic import ValidationError
 
-from clef_tune.config import PINNED_REVISIONS, Config, config_hash, load_config
+from clef_tune.config import (
+    MAX_PROMPT_TOKENS,
+    PINNED_REVISIONS,
+    Config,
+    config_hash,
+    load_config,
+)
 
 MINIMAL = """\
 run_name: demo
@@ -161,3 +167,13 @@ def test_hash_ignores_the_row_noun(tmp_path):
         {**cfg.to_dict(), "data": {**cfg.to_dict()["data"], "row_noun": "ticket"}}
     )
     assert config_hash(named) == config_hash(cfg)
+
+
+def test_a_prompt_can_be_as_long_as_the_backbone_has_positions_for():
+    def with_length(tokens):
+        data = {"run_name": "t", "data": {"train": "t.csv"}, "train": {"max_length": tokens}}
+        return Config.model_validate(data)
+
+    assert with_length(MAX_PROMPT_TOKENS).train.max_length == 262_144
+    with pytest.raises(ValidationError, match="max_length"):
+        with_length(MAX_PROMPT_TOKENS + 1)

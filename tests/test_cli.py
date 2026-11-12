@@ -336,3 +336,21 @@ def test_the_ui_command_serves_the_web_app(monkeypatch):
 def test_the_ui_help_warns_what_serving_the_network_means():
     result = runner.invoke(cli.app, ["ui", "--help"], env={"COLUMNS": "200"})
     assert result.exit_code == 0 and "Hugging Face login" in result.output
+
+
+def test_predict_and_eval_can_read_longer_prompts_than_training_did(monkeypatch, tmp_path):
+    loaded = []
+
+    def load(path, **kwargs):
+        loaded.append(kwargs.get("max_length"))
+        return "predictor"
+
+    fake_predictor(monkeypatch, load=load, predict_file=lambda *args, **kwargs: 2)
+    data = write_csv(tmp_path / "in.csv", ticket_rows(2))
+    command = ["predict", "me/repo", str(data), "-o", str(tmp_path / "p.jsonl")]
+    assert runner.invoke(cli.app, command).exit_code == 0
+    result = runner.invoke(cli.app, [*command, "--max-length", "65536"])
+    assert result.exit_code == 0, result.output
+    assert loaded == [None, 65536]
+    too_short = runner.invoke(cli.app, ["eval", "me/repo", str(data), "--max-length", "100"])
+    assert too_short.exit_code == 2 and loaded == [None, 65536]
