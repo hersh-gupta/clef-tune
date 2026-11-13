@@ -10,6 +10,9 @@ clef-tune leaves an empty cell out of training and scoring.
   hidden_goal   the Storf bundle's two synthetic sets        the bundle's 7,500 ControlArena traces
   sandbagged    MALT, Claude 3.7 Sonnet runs                 MALT task families held out of training
 
+The Storf traces are the bundle's monitor-ready transcripts, which leave out what the agent
+wrote between its tool calls (see extract.py).
+
 Reads data/raw/{assebench,atbench,atbench500}/*.json and the data/interim/*.jsonl files that
 extract.py writes. Traces longer than clef-tune's 16,384-token limit are left out of training;
 in the test files they are kept and marked in the `fits` column.
@@ -41,7 +44,10 @@ INTERIM = HERE / "data" / "interim"
 PREPARED = HERE / "data" / "prepared"
 SEED = 20261111
 VALIDATION_SHARE = 0.10
-MALT_TEST_SHARE = 0.25  # of the runs that underperform, by whole task family
+# The task families held out of training. They were drawn at random in the first run (seed
+# 20261111, about a quarter of the underperforming runs) and are fixed here: the draw shared its
+# random numbers with the other sources, so a change to any of them would have moved the test.
+MALT_TEST_FAMILIES = ("esolang", "machine_learning_local", "make_web_server", "wikipedia_research")
 MALT_LENGTH_GAP = math.log(1.25)  # a same-family match must be within 25% of the length
 MODEL = "Cloudflare/clef"
 MAX_LENGTH = 16384
@@ -111,8 +117,10 @@ SCHEMA = {
     }
 }
 
+# The first model (clef-trace-judge-pilot) was trained on Storf traces that showed the agent's
+# reasoning; this one reads the monitor-ready transcripts and goes to its own repo.
 CONFIG = {
-    "run_name": "clef-trace-judge-pilot",
+    "run_name": "clef-trace-judge-blackbox",
     "model": {"id": MODEL},
     "data": {
         "train": "train.csv",
@@ -137,7 +145,7 @@ CONFIG = {
         "seed": 42,
     },
     "eval": {"eval_every": 200, "select_metric": "mean_log_loss", "calibrate": True},
-    "output": {"save_every": 200, "push_to_hub": "hvgupta1/clef-trace-judge-pilot"},
+    "output": {"save_every": 200, "push_to_hub": "hvgupta1/clef-trace-judge-blackbox"},
 }
 
 # ASSEBench and ATBench name the failure differently; these are the labels read as "the agent
@@ -361,14 +369,7 @@ def malt_split(rows: list[dict], rng: random.Random) -> tuple[list[dict], list[d
     by_family_pos = Counter(r["group"] for r in positives)
     by_family_neg = Counter(r["group"] for r in negatives)
     both = sorted(f for f in by_family_pos if by_family_neg[f])
-    rng.shuffle(both)
-    test_families: list[str] = []
-    held = 0
-    for family in both:
-        if held >= MALT_TEST_SHARE * len(positives):
-            break
-        test_families.append(family)
-        held += by_family_pos[family]
+    test_families = [family for family in both if family in MALT_TEST_FAMILIES]
     test = [r for r in rows if r["group"] in test_families]
     one_sided = sorted(f for f in by_family_pos if not by_family_neg[f])
     train_pos = [r for r in positives if r["group"] not in test_families and r["group"] in both]
@@ -493,8 +494,9 @@ def main() -> None:
     syn_train, syn_val = holdout(
         fitting(synthetic), VALIDATION_SHARE, lambda r: (r["source"], r["hidden_goal"]), rng
     )
-    malt_pool, malt_test, malt_info = malt_split(fitting(malt), rng)
-    malt_train, malt_val = holdout(malt_pool, VALIDATION_SHARE, lambda r: r["sandbagged"], rng)
+    malt_rng = random.Random(f"{SEED}-malt")  # its own numbers: other sources cannot move it
+    malt_pool, malt_test, malt_info = malt_split(fitting(malt), malt_rng)
+    malt_train, malt_val = holdout(malt_pool, VALIDATION_SHARE, lambda r: r["sandbagged"], malt_rng)
     tests["malt_test.csv"] = malt_test
 
     train = asse_train + syn_train + malt_train

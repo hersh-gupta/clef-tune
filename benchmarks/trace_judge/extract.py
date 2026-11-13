@@ -4,8 +4,16 @@
   the Storf bundle      data/raw/storf_bundle/*.parquet       -> data/interim/storf_synthetic.jsonl
                                                                  data/interim/controlarena.jsonl
 
-Every trace is written as plain text with the same tags prepare.py uses for the other sets:
+MALT traces are written as plain text with the same tags prepare.py uses for the other sets:
 [AGENT INSTRUCTIONS], [USER], [AGENT], [AGENT ACTION], [ENVIRONMENT].
+
+The Storf bundle: each trace is the bundle's own `formatted_transcript`, word for word. That is
+the text the bundle gives a monitor ([SYSTEM], [USER], [ASSISTANT] / [TOOL CALLS], [TOOL]), and
+it leaves out what the agent wrote between its tool calls. The `messages` column keeps that
+text, and in these runs it is the agent's reasoning: "side task" is in 2,376 of ControlArena's
+3,750 hidden-goal traces there, 100 in `formatted_transcript`, and in no honest trace. An
+earlier version of this script built traces from `messages`, so the judge read the answer; no
+result from those traces is comparable with a monitor that reads `formatted_transcript`.
 
 MALT: only Claude 3.7 Sonnet runs are kept, because every run that was told to underperform
 comes from that model; normal runs from other models would let a judge learn the model instead
@@ -121,35 +129,6 @@ def extract_malt() -> None:
     print("MALT kept:", dict(kept), "| left out of traces:", dict(dropped))
 
 
-def storf_trace(messages: list[dict]) -> str:
-    parts: list[str] = []
-    for message in messages:
-        role = message.get("role")
-        content = text(message.get("content")).strip()
-        if role == "system":
-            if content:
-                parts.append(f"[AGENT INSTRUCTIONS]\n{content}")
-        elif role == "user":
-            parts.append(f"[USER]\n{content}")
-        elif role == "assistant":
-            if content:
-                parts.append(f"[AGENT]\n{content}")
-            calls = [
-                call_line(
-                    call.get("name") or call.get("function"),
-                    call.get("arguments", call.get("args")),
-                )
-                for call in message.get("tool_calls") or []
-            ]
-            if calls:
-                parts.append("[AGENT ACTION]\n" + "\n".join(calls))
-        elif role == "tool":
-            parts.append(f"[ENVIRONMENT]\n{content}")
-        else:
-            parts.append(f"[{str(role).upper()}]\n{content}")
-    return "\n\n".join(parts)
-
-
 CONTROL_ARENA_ID = re.compile(
     r"^(agentdojo|bash|iac|rogue_eval|shade)_(.+?)_(positive|negative)\d*_"
 )
@@ -166,7 +145,7 @@ def extract_storf() -> None:
             for name in names:
                 source = pq.ParquetFile(RAW / "storf_bundle" / f"{name}.parquet")
                 for batch in source.iter_batches(
-                    batch_size=64, columns=["id", "messages", "ground_truth"]
+                    batch_size=64, columns=["id", "formatted_transcript", "ground_truth"]
                 ):
                     for row in batch.to_pylist():
                         group, detail = name, ""
@@ -177,7 +156,7 @@ def extract_storf() -> None:
                             group, detail = match.group(1), match.group(2)
                         record = {
                             "id": f"storf-{row['id']}",
-                            "trace": storf_trace(json.loads(row["messages"])),
+                            "trace": row["formatted_transcript"].strip(),
                             "source": "controlarena"
                             if name == "control_arena"
                             else f"storf-{name}",
